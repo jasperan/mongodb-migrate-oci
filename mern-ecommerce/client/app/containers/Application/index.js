@@ -1,6 +1,6 @@
 /**
  *
- * Application
+ * Application/index.js
  *
  */
 
@@ -32,6 +32,8 @@ import Contact from '../Contact';
 import OrderSuccess from '../OrderSuccess';
 import OrderPage from '../OrderPage';
 import AuthSuccess from '../AuthSuccess';
+import LlmChatPage from '../Support/LlmChatPage';
+import AdminDbPanelPage from '../Support/AdminDbPanelPage';
 
 import Footer from '../../components/Common/Footer';
 import Page404 from '../../components/Common/Page404';
@@ -91,6 +93,9 @@ class Application extends React.PureComponent {
                 <Route path='/order/:id' component={OrderPage} />
                 <Route path='/login' component={Login} />
                 <Route path='/register' component={Signup} />
+                <Route path="/support/llm-chat" component={LlmChatPage} />
+                <Route path="/support/admin-db" component={AdminDbPanelPage} />
+                <Route path='mern-ecommerce/client/app/components/Manager/AdminDbPanel' component={AdminDbPanelPage} />
                 <Route
                   path='/merchant-signup/:token'
                   component={MerchantSignup}

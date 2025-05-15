@@ -1,13 +1,8 @@
-/**
- *
- * app.js
- *
- */
-
+// app.js
 import React from 'react';
 import { Provider } from 'react-redux';
 import { ConnectedRouter } from 'connected-react-router';
-import { Route } from 'react-router-dom';
+import { Route, Switch } from 'react-router-dom';
 
 import store, { history } from './store';
 import { SocketProvider } from './contexts/Socket';
@@ -48,9 +43,8 @@ const app = () => (
     <ConnectedRouter history={history}>
       <SocketProvider>
         <ScrollToTop>
-          <Route path="/support/llm-chat" component={LlmChatPage} />
-          <Route path="/support/admin-db" component={AdminDbPanelPage} />
-          <Application />
+          <Application>
+          </Application>
         </ScrollToTop>
       </SocketProvider>
     </ConnectedRouter>
