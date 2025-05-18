@@ -1,0 +1,30 @@
+{
+  "cartitems": [
+    {
+      "product": "68252aa00200de17ccc48b12",
+      "quantity": 1,
+      "purchasePrice": 0,
+      "totalPrice": 0,
+      "priceWithTax": 0,
+      "totalTax": 0,
+      "status": "Not processed"
+    }
+  ],
+  "wishlists": [
+    {
+      "product": "68252aa00200de17ccc48b12",
+      "user": "68252a9f0200de17ccc48afd",
+      "isLiked": true,
+      "created": "2024-01-01T00:00:00.000Z",
+      "updated": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "contacts": [
+    {
+      "name": "Test Contact",
+      "email": "mycontact@example.com",
+      "message": "This is a test contact.",
+      "created": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+} 
