@@ -18,15 +18,15 @@ exports.getStoreProductsQuery = (min, max, rating) => {
 
   const basicQuery = process.env.MONGO_URI.includes('loadBalanced') ? [
     {
-      /* $lookup: {
+       $lookup: {
         from: 'brands',
         localField: 'brand',
         foreignField: '_id',
         as: 'brands'
-      }*/
-      $sql: `select json_mergepatch(i.data, json_object('brands' : json_array(b.data returning json) returning json))
+      }
+      /*$sql: `select json_mergepatch(i.data, json_object('brands' : json_array(b.data returning json) returning json))
  from input i 
-left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
+left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`*/
     },
     {
       $unwind: {
@@ -47,13 +47,13 @@ left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
       }
     },
     {
-      /*$lookup: {
+      $lookup: {
         from: 'reviews',
         localField: '_id',
         foreignField: 'product',
         as: 'reviews'
-      }*/
-      $sql: `select json_mergepatch(i.data, json_object('reviews': json_array(r.data returning json) returning json)) from "Q6" i left outer join reviews r on i.data."_id".idOnly() = r.data.product.idOnly()`
+      }
+      /*$sql: `select json_mergepatch(i.data, json_object('reviews': json_array(r.data returning json) returning json)) from "Q6" i left outer join reviews r on i.data."_id".idOnly() = r.data.product.idOnly()`*/
     },
     {
       $addFields: {
@@ -169,7 +169,7 @@ exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
 
   const wishListQuery = process.env.MONGO_URI.includes('loadBalanced') ? [
     {
-      /*      $lookup: {
+            $lookup: {
               from: 'wishlists',
               left: { product: '$_id' },
               pipeline: [
@@ -184,8 +184,8 @@ exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
               ],
               as: 'isLiked'
             }
-          */
-      $sql: `select json_mergepatch(i.data, json_object('isLiked':w.is_liked returning json) ) from "` + alias + `" i left outer join wishlists_root w on i.data."_id" = w.product and w.ora$user = hextoraw('` + new Mongoose.Types.ObjectId(userId) + `')`
+          
+      /*$sql: `select json_mergepatch(i.data, json_object('isLiked':w.is_liked returning json) ) from "` + alias + `" i left outer join wishlists_root w on i.data."_id" = w.product and w.ora$user = hextoraw('` + new Mongoose.Types.ObjectId(userId) + `')`*/
     }/*,
     {
       $addFields: {
