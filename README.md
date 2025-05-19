@@ -2,6 +2,18 @@
 
 [![License: UPL](https://img.shields.io/badge/license-UPL-green)](https://img.shields.io/badge/license-UPL-green) [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=oracle-devrel_test)](https://sonarcloud.io/dashboard?id=oracle-devrel_test)
 
+## Introduction
+
+MERN (MongoDB, Express.js, React, Node.js) is a popular full-stack JavaScript framework that has gained widespread adoption in modern web development. This architecture is particularly favored for its ability to use JavaScript throughout the entire application stack, from frontend to backend, creating a seamless development experience.
+
+The popularity of MERN stems from several key factors:
+- **JavaScript**: Using JavaScript across the entire stack eliminates context switching between different programming languages, making development more efficient and reducing the learning curve for developers.
+- **Component-Based Architecture** (modularity): React's component-based approach enables reusable UI elements and efficient state management, leading to more maintainable and scalable applications.
+- **Flexible Data Storage**: MongoDB's document-based structure provides flexibility in data modeling, making it ideal for rapidly evolving applications and agile development practices.
+- **Robust Backend**: Express.js and Node.js provide a powerful, `event`-driven backend that can handle high concurrency and real-time features effectively.
+
+Therefore, developing an application using the MERN architecture is beneficial, as development cycles are shorter (highly scalable, because each component can be developed and tested independently), and this architecture naturally supports real-time features through WebSocket integration and event-driven programming, which makes the architecture comfortable to work with.
+
 ## Overview
 This project is a full-featured MERN ecommerce application, enhanced with:
 - **Oracle Autonomous JSON Database** for all data storage and vector search
@@ -10,46 +22,56 @@ This project is a full-featured MERN ecommerce application, enhanced with:
 
 ## Architecture
 
-```
+```bash
 [User]
   |
-[React Chat UI] <--> [Express API: /api/llm-chat] <--> [Oracle 23ai Vector Search]
+[React Chat UI] <--> [Express API] <--> [Oracle 23ai Vector Search]
                                                     |
                                                 [Ollama LLM API]
 ```
-- All product, review, and user data is stored in Oracle Autonomous JSON Database 23ai.
-- Vector search is performed in Oracle using SQL with `vector_distance` and `text_embedding`.
+- All product, review, and user data is initially stored in a `mongodb` database, while we provide easy migration steps to transition to Oracle Autonomous JSON Database 23ai. This way, users will benefit from all 23ai features, including self maintenance and integrated in-database LLMs.
+- Vector search is performed in-database with `vector_distance` and `text_embedding` functions.
 - The LLM chat endpoint retrieves relevant context from Oracle, then calls the Ollama API for a response.
 
 ## Key Features
 - **Ecommerce flows:** Buyer, seller, and admin roles
 - **Product, order, review, wishlist, and more** (see [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md))
 - **LLM Chat with RAG:**
-  - Accessible at `/support/llm-chat` in the frontend
-  - Uses Oracle vector search for context
-  - Calls Ollama LLM API for answers
+  - Accessible at `/support/llm-chat` in the frontend through the Express API
+  - Uses Oracle vector search for context retrieval and RAG-based generations
+  - Calls Ollama LLM API to retrieve answers.
 - **Modern, modular MERN codebase**
 
 ## Prerequisites
-- Node.js 18+
-- Oracle Autonomous JSON Database 23ai (with required collections)
+- `node.js` 18+ and `npm`
+- A `mongodb` database running
+- `mongodump` and `mongorestore` utilities installed where you're planning to run the migration from
+- Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled
 - Ollama API deployed and accessible (set `OLLAMA_API_URL`)
+- Python environment with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
 
-## Local Development Setup (No Docker Compose)
+## Local Development Setup
 
+First, we will install the requirements needed to run the `MERN` application.
 
 ### 1. Backend Setup
 
-First, install npm dependencies:
+First, install `npm` dependencies:
 
-```sh
+```bash
 cd mern-ecommerce/server
 npm install
 ```
 
-Then, create a `.env` file in the `server/` directory with at least the following environment variables:
+![db connection](./img/db_connection.png)
 
-```sh
+Then, create a `.env` file in the `server/` directory with at least the following environment variables. Make sure to specify these ones as best you can, considering these notes:
+- `ORACLE_CONNECT_STRING` variables can be obtained from the Autonomous Database `Database Connections` tab
+- `OLLAMA_API_URL`: this will be used to communicate with an `ollama` inferencing server, so if you're planning to run the AI part of this solution, specify your ollama endpoint.
+- `MONGO_URI`: URI for your initial `mongodb` database, from where you want to perform the migration from.
+- `CLIENT_URL`: set to `http://localhost:8080` as constant.
+
+```bash
 ORACLE_USER=your_oracle_user
 ORACLE_PASSWORD=your_oracle_password
 ORACLE_CONNECT_STRING=your_oracle_connect_string
@@ -61,11 +83,11 @@ BASE_API_URL=api
 CLIENT_URL=http://localhost:8080
 ```
 
-> You can generate your own JWT_SECRET or invent your own using a random string. This will be used for authentication purposes within the MERN app
+> You can generate your own JWT_SECRET or invent your own using a random string. This will be used for authentication purposes within the MERN app.
 
-Finally, once our MongoDB instance is running, we can seed it with new data:
+Finally, once our MongoDB instance is running, we can seed it with new data. The following command will add an administrator account which will let us login through the front-end:
 
-```sh
+```bash
 npm run seed:db admin@example.com admin123 && npm start
 # this creates an admin account so you can use it to manage the app.
 # format: email password
@@ -73,14 +95,20 @@ npm run seed:db admin@example.com admin123 && npm start
 
 ### 2. Frontend Setup
 
-First, install dependencies:
+1. Install npm dependencies:
 
-```sh
-cd mern-ecommerce/client
-npm install
-```
+  ```bash
+  cd mern-ecommerce/client
+  npm install
+  ```
 
-The frontend will be available at port 8080, [here](http://localhost:8080) by default (or as configured).
+2. Create a `.env` file in the `client/` directory with the following content:
+
+  ```bash
+  API_URL=http://localhost:3000/api
+  ```
+
+Now, we're ready to run the MERN app, which will be connected to the MongoDB API URI we specified in `./server/.env`.
 
 ### 3. Run the MERN app
 
@@ -90,19 +118,7 @@ Run the following command to start a development environment (what we need):
 npm run dev
 ```
 
-### 3. LLM Chat Feature
-- The LLM chat UI is available at `/support/llm-chat` in the frontend.
-- Ensure your Ollama API is running and accessible at the URL specified in `OLLAMA_API_URL`.
-- The backend will call the Ollama API for chat completions using the context retrieved from your Oracle JSON collections.
-
-## LLM Chat API (Backend)
-- **POST `/api/llm-chat/message`**
-  - Request: `{ "message": "How do I find shoes similar to these?" }`
-  - Response: `{ "response": "...", "context": [ ... ] }`
-- See [docs/ai-analytics/llm-chat.md](docs/ai-analytics/llm-chat.md) for architecture and details.
-
-## Data Model
-- See [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md) for all collections and document structures (now stored in Oracle JSON DB).
+The frontend will be available at port 8080, [here](http://localhost:8080) by default (or as configured).
 
 ## End-to-End Migration: MongoDB to Oracle Autonomous JSON DB
 
@@ -162,7 +178,7 @@ Through the OCI Console, (if you haven't already) enable the MongoDB API tool/pl
 
 ![db connection](./img/db_connection.png)
 
-- Copy this URI and put it into your `.env` file, with the URI you extracted. Make sure to also change your USER, PASSWORD and CONNECT_STRINGs from the `Connections` tab.
+- Copy this URI and put it into your `.env` file, with the URI you extracted. Make sure to also change your USER, PASSWORD and CONNECT_STRING from the `Connections` tab.
   ```env
   MONGO_URI=mongodb://<oracle_host>:27017/ecommerce?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true
   ORACLE_USER=ecommerce
@@ -210,6 +226,10 @@ You can use the `scripts/mongoContainerUtils.sh` script to interact with your Mo
   ```sh
   ./scripts/mongoContainerUtils.sh exciting_rubin
   ```
+
+## Annex: Data Model
+
+- See [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md) for all collections and document structures (now stored in Oracle JSON DB).
 
 ## Contributing
 
