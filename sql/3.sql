@@ -29,7 +29,7 @@ begin
   for c in (
     select table_name
       from all_tables
-     where owner = 'ECOMMERCE'
+     where owner = 'ECOMMERCE' and table_name != 'DBTOOLS$EXECUTION_HISTORY'
      order by 1
   ) loop
     begin
