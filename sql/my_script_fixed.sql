@@ -49,7 +49,7 @@ CREATE TABLE addresses_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ADDRESSES AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "addresses" AS 
 addresses_root @insert @update @delete
 { 
   "__v"
@@ -87,7 +87,7 @@ ALTER TABLE brands_root
 ADD CONSTRAINT fk_brands_root_to_brands_root_subentity_1 FOREIGN KEY ("__v_brands_root_subentity_1") REFERENCES brands_root_subentity_1("__v") DEFERRABLE;
 CREATE INDEX IF NOT EXISTS fk_brands_root_to_brands_root_subentity_1_index ON brands_root("__v_brands_root_subentity_1");
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW BRANDS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "brands" AS 
 brands_root @insert @update @delete
 { 
   "_id" @cast(as: id)
@@ -119,7 +119,7 @@ CREATE TABLE cartitems_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW CARTITEMS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "cartitems" AS 
 cartitems_root @insert @update @delete
 
 { 
@@ -161,7 +161,7 @@ ALTER TABLE carts_products
 ADD CONSTRAINT fk_carts_products_to_carts_root FOREIGN KEY ("_id_carts_root") REFERENCES carts_root("_id") DEFERRABLE;
 CREATE INDEX IF NOT EXISTS fk_carts_products_to_carts_root_index ON carts_products("_id_carts_root");
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW CARTS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "carts" AS 
 carts_root @insert @update @delete
 { 
   "__v"
@@ -205,7 +205,7 @@ ALTER TABLE categories_root
 ADD CONSTRAINT fk_categories_root_to_categories_root_subentity_1 FOREIGN KEY ("__v_categories_root_subentity_1") REFERENCES categories_root_subentity_1("__v") DEFERRABLE;
 CREATE INDEX IF NOT EXISTS fk_categories_root_to_categories_root_subentity_1_index ON categories_root("__v_categories_root_subentity_1");
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW CATEGORIES AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "categories" AS 
 categories_root @insert @update @delete
 { 
   "_id" @cast(as: id)
@@ -233,7 +233,7 @@ CREATE TABLE contacts_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW CONTACTS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "contacts" AS 
 contacts_root @insert @update @delete
 { 
   "_id" @cast(as: id)
@@ -262,7 +262,7 @@ business  varchar2(64)  /* UNIQUE */,
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW MERCHANTS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "merchants" AS 
 merchants_root @insert @update @delete
 { 
   "__v"
@@ -276,8 +276,7 @@ merchants_root @insert @update @delete
   isActive: is_active
   brandName: brand_name
   phoneNumber: phone_number
-  ora
-$merchants_flex @flex
+  ora$merchants_flex @flex
 }; 
 
 CREATE TABLE orders_root(
@@ -292,7 +291,7 @@ CREATE TABLE orders_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ORDERS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "orders" AS 
 orders_root @insert @update @delete
 { 
   "__v"
@@ -331,7 +330,7 @@ ADD CONSTRAINT fk_products_root_to_products_root_subentity_1 FOREIGN KEY (brand_
  DEFERRABLE;
 CREATE INDEX IF NOT EXISTS fk_products_root_to_products_root_subentity_1_index ON products_root(brand_products_root_subentity_1);
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW PRODUCTS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "products" AS 
 products_root @insert @update @delete
 { 
   "_id" @cast(as: id)
@@ -368,7 +367,7 @@ CREATE TABLE reviews_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW REVIEWS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "reviews" AS 
 reviews_root @insert @update @delete
 { 
   "__v"
@@ -401,7 +400,7 @@ CREATE TABLE users_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW USERS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "users" AS 
 users_root @insert @update @delete
 { 
   "__v"
@@ -430,7 +429,7 @@ CREATE TABLE wishlists_root(
 );
 
 
-CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW WISHLISTS AS 
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW "wishlists" AS 
 wishlists_root @insert @update @delete
 { 
   "_id" @cast(as: id)
@@ -440,7 +439,4 @@ wishlists_root @insert @update @delete
   product
   updated
   ora$wishlists_flex @flex
-}; 
-
-create json collection table "cartitems" with etag;
-create json collection table "contacts" with etag;
+};
