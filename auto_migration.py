@@ -26,7 +26,7 @@ def run_mongorestore(uri, dump_dir):
         "mongorestore",
         "--drop",
         f"--uri={uri}",
-        "--nsInclude=merndemo",
+        "--nsInclude=mern_ecommerce",
         "--writeConcern", "{w:0}",
         "--tlsInsecure",
         dump_dir
