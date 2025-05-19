@@ -1,7 +1,7 @@
 -- run as ecommercedv
 -- this will perform the migration from `ecommerce` to `ecommercedv`
--- output of this procedure: run script_fixed with your output but put drop tables and also
--- at the end of the script, copy the last 2 lines.
+-- output of this procedure: run script_fixed with your output but put drop tables so you
+-- can run it again and again without errors
 create or replace procedure print_clob_to_output (
   p_clob in clob
 ) is
@@ -19,10 +19,6 @@ begin
 end print_clob_to_output;
 /
 
-set serveroutput on size UNLIMITED
-set linesize 10000
-set long 10000
-spool script.sql;
 declare
   schema_sql clob;
 begin
@@ -71,4 +67,3 @@ exception
     raise;
 end;
 /
-spool off;
