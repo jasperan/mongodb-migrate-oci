@@ -104,45 +104,98 @@ npm run dev
 ## Data Model
 - See [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md) for all collections and document structures (now stored in Oracle JSON DB).
 
-## Data Migration: MongoDB to Oracle Autonomous JSON Database 23ai
+## End-to-End Migration: MongoDB to Oracle Autonomous JSON DB
 
-After installing and running the MERN app, you can migrate your data from MongoDB to Oracle using the provided migration script.
+This section describes the recommended workflow to migrate your MERN app data from MongoDB to Oracle Autonomous JSON Database (with MongoDB API compatibility).
 
-### Migration Script: `scripts/orclMongoMigration.sh`
+### 1. Create Oracle DB Users/Schemas
 
-This script automates the process of moving your MongoDB data into Oracle. It uses Podman to manage containers and provides a menu-driven interface for various migration and database management tasks.
+Run the following SQL as an admin user (see `sql/1.sql`). This will create two new users. The first one will be used to perform the migration, and the other one will be used to create the JSON Duality Views of these collections, which will essentially allow us to have a relational schema compatible and updated with the JSON collections that were migrated:
 
-#### What the script does (step by step):
-1. **Checks Podman installation** and starts a Podman machine if needed.
-2. **Creates or starts an Oracle Database container** (with MongoDB API support if required).
-3. **Provides menu options** for:
-   - Starting/stopping/removing the Oracle container
-   - Bash/root/SQL access to the container
-   - Installing utilities and tools
-   - Managing MongoDB and Oracle services
-   - Running the migration process
-4. **Runs the migration process**:
-   - Connects to your MongoDB instance
-   - Exports collections from MongoDB
-   - Imports collections into Oracle Autonomous JSON Database
-   - Offers verification and post-migration checks
+```sql
+-- as admin
+GRANT DB_DEVELOPER_ROLE, DWROLE, UNLIMITED TABLESPACE, SODA_APP to ecommerce identified by "password";
+GRANT DB_DEVELOPER_ROLE, DWROLE, UNLIMITED TABLESPACE, SODA_APP to ecommercedv identified by "password";
+```
 
-#### How to use the migration script:
+### 2. Export Data from MongoDB (mongodump)
 
-1. **Make the script executable:**
-   ```sh
-   chmod +x scripts/orclMongoMigration.sh
-   ```
-2. **Run the script:**
-   ```sh
-   ./scripts/orclMongoMigration.sh
-   ```
-3. **Follow the interactive menu:**
-   - Choose the options to start the Oracle container and utilities as needed
-   - Select the migration option to begin the data transfer
-   - Follow prompts for verification and post-migration steps
+From your MongoDB container or host, run:
 
-> **Tip:** The script can also be run with command-line arguments for automation. Run `./scripts/orclMongoMigration.sh help` for details.
+```sh
+mongodump --uri "mongodb://localhost:27017/mern_ecommerce?ssl=false&authSource=admin" -u <user> -p <password>
+```
+- This will create a `dump/mern_ecommerce` directory with your data.
+
+### 3. Run SQL Script to setup schema and collections
+
+- Run the scripts in the `sql/` directory as the appropriate user:
+  - `1.sql`: Grants and privileges (run as admin). This will create `ecommerce` and `ecommercedv` database users and give them permissions to access their schemas and connect to the database.
+
+### 4. Import Data to Oracle Autonomous (mongorestore)
+
+Use the MongoDB API endpoint for your Oracle Autonomous DB. Example (see `dump_restore.sh`):
+
+```sh
+mongorestore -u admin -p '<oracle_password>' --drop \
+  --uri "mongodb://<oracle_host>:27017/ecommerce?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&ssl=true" \
+  --nsInclude=mern_ecommerce \
+  --writeConcern '{w:0}' \
+  --ssl \
+  --tlsInsecure \
+  ./dump/mern_ecommerce
+```
+
+### 5. Run SQL scripts to create tables, views, collections, and JSON duality views
+
+  - `2.sql`: this script needs to run after you've performed `mongorestore`, as it requires the JSON collections to have been created beforehand. This script will grant the `select` permission to the `ecommercedv`, where we'll do our JSON Duality Views configuration.
+  - `script_fixed.sql`: Creates tables, views, and collections (run as `ecommerce`)
+  - `3.sql` and `4.sql`: Additional schema setup and error logging (see comments in scripts). Run as `ecommercedv`
+
+### 6. Start the MERN App with Oracle MongoDB API URI
+
+![tool configuration](./img/tool_configuration.png)
+
+Through the OCI Console, (if you haven't already) enable the MongoDB API tool/plugin within your Autonomous 23ai instance. Then, once enabled, you will be given a MongoDB URI, which will enable clients and drivers to connect [directly to Autonomous Database](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/mongo-using-oracle-database-api-mongodb.html):
+
+![mongodb api](./img/mongodb_api.png)
+
+![db connection](./img/db_connection.png)
+
+- Copy this URI and put it into your `.env` file, with the URI you extracted. Make sure to also change your USER, PASSWORD and CONNECT_STRINGs from the `Connections` tab.
+  ```env
+  MONGO_URI=mongodb://<oracle_host>:27017/ecommerce?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true
+  ORACLE_USER=ecommerce
+  ORACLE_PASSWORD=<oracle_password>
+  ORACLE_CONNECT_STRING=<oracle_connect_string>
+  ```
+
+- Start the backend and frontend as usual:
+
+  ```bash
+  cd mern-ecommerce
+  npm run dev
+  ```
+
+Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all the features available on Autonomous 23ai!
+
+### 6. Handle Missing Collections
+
+If you are missing any collections before `mongodump` (e.g. `addresses`, `cartitems`, `contacts`, `merchants`, `wishlists`):
+- **In MongoDB:** Create them with at least one dummy document before running `mongodump`.
+- **In Oracle:** After `mongorestore`, you can manually create empty collections using the following SQL (see end of `script_fixed.sql`):
+
+```sql
+create json collection table "cartitems" with etag;
+create json collection table "contacts" with etag;
+```
+
+Repeat for any other missing collections.
+
+## Annex
+
+See `dump_restore.sh` for example commands and `sql/` for schema scripts.
+
 
 ## MongoDB Container Admin Utility (Podman)
 
