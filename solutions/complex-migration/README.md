@@ -2,6 +2,13 @@
 
 This solution demonstrates the migration of a MERN (MongoDB, Express, React, Node.js) application with complex MongoDB features to Oracle Database.
 
+As an introduction, we will talk about three different types of ways to store data:
+- **MongoDB Collection**: The original data in your MongoDB database.
+- **Oracle MongoDB API (JSON native collection)**: The collection as seen by Oracle's MongoDB API, compatible with MongoDB drivers and tools; this is a non-relational collection
+- **Oracle JSON Duality View**: An advanced Oracle feature that provides a relational/JSON dual view of your data, enabling powerful SQL analytics and integration. This creates relational views for non-relational JSON collections! This is the main interface for data access and manipulation that we will follow in this solution.
+
+> **Note**: while the MongoDB API collections allow for MongoDB-style access, the Duality Views are the recommended way to leverage Oracle's full power for analytics, SQL, and integration.
+
 ## Overview
 
 The migration process involves:
@@ -175,6 +182,32 @@ The utility provides:
 - Error handling and recovery mechanisms
 - Support for case-insensitive collection names
 - Automatic constraint management
+
+## MongoDB Aggregation Framework & OracleDB Compatibility
+
+MongoDB introduced its own query language (MQL) for basic document queries (e.g., `db.collection.find`). However, for more advanced analytics and data processing, MongoDB created the **Aggregation Framework**, which allows users to build complex data transformations using **aggregation pipelines** (e.g., `db.collection.aggregate([...])`).
+
+Aggregation pipelines are widely used in real-world MongoDB applications for grouping, filtering, sorting, and transforming large sets of documents. Each pipeline consists of a sequence of stages (commands) such as `$match`, `$group`, `$sort`, `$lookup`, etc. This framework is unique to MongoDB and is not a database industry standard.
+
+**Migration Challenge:**
+- Many companies rely heavily on aggregation pipelines in their MongoDB workloads.
+- To support these workloads, Oracle's MongoDB API must be compatible with the aggregation framework.
+- However, MongoDB's aggregation framework is large and evolving, with many operators and features. Oracle's implementation covers the most common operators, but not all (due to resource, priority, or technical reasons).
+
+**Oracle's Approach:**
+- The MongoDB API in Oracle Autonomous Database (implemented in ORDS, a Java application) translates incoming aggregation pipelines into equivalent SQL queries.
+- These SQL queries are executed by Oracle's mature SQL engine, and the results are returned as JSON documents to the application.
+- This approach leverages Oracle's powerful SQL engine rather than building a new aggregation engine from scratch.
+
+**Limitations and Workarounds:**
+- Not all MongoDB aggregation operators are supported yet. Some may be buggy, unsupported, or not yet implemented (especially new or rarely used ones).
+- To help bridge this gap, Oracle provides a special `$sql` operator in the aggregation pipeline. This allows users to write custom SQL for cases where the MongoDB aggregation framework is not fully supported.
+- The `$sql` operator is not part of the MongoDB standard, but is provided by Oracle to help with migration and compatibility.
+
+**Summary:**
+- Most common aggregation pipelines will work out of the box, but some advanced or new operators may not be supported.
+- For unsupported cases, use the `$sql` operator to write custom SQL as part of your aggregation pipeline.
+- This hybrid approach enables most MongoDB workloads to migrate with minimal changes, while still allowing full power and flexibility of Oracle SQL when needed.
 
 ## Performance Optimization
 
