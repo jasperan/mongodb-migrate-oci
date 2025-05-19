@@ -1,4 +1,5 @@
 -- then, after running mongorestore (collections need to have been created):
+-- run as admin
 grant select on ecommerce.addresses to ecommercedv;
 grant select on ecommerce.brands to ecommercedv;
 grant select on ecommerce.cartitems to ecommercedv;
