@@ -24,5 +24,6 @@ BEGIN
 END;
 /
 
--- then, execute this after running mongorestore (collections need to have been created).
-grant select on ecommerce.addresses to ecommercedv;
+
+
+
