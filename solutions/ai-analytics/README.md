@@ -39,7 +39,7 @@ This solution uses the [MERN Ecommerce](https://github.com/mohamedsamara/mern-ec
 - Redux for state management
 - Redux Thunk for async actions
 
-## LLM Chat Feature
+### 3. LLM Chat Feature
 - The LLM chat UI is available at `/support/llm-chat` in the frontend.
 - Ensure your Ollama API is running and accessible at the URL specified in `OLLAMA_API_URL`.
 - The backend will call the Ollama API for chat completions using the context retrieved from your Oracle JSON collections.
