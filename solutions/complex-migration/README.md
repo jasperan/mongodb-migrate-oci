@@ -1,8 +1,10 @@
 # Complex App Migration
 
+## Introduction
+
 This solution demonstrates the migration of a MERN (MongoDB, Express, React, Node.js) application with complex MongoDB features to Oracle Database.
 
-As an introduction, we will talk about three different types of ways to store data:
+We will talk about three different types of ways to store data:
 - **MongoDB Collection**: The original data in your MongoDB database.
 - **Oracle MongoDB API (JSON native collection)**: The collection as seen by Oracle's MongoDB API, compatible with MongoDB drivers and tools; this is a non-relational collection
 - **Oracle JSON Duality View**: An advanced Oracle feature that provides a relational/JSON dual view of your data, enabling powerful SQL analytics and integration. This creates relational views for non-relational JSON collections! This is the main interface for data access and manipulation that we will follow in this solution.
@@ -22,166 +24,230 @@ The migration process involves:
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Oracle Database 19c or later
-- MongoDB 4.4 or later
-- Python 3.9+ (for Python migration utility)
-- Oracle Python Driver (cx_Oracle)
-- PyMongo
-- Java 17+ (for mongo2ora tool)
+- Docker or Podman to run containers
+- Oracle Database 23ai
+- Python 3.10+ (for Python migration utility) with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
+- `node.js` 18+ and `npm`
+- A `mongodb` database running
+- Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled, and users `ecommerce` and `ecommercedv` created with proper permissions
 
-## MERN Application Setup
+This solution assumes you have previously completed the [simple migration process](../simple-migration/README.md), and have successfully imported all JSON native collections in the MERN app into your Autonomous db instance.
+If you haven't performed all the steps in this previous solution, then you will certainly run into errors here.
 
-1. Clone the MERN application:
-```bash
-git clone https://github.com/your-username/mern-ecommerce.git
-cd mern-ecommerce
+## Recap
+
+In the [simple migration solution](../simple-migration/README.md), we had successfully imported all MongoDB collections as native JSON data into the ecommerce schema of Oracle Autonomous Database using `mongorestore`.
+
+At this point, our data is fully available in JSON format, and thanks to Autonomous Database’s unique capabilities, we can now query this data flexibly using dot notation or SQL/JSON functions.
+
+Most importantly, we can build relational or duality views directly on top of these JSON collections — closing the gap between non-relational and relational.
+
+If you recall, we finally created some JSON query data with dot notation, to track:
+- All actively sold products over 50 dollars
+- All non-taxable products in the shop
+
+But, in this complex migration, we will take a look at performing a complex migration, where we'll not only work with JSON native collections, but also with **JSON Duality Views**.
+
+But wait, since we already created some views to visualize the non-relational data in these collections, **why do we need JSON Duality Views? (JSON DVs)**
+
+First, making queries in dot notation lets us query and filter JSON data, but:
+- We're still interacting with JSON native collections, as blobs
+- Therefore, we don't get a relational schema: no columns, constraints, foreign keys, updatable views... Integration with other tools that expect relational tables becomes otherwise very *time-consuming*.
+- With JSON DVs, we present the data as **fully relational**, with tables and views, columns, types, etc.
+- We can integrate with all SQL operations (join, insert, delete...) and BI tools that lack custom JSON native logic / support.
+- JSON DVs are used in **MongoDB aggregation pipelines**, which are used to implement some parts of the MERN app, like the `search products` function. Therefore, without having JSON DVs, we can't expect the MERN app to work 100% like it did in mongodb.
+
+Therefore, we'll focus on how to **perform a migration from non-relational JSON native collections, to JSON Duality Views**, our last focus topic during the migration.
+
+## JSON DVs creation & migration
+
+At the moment, we should have three different database users:
+- `ADMIN`, which sets up permissions for the other users and has 2 dot product notation views against the `ecommerce` user, holding the data for the app
+- `ecommerce`, which is the user that will hold the data export from `mongorestore` after switching from a mongodb instance to Autonomous
+- `ecommercedv`, which will be responsible for creating and owning the JSON Duality Views corresponding to the JSON native collections in user `ecommerce`
+
+Knowing this, we will use the `ecommercedv` user for most of these things, as we used the `ecommerce` user for most things during the simple app migration.
+
+### 1. Generate JSON DVs and root tables
+
+With the script [`3.sql`](../../sql/3.sql), we will automate the generation of JSON DVs and their corresponding root tables (used for querying). With the function `dbms_json_duality.infer_and_generate_schema`,  we will automatically infer and generate the duality view schema for that specific table. We will repeat this process for all collections in the MERN app (more concretely, those tables that got migrated into Autonomous under user `ecommerce`), to facilitate the creation of all their JSON DVs.
+
+Run the following script:
+
+```sql
+-- run as ecommercedv
+-- this will perform the migration from `ecommerce` to `ecommercedv`
+-- output of this procedure: run script_fixed with your output but put drop tables so you
+-- can run it again and again without errors
+create or replace procedure print_clob_to_output (
+  p_clob in clob
+) is
+  l_offset int := 1;
+begin
+  loop
+    exit when l_offset > dbms_lob.getlength(p_clob);
+    dbms_output.put_line(dbms_lob.substr(
+      p_clob,
+      255,
+      l_offset
+    ));
+    l_offset := l_offset + 255;
+  end loop;
+end print_clob_to_output;
+/
+
+declare
+  schema_sql clob;
+begin
+  for c in (
+    select table_name
+      from all_tables
+      -- here, I take out this table present in autonomous automatically - we only want our collections.
+     where owner = 'ECOMMERCE' and table_name != 'DBTOOLS$EXECUTION_HISTORY'
+     order by 1
+  ) loop
+    begin
+      schema_sql := dbms_json_duality.infer_and_generate_schema(
+        json(
+          '{
+                        "sourceSchema": "ECOMMERCE",
+                        "tableNames" : ["'
+          || c.table_name
+          || '"],
+                        "viewNames" : ["'
+          || lower(c.table_name)
+          || '"],
+                        "useFlexFields" : true,
+                        "updatability" : true,
+                        "outputFormat" : "standalone",
+                        "normalize": false
+                }'
+        )
+      );
+      print_clob_to_output(schema_sql);
+           -- execute immediate schema_sql;
+    exception
+      when others then
+        dbms_output.put_line('Error raised for '
+                             || c.table_name
+                             || ': '
+                             || dbms_utility.format_error_backtrace
+                             || ' - '
+                             || sqlerrm);
+    end;
+  end loop;
+exception
+  when others then
+    dbms_output.put_line('Error raised: '
+                         || dbms_utility.format_error_backtrace
+                         || ' - '
+                         || sqlerrm);
+    raise;
+end;
+/
 ```
 
-2. Configure environment variables:
-```bash
-# Create .env files for client and server
-cp client/.env.example client/.env
-cp server/.env.example server/.env
+### 2. Run DVs generation schema in ecommercedv
 
-# Update MongoDB connection string in server/.env
-MONGODB_URI=mongodb://mongodb:27017/ecommerce
+After executing the script in section 1, you will get some kind of SQL script similar to the one I uploaded in [`my_script_fixed.sql`](../../sql/my_script_fixed.sql).
+
+However, you will probably need to fix syntax errors, as the generations may contain unescaped characters that may break the SQL interpreter when running these queries. For the output:
+- Include `DROP` statements (take my script as an example) at the beginning of the script, so you can run the script multiple times without errors / conflicts
+- Fix indentation every ~40/50 lines
+- Make sure table and view names are in **lower caps** (e.g. "products" instead of "PRODUCTS")
+
+Until you arrive to something (if not exactly the same) as my script. If you have successfully imported all collections from the MERN app, you can also try running my script directly, as it creates the root tables and JSON Duality Views for all collections present in the MERN app automatically.
+
+> **Note**: make sure to run the script with the `ecommercedv` user. Then, you will have successfully created your JSON DVs!
+
+### 3. Import into JSON Duality Views
+
+Now that we have the root tables and JSON DVs, created, we simply need to perform an import with a preset function in the database management system called `dbms_json_duality.import()`.
+
+For that, you can take [this script (`4.sql`)](../../sql/4.sql) as reference. In this script:
+
+```sql
+begin
+	for c in (
+		select table_name
+		  from all_tables
+		 where owner = 'ECOMMERCE'
+	) loop
+		begin
+			dbms_errlog.create_error_log(
+			                            dml_table_name => c.table_name,
+			                            err_log_table_name => c.table_name || '_ERR_LOG',
+			                            skip_unsupported => true
+			);
+		exception
+			when others then
+				null;
+		end;
+		begin
+			dbms_json_duality.import(
+			                        table_owner_name => 'ECOMMERCE',
+			                        table_name => c.table_name,
+			                        view_owner_name => 'ECOMMERCEDV',
+			                        view_name => lower(
+					      c.table_name
+				      ),
+			                        err_log_name => c.table_name || '_ERR_LOG'
+			);
+		exception
+			when others then
+				null;
+		end;
+	end loop;
+end;
+/
 ```
 
-3. Start the application using Docker Compose:
-```yaml
-version: '3.8'
-services:
-  client:
-    build: ./client
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:5000
-    depends_on:
-      - server
+> **Note**: execute with `ecommercedv` user (or alternatively with ADMIN.)
 
-  server:
-    build: ./server
-    ports:
-      - "5000:5000"
-    environment:
-      - MONGODB_URI=mongodb://mongodb:27017/ecommerce
-    depends_on:
-      - mongodb
+I simply iterate through all tables where the owner is the `ecommerce` user, and import the data into the JSON Duality Views respectively owned by the `ecommercedv` user for each one of these tables. 
 
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
+After you run this script, you should see your non-relational data being displayed by these Duality Views:
 
-volumes:
-  mongodb_data:
-```
+![views ecommercedv](../../img/views_ecommercedv.png)
 
-4. Build and start the containers:
-```bash
-docker-compose up --build
-```
+![views ecommercedv data](../../img/views_ecommerce_dv_data.png)
 
-5. Access the application:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
-- Admin interface: http://localhost:3000/admin
-  - Email: admin@example.com
-  - Password: admin123
+> **Note**: this query runs against the view "products" in schema `ECOMMERCEDV`, NOT against table "products" in schema `ECOMMERCE`
 
-## Migration Approaches
+### 6. Start the MERN App with Oracle MongoDB API URI
 
-### 1. Java-based Migration (mongo2ora)
+Start the backend and frontend as usual:
 
-This approach uses the mongo2ora Java tool for complex schema migration:
+  ```bash
+  cd mern-ecommerce
+  npm run dev
+  ```
 
-1. Configure the migration settings in `transform-rules.json`:
-```json
-{
-  "collections": ["users", "products", "orders", "reviews"],
-  "transformations": {
-    "users": {
-      "fieldMappings": {
-        "_id": "id",
-        "email": "email_address"
-      }
-    }
-  }
-}
-```
+Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all features of the app (all CRUD operations + product searches!), and we've finished the migration process.
 
-2. Run the migration:
-```bash
-java -jar mongo2ora.jar \
-  --source-uri mongodb://localhost:27017/ecommerce \
-  --target-uri oracle://localhost:1521/ecommerce \
-  --transform-config transform-rules.json
-```
+### 7. Handle Missing Collections
 
-### 2. Python-based Direct Migration
+If you are missing any collections (e.g. `addresses`, `cartitems`, `contacts`, `merchants`, `wishlists`):
+- **In MongoDB:** Create them with at least one dummy document before running `mongorestore`. You can compare if you have all collections by taking a look at the `dump/` directory generated by `mongodump`, and inspecting if all the files you have match with [my list of collections in the MERN app here.](../../docs/mern_collection_examples.json)
+- **In Oracle:** After `mongorestore`, you can manually create empty collections using the following SQL (see end of `script_fixed.sql`). However, this should not happen if you've performed all steps. If you have errors with missing JSON native collections or duality views in Autonomous, you can open an issue in this repository and we'll be able to help.
 
-An alternative approach using the provided Python migration utility:
+  ```sql
+  create json collection table "cartitems" with etag;
+  create json collection table "contacts" with etag;
+  ```
 
-1. Configure the migration settings in `config/config.ini`:
-```ini
-[mongodb]
-userid=your_mongo_user
-password=your_mongo_password
-hostname=localhost
-port=27017
-sourcedb=your_database
-iscloud=N
-fetchsize=1000
-collection=your_collection
+Repeat for any other missing collections.
 
-[oracle]
-userid=your_oracle_user
-password=your_oracle_password
-service=your_service_name
-usertablespace=your_tablespace
-dropschemas=Y
-```
 
-2. For a single collection, run:
-```bash
-cd scripts
-python mongo2ora_singlecollection.py
-```
 
-3. For multiple collections, use the multi-collection migration script:
-```bash
-cd scripts
-python migrate_all_collections.py
-```
 
-The multi-collection migration script:
-- Automatically detects all collections in the MongoDB database
-- Updates the configuration for each collection
-- Migrates collections sequentially
-- Provides detailed logging in `log/multi_collection_migration.log`
-- Handles errors for each collection independently
 
-Features of the Python migration utility:
-- Direct MongoDB to Oracle migration using SODA API
-- Automatic schema creation and management
-- Batch processing with configurable sizes
-- Progress tracking and logging
-- Error handling and recovery
-- Support for large collections
-- Parallel processing capabilities
 
-The utility provides:
-- Automatic schema creation in Oracle
-- SODA collection creation with proper metadata
-- Batch processing of documents
-- Progress logging to `log/mongodb_datamigration.log`
-- Error handling and recovery mechanisms
-- Support for case-insensitive collection names
-- Automatic constraint management
+
+
+
+
+
 
 ## MongoDB Aggregation Framework & OracleDB Compatibility
 
@@ -209,45 +275,3 @@ Aggregation pipelines are widely used in real-world MongoDB applications for gro
 - For unsupported cases, use the `$sql` operator to write custom SQL as part of your aggregation pipeline.
 - This hybrid approach enables most MongoDB workloads to migrate with minimal changes, while still allowing full power and flexibility of Oracle SQL when needed.
 
-## Performance Optimization
-
-1. Query Pattern Analysis:
-   - Identify common query patterns
-   - Analyze index usage
-   - Document performance bottlenecks
-
-2. Index Optimization:
-   ```sql
-   -- Create indexes for common query patterns
-   CREATE INDEX idx_product_name ON products_collection 
-   json_value(data, '$.name' RETURNING VARCHAR2(100));
-   
-   CREATE INDEX idx_product_price ON products_collection 
-   json_value(data, '$.price' RETURNING NUMBER);
-   ```
-
-3. JSON Search Index Configuration:
-   ```sql
-   -- Create JSON search index for text search
-   CREATE SEARCH INDEX idx_product_search ON products_collection
-   FOR JSON
-   COLUMNS (data)
-   PARAMETERS ('SEARCH_ON TEXT');
-   ```
-
-## Verification
-
-After migration:
-1. Verify data integrity
-2. Test application functionality
-3. Compare performance metrics
-4. Validate indexes and constraints
-5. Test complex queries and aggregations
-
-## Next Steps
-
-1. Implement the chosen migration approach
-2. Set up monitoring and logging
-3. Create rollback procedures
-4. Document the migration process
-5. Optimize performance based on usage patterns 
