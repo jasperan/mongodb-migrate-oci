@@ -1,0 +1,123 @@
+{
+    "addresses": {
+      "_id": "6827ca912c58f326e6d97595",
+      "user": "68252a9f0200de17ccc48afd",
+      "address": "Calle Atocha",
+      "city": "Madrid",
+      "state": "Madrid",
+      "country": "Spain",
+      "zipCode": "28045",
+      "isDefault": true,
+      "created": "2025-05-16T23:30:25.221000Z",
+      "__v": 0
+    },
+    "brands": {
+      "_id": "68252aa00200de17ccc48b08",
+      "isActive": true,
+      "merchant": null,
+      "name": "Jenkins - Heller",
+      "description": "Verumtamen cedo cicuta minus maxime atavus.",
+      "created": "2025-05-14T23:43:28.015000Z",
+      "slug": "jenkins-heller",
+      "__v": 0
+    },
+    "carts": {
+      "_id": "68252fe498ebb361c47fd3be",
+      "user": "68252a9f0200de17ccc48afd",
+      "products": [
+        {
+          "purchasePrice": 527,
+          "totalPrice": 527,
+          "priceWithTax": 553.35,
+          "totalTax": 26.35,
+          "status": "Not processed",
+          "_id": "68252fe498ebb361c47fd3bf",
+          "quantity": 1,
+          "product": "68252aa00200de17ccc48b75"
+        }
+      ],
+      "created": "2025-05-15T00:05:56.960000Z",
+      "__v": 0
+    },
+    "categories": {
+      "_id": "68252a9f0200de17ccc48afe",
+      "isActive": true,
+      "products": [
+        "68252aa00200de17ccc48b12",
+        "68252aa00200de17ccc48b25",
+        "68252aa00200de17ccc48b28",
+        "68252aa00200de17ccc48b34",
+        "68252aa00200de17ccc48b35",
+        "68252aa00200de17ccc48b38",
+        "68252aa00200de17ccc48b47",
+        "68252aa00200de17ccc48b4f",
+        "68252aa00200de17ccc48b50",
+        "68252aa00200de17ccc48b53",
+        "68252aa00200de17ccc48b5b"
+      ],
+      "name": "Home",
+      "description": "Adicio contego sit aro peccatus sordeo.",
+      "created": "2025-05-14T23:43:27.974000Z",
+      "slug": "home",
+      "__v": 0
+    },
+    "merchants": {
+      "brandName": "Granite Merchant",
+      "business": "I¡m a wholesale granite merchant",
+      "isActive": true,
+      "phoneNumber": "(555) 123-4567",
+      "_id": "6827cbe32c58f326e6d975cb",
+      "created": "2025-05-16T23:36:03.947000Z",
+      "email": "nacho@nacho.com",
+      "__v": 0,
+      "name": "Nacho",
+      "status": "Approved",
+      "brand": null
+    },
+    "orders": {
+      "_id": "68252fe498ebb361c47fd3c0",
+      "total": 527,
+      "cart": "68252fe498ebb361c47fd3be",
+      "user": "68252a9f0200de17ccc48afd",
+      "created": "2025-05-15T00:05:56.988000Z",
+      "__v": 0
+    },
+    "products": {
+      "sku": "qRqBc7jc0J",
+      "price": 135,
+      "isActive": true,
+      "description": "Abeo vestrum valde alo.",
+      "taxable": true,
+      "_id": "68252aa00200de17ccc48b12",
+      "created": "2025-05-14T23:43:28.034000Z",
+      "__v": 0,
+      "quantity": 21,
+      "slug": "small-plastic-soap",
+      "name": "Small Plastic Soap",
+      "brand": "68252aa00200de17ccc48b08"
+    },
+    "reviews": {
+      "_id": "6825302498ebb361c47fd3c1",
+      "product": "68252aa00200de17ccc48b75",
+      "user": "68252a9f0200de17ccc48afd",
+      "rating": 4,
+      "isRecommended": true,
+      "status": "Approved",
+      "review": "Good granite, smooth granite.",
+      "title": "Not bad",
+      "created": "2025-05-15T00:07:00.887000Z",
+      "__v": 0
+    },
+    "users": {
+      "_id": "68252a9f0200de17ccc48afd",
+      "merchant": null,
+      "provider": "Email",
+      "role": "ROLE ADMIN",
+      "email": "admin@example.com",
+      "password": "$2a$10$DZEIail.KTKBywJrTX9MbOv34KhgTNf7bv2vFwWwYsmQtRAUsZ6yy",
+      "firstName": "admin",
+      "lastName": "admin",
+      "created": "2025-05-14T23:43:27.886000Z",
+      "__v": 0
+    }
+}
