@@ -248,6 +248,7 @@ With this data, we'll then set up a couple of views using dot notation, to keep 
 ```sql
 -- this query was created to automatically monitor those products
 -- that are over $50 and are active
+-- run as admin 
 CREATE OR REPLACE VIEW ECOMMERCE.active_products_over_50 AS
 SELECT
   p.data.sku AS sku,
