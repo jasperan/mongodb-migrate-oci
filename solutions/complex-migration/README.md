@@ -204,7 +204,7 @@ end;
 
 > **Note**: execute with `ecommercedv` user (or alternatively with ADMIN.)
 
-I simply iterate through all tables where the owner is the `ecommerce` user, and import the data into the JSON Duality Views respectively owned by the `ecommercedv` user for each one of these tables. 
+We iterate through all tables where the owner is the `ecommerce` user, and import the data into the JSON Duality Views respectively owned by the `ecommercedv` user for each one of these tables. 
 
 After you run this script, you should see your non-relational data being displayed by these Duality Views:
 
