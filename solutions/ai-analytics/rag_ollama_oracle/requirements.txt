@@ -3,3 +3,4 @@ requests
 pyyaml
 numpy
 sentence-transformers 
+pymongo
