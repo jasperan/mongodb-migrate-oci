@@ -93,6 +93,8 @@ Let's set up the MERN application first, running against our local/containerized
   ```bash
   cd mern-ecommerce/client
   npm install
+  # if you still get any type of error, run the following command additionally
+  npm install npm-run-all --save-dev
   ```
 
 2. Create a `.env` file in the `client/` directory with the following content:
