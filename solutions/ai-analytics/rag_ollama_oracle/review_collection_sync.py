@@ -7,6 +7,13 @@ import json
 from decimal import Decimal
 from datetime import datetime
 
+"""
+WARNING:
+Only run if youu need to sync the reviews from the ecommercedv.reviews
+table to the ReviewCollection table in Oracle.
+
+"""
+
 REVIEW_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS ReviewCollection (
     id VARCHAR2(4000 BYTE) PRIMARY KEY,
