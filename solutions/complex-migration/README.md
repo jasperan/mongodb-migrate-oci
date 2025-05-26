@@ -216,7 +216,22 @@ After you run this script, you should see your non-relational data being display
 
 ### 6. Start the MERN App with Oracle MongoDB API URI
 
-Start the backend and frontend as usual:
+Edit the `./mern-ecommerce/server/.env` file and swap the MongoDB original URI we had with the one from Autonomous - more specifically, for user and schema `ecommercedv` (the one we will use from now on).
+
+In my case, I had to modify:
+
+```bash
+# original mongodb uri - comment
+#MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
+# autonomous uri with ecommercedv user
+MONGO_URI=mongodb://ecommercedv:mypw@mydburi.adb.us-phoenix-1.oraclecloudapps.com:27017/ecommercedv?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
+```
+
+This `ecommercedv` user, from now on:
+- Will use its own JSON native collections to store CRUD-based operations (like insertOne, etc.)
+- Will use JSON DVs for complex things like aggregation pipelines, meaning these queries will run against user `ecommerce`.
+
+Finally, start the backend and frontend as usual:
 
   ```bash
   cd mern-ecommerce
