@@ -31,3 +31,5 @@ Temporary Items
 .crt
 .csr
 .pem
+
+mongodb-migrate-oci/solutions/ai-analytics/rag_ollama_oracle/config.yaml
