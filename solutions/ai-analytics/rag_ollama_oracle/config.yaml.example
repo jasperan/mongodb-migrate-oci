@@ -1,0 +1,5 @@
+ORACLE_DB_USERNAME: "your_db_username"
+ORACLE_DB_PASSWORD: "your_db_password"
+ORACLE_DB_DSN: (description= (retry_count=20)(retry_delay=3)....(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=....))(security=(ssl_server_dn_match=yes)))
+ollama:
+  endpoint: "http://REDACTED-IP:11434/api/generate" 
