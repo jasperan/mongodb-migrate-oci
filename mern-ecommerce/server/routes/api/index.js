@@ -1,4 +1,7 @@
 const router = require('express').Router();
+const { ragQuery } = require('../../services/llmChat');
+
+console.log('Registering /chat route');
 
 const authRoutes = require('./auth');
 const userRoutes = require('./user');
@@ -13,7 +16,6 @@ const cartRoutes = require('./cart');
 const orderRoutes = require('./order');
 const reviewRoutes = require('./review');
 const wishlistRoutes = require('./wishlist');
-const llmChatRouter = require('./llmChat');
 const adminDbRouter = require('./adminDb');
 
 // auth routes
@@ -55,10 +57,18 @@ router.use('/review', reviewRoutes);
 // Wishlist routes
 router.use('/wishlist', wishlistRoutes);
 
-// LLM Chat routes
-router.use('/llm-chat', llmChatRouter);
-
 // Admin DB routes
 router.use('/admin-db', adminDbRouter);
+
+// POST /chat
+router.post('/chat', async (req, res) => {
+  const { message } = req.body;
+  try {
+    const ragResponse = await ragQuery(message);
+    return res.json({ response: ragResponse });
+  } catch (err) {
+    return res.status(500).json({ error: 'RAG chat failed', details: err.message });
+  }
+});
 
 module.exports = router;

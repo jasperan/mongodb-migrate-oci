@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { sendLlmChatMessage } from '../../../utils/llmChatApi';
 
 export default function LlmChat() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  // No auto-scroll ref
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -13,7 +14,7 @@ export default function LlmChat() {
     setLoading(true);
     try {
       const res = await sendLlmChatMessage(input);
-      setMessages((msgs) => [...msgs, { from: 'llm', text: res.response }]);
+      setMessages((msgs) => [...msgs, { from: 'llm', text: res.answer }]);
     } catch (err) {
       setMessages((msgs) => [...msgs, { from: 'llm', text: 'Error: Could not get response.' }]);
     }
@@ -24,7 +25,17 @@ export default function LlmChat() {
   return (
     <div style={{ maxWidth: 400, margin: '0 auto' }}>
       <h3>LLM Chat</h3>
-      <div style={{ minHeight: 120, border: '1px solid #ccc', padding: 8, marginBottom: 8 }}>
+      <div
+        style={{
+          minHeight: 120,
+          maxHeight: 300,
+          overflowY: 'auto',
+          border: '1px solid #ccc',
+          padding: 8,
+          marginBottom: 8,
+          background: '#fafafa',
+        }}
+      >
         {messages.map((msg, i) => (
           <div key={i} style={{ textAlign: msg.from === 'user' ? 'right' : 'left' }}>
             <b>{msg.from === 'user' ? 'You' : 'LLM'}:</b> {msg.text}

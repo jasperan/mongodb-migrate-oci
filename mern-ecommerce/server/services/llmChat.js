@@ -55,4 +55,12 @@ async function callLlmApi({ message, context }) {
   return res.data.choices[0].message.content;
 }
 
-module.exports = { vectorSearch, callLlmApi }; 
+// Call FastAPI RAG endpoint
+async function ragQuery(message) {
+  const fastapiUrl = process.env.RAG_API_URL || 'http://localhost:8000/rag';
+  const payload = { question: message };
+  const res = await axios.post(fastapiUrl, payload);
+  return res.data.answer;
+}
+
+module.exports = { vectorSearch, callLlmApi, ragQuery }; 
