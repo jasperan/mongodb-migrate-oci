@@ -36,6 +36,13 @@ The migration process involves:
 - Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled
 - Python environment with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
 
+## Docs
+
+- [MongoDB API](https://blogs.oracle.com/database/post/mongodb-api)
+- [MongoDB API - Official docs](https://docs.oracle.com/en/database/oracle/mongodb-api/)
+- [JSON in DB Oracle use cases](https://github.com/oracle/json-in-db)
+- [Use Select AI to Generate SQL from Natural Language Prompts](https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/hsarg/#articletitle)
+
 ## Local Development Setup
 
 First, we will install the requirements needed to run the `MERN` application; but first, let's understand what we want to achieve and how:
