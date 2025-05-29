@@ -9,7 +9,7 @@ from datetime import datetime
 
 """
 WARNING:
-Only run if youu need to sync the reviews from the ecommercedv.reviews
+Only run if you need to sync the reviews from the ecommercedv.reviews
 table to the ReviewCollection table in Oracle.
 
 """
