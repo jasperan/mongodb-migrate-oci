@@ -48,24 +48,6 @@ This project is a full-featured MERN ecommerce application, enhanced with:
 2. [Complex app migration](./solutions/complex-migration/README.md)
 3. [AI enhancements to the app](./solutions/ai-analytics/README.md)
 
-## Annex
-
-See `dump_restore.sh` for example commands and `sql/` for schema scripts.
-
-## MongoDB Container Admin Utility (Podman)
-
-You can use the `scripts/mongoContainerUtils.sh` script to interact with your MongoDB container (list databases, collections, stats) via Podman.
-
-**Usage:**
-```sh
-./scripts/mongoContainerUtils.sh [container_name]
-```
-- If you do not specify a container name, it defaults to `mongodb`.
-- Example for a custom container name:
-  ```sh
-  ./scripts/mongoContainerUtils.sh exciting_rubin
-  ```
-
 ## Annex: Data Model
 
 - See [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md) for all collections and document structures (now stored in Oracle JSON DB).
