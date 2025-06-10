@@ -343,23 +343,6 @@ For testing, I created two specific Python files that can be helpful for this pu
 
 Feel free to use these files to your convenience when setting up the system.
 
-## 3. Troubleshooting
-
-### Common Issues
-
-1. **Vector Store Connection**
-   - Error: "Unable to connect to Oracle"
-   - Solution: Check credentials and network connectivity
-
-2. **Ollama Issues**
-   - Error: "Model not found"
-   - Solution: Run `ollama pull phi3`
-
-3. **Performance Issues**
-   - Slow response times
-   - Solution: Adjust batch sizes and caching
-
-
 ### Notes
 
 The distributed nature of the LLM chat component comes from:
@@ -367,3 +350,23 @@ The distributed nature of the LLM chat component comes from:
 - Using REST APIs for communication between components, conforming to the MERN standard
 - Allowing independent scaling of vector search and LLM inference
 - Supporting multiple LLM instances and models through the Ollama feamework. By default, I enabled `phi3` as the standard model to use.
+
+
+## Contributing
+
+This project welcomes contributions from the community. Before submitting a pull
+request, please [review our contribution guide](./CONTRIBUTING.md).
+
+## Security
+
+Please consult the [security guide](./SECURITY.md) for our responsible security
+vulnerability disclosure process.
+
+## License
+Copyright (c) 2024 Oracle and/or its affiliates.
+
+Licensed under the Universal Permissive License (UPL), Version 1.0.
+
+See [LICENSE](LICENSE.txt) for more details.
+
+ORACLE AND ITS AFFILIATES DO NOT PROVIDE ANY WARRANTY WHATSOEVER, EXPRESS OR IMPLIED, FOR ANY SOFTWARE, MATERIAL OR CONTENT OF ANY KIND CONTAINED OR PRODUCED WITHIN THIS REPOSITORY, AND IN PARTICULAR SPECIFICALLY DISCLAIM ANY AND ALL IMPLIED WARRANTIES OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY, AND FITNESS FOR A PARTICULAR PURPOSE.  FURTHERMORE, ORACLE AND ITS AFFILIATES DO NOT REPRESENT THAT ANY CUSTOMARY SECURITY REVIEW HAS BEEN PERFORMED WITH RESPECT TO ANY SOFTWARE, MATERIAL OR CONTENT CONTAINED OR PRODUCED WITHIN THIS REPOSITORY. IN ADDITION, AND WITHOUT LIMITING THE FOREGOING, THIRD PARTIES MAY HAVE POSTED SOFTWARE, MATERIAL OR CONTENT TO THIS REPOSITORY WITHOUT ANY REVIEW. USE AT YOUR OWN RISK. 
