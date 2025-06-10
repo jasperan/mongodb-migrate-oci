@@ -12,7 +12,7 @@ The application has the following features:
 
 Building on the foundation of the [Simple Migration](../simple-migration/README.md) solution—which guides you through migrating your MongoDB-based MERN app to Oracle Autonomous JSON Database 23ai — this solution adds advanced features such as:
 - In-database vector search using Oracle 23ai's vector capabilities
-- Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the Ollama API
+- Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the `ollama` API
 - Seamless integration of LLM-powered chat and analytics into your MERN app, accessible through the familiar React frontend
 
 The architecture enables you to:
@@ -29,6 +29,54 @@ The solution mainly showcases:
 - AI-enhanced application features: chat with the product reviews from the app
 - **Distributed RAG** inference for scalability via OpenAPI REST calls
 
+Visually, the final functionality of the application will be something like this:
+
+### [RAG Pipeline Flow](./img/rag_pipeline_flow.png)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI
+    participant RAG
+    participant VectorDB
+    participant LLM
+    
+    User->>UI: Ask Question
+    UI->>RAG: POST /rag
+    RAG->>VectorDB: Similarity Search
+    VectorDB-->>RAG: Relevant Context
+    RAG->>LLM: Generate Response
+    LLM-->>RAG: Response
+    RAG-->>UI: Answer
+    UI-->>User: Display Response
+```
+
+### [Data Flow](./img/data_flow.png)
+
+```mermaid
+flowchart LR
+    subgraph Input
+        Reviews[Product Reviews]
+        Questions[User Questions]
+    end
+    
+    subgraph Processing
+        Embed[Vector Embeddings]
+        Search[Similarity Search]
+        Context[Context Building]
+    end
+    
+    subgraph Output
+        Response[LLM Response]
+    end
+    
+    Reviews --> Embed
+    Questions --> Search
+    Embed --> Search
+    Search --> Context
+    Context --> Response
+```
+
 ## 0. Prerequisites & Docs
 
 ### Prerequisites
@@ -39,7 +87,7 @@ The solution mainly showcases:
 - Node.js 18+ and `npm` for the MERN application
 - Access to a GPU infra compute to install `ollama` and deploy the LLM for inference
 
-We will need to install `ollama`: 
+We will need to install `ollama` in a server that has a GPU (a prerequisite for most Large Language Models): 
 
    ```bash
    # Linux
