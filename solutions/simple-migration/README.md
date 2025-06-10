@@ -36,6 +36,22 @@ The migration process involves:
 - Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled
 - Python environment with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
 
+1. Install requirements in a Python environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+   pip install -r requirements.txt
+   ```
+
+2. We will do the same for the `node.js` environment:
+   ```bash
+   # Verify Node.js version
+   node --version  # Should be 18+
+   
+   # Install global dependencies
+   npm install -g npm-run-all
+   ```
+
 ## Docs
 
 - [MongoDB API](https://blogs.oracle.com/database/post/mongodb-api)
@@ -298,7 +314,36 @@ And now, we can set up a data stream to our Excel application to keep track of t
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 TODO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## 4. Start the MERN App with Oracle MongoDB API URI

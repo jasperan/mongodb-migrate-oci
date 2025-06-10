@@ -103,7 +103,7 @@ begin
     select table_name
       from all_tables
       -- here, I take out this table present in autonomous automatically - we only want our collections.
-     where owner = 'ECOMMERCE' and table_name != 'DBTOOLS$EXECUTION_HISTORY'
+     where owner = 'ECOMMERCE' and table_name in ('addresses', 'brands', 'cartitems', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists')
      order by 1
   ) loop
     begin
@@ -253,17 +253,6 @@ If you are missing any collections (e.g. `addresses`, `cartitems`, `contacts`, `
 
 Repeat for any other missing collections.
 
-
-
-
-
-
-
-
-
-
-
-
 ## MongoDB Aggregation Framework & OracleDB Compatibility
 
 MongoDB introduced its own query language (MQL) for basic document queries (e.g., `db.collection.find`). However, for more advanced analytics and data processing, MongoDB created the **Aggregation Framework**, which allows users to build complex data transformations using **aggregation pipelines** (e.g., `db.collection.aggregate([...])`).
@@ -290,3 +279,21 @@ Aggregation pipelines are widely used in real-world MongoDB applications for gro
 - For unsupported cases, use the `$sql` operator to write custom SQL as part of your aggregation pipeline.
 - This hybrid approach enables most MongoDB workloads to migrate with minimal changes, while still allowing full power and flexibility of Oracle SQL when needed.
 
+## Contributing
+
+This project welcomes contributions from the community. Before submitting a pull
+request, please [review our contribution guide](./CONTRIBUTING.md).
+
+## Security
+
+Please consult the [security guide](./SECURITY.md) for our responsible security
+vulnerability disclosure process.
+
+## License
+Copyright (c) 2024 Oracle and/or its affiliates.
+
+Licensed under the Universal Permissive License (UPL), Version 1.0.
+
+See [LICENSE](LICENSE.txt) for more details.
+
+ORACLE AND ITS AFFILIATES DO NOT PROVIDE ANY WARRANTY WHATSOEVER, EXPRESS OR IMPLIED, FOR ANY SOFTWARE, MATERIAL OR CONTENT OF ANY KIND CONTAINED OR PRODUCED WITHIN THIS REPOSITORY, AND IN PARTICULAR SPECIFICALLY DISCLAIM ANY AND ALL IMPLIED WARRANTIES OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY, AND FITNESS FOR A PARTICULAR PURPOSE.  FURTHERMORE, ORACLE AND ITS AFFILIATES DO NOT REPRESENT THAT ANY CUSTOMARY SECURITY REVIEW HAS BEEN PERFORMED WITH RESPECT TO ANY SOFTWARE, MATERIAL OR CONTENT CONTAINED OR PRODUCED WITHIN THIS REPOSITORY. IN ADDITION, AND WITHOUT LIMITING THE FOREGOING, THIRD PARTIES MAY HAVE POSTED SOFTWARE, MATERIAL OR CONTENT TO THIS REPOSITORY WITHOUT ANY REVIEW. USE AT YOUR OWN RISK. 

@@ -39,6 +39,46 @@ The solution mainly showcases:
 - Node.js 18+ and `npm` for the MERN application
 - Access to a GPU infra compute to install `ollama` and deploy the LLM for inference
 
+We will need to install `ollama`: 
+
+   ```bash
+   # Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Windows
+   winget install ollama
+   ```
+
+And create a `config.yaml` file to hold our sensitive config parameters:
+
+   ```yaml
+   ORACLE_DB_USERNAME: "your_db_username"
+   ORACLE_DB_PASSWORD: "your_db_password"
+   ORACLE_DB_DSN: (description= (retry_count=20)(retry_delay=3)....(host=adb.us-phoenix-1.oraclecloud.com))(connect_data=(service_name=....))(security=(ssl_server_dn_match=yes)))
+
+   ollama:
+     endpoint: http://localhost:11434
+   ```
+
+Finally, let's spin up our `ollama` server so we can deploy an LLM:
+
+```bash
+# Start Ollama
+ollama serve
+# then, download phi3 or whichever model you want to use.
+ollama pull phi3 
+
+# Start RAG API endpoint, which will be called by the express API
+uvicorn rag_api:app --host 0.0.0.0 --port 8000 --reload
+
+# Now, we're our extra endpoint is running and we can start making requests to it just by spinning up the app.
+# Start MERN app
+# go to the root directory
+cd mongodb-migrate-oci/mern-ecommerce
+npm install
+npm run dev
+```
+
 ### Docs
 
 - [`ollama` through API](https://www.gpu-mart.com/blog/ollama-api-usage-examples)
@@ -87,12 +127,11 @@ Thanks to Oracle Autonomous database, we will already have access to this `VECTO
 
 It's important to note that, in order to successfully enable RAG as a pipeline, we need to consider that all the incoming reviews for our MERN application will **not automatically** go into the `ReviewCollection` table, as this is an external additional feature we're providing to the app. Therefore, we need to set up some kind of automation system that will take all the current reviews from the MERN app's review collection, and put it into this table. Additionally, we will use this opportunity to also **create the embeddings** to the JSON documents, so the vector distance between reviews can be computed!
 
-Therefore, this file called [`review_collection_sync`](./rag_ollama_oracle/review_collection_sync.py) does exactly this.
+Therefore, this file called [`review_collection_sync`](./review_collection_sync.py) does exactly this.
 
 Run the script once (after you've performed your migration) - note that after getting new reviews you'll have to re-run this script to update the `ReviewCollection` table:
 
 ```bash
-cd rag_ollama_oracle
 python review_collection_sync.py --ingest # run with ingest mode
 ```
 
@@ -104,13 +143,13 @@ Now, the LLM has everything it needs to talk with the RAG system!
 
 #### Don't have enough reviews?
 
-If you don't have enough reviews to test this system as you're implementing, I have prepared [this Python script](./rag_ollama_oracle/generate_reviews.py).
+If you don't have enough reviews to test this system as you're implementing, I have prepared [this Python script](./generate_reviews.py).
 
 You can generate *100* randomized reviews for a product and insert them into the Oracle `ecommercedv.reviews` table.
 
 For this, run the following script, and then proceed with the above content in section 1.1:
 
-1. Fill in `rag_ollama_oracle/config.yaml` with your Oracle DB and Ollama endpoint details.
+1. Fill in `config.yaml` with your Oracle DB and Ollama endpoint details.
 2. Run the script
 
    ```bash
@@ -144,7 +183,6 @@ Therefore, we will:
 Run the script wherever you're planning to deploy the microservice:
 
 ```bash
-cd rag_ollama_oracle
 uvicorn rag_api:app --host 0.0.0.0 --port 8000 --reload 
 ```
 
@@ -244,18 +282,35 @@ These examples show how the MERN frontend sends a chat message to the distribute
 
 For testing, I created two specific Python files that can be helpful for this purpose:
 
-1. `test_rag.py` (RAG):
+1. [`test_rag.py`](./test_rag.py) (RAG):
    - Provides a simple way to test the RAG pipeline
    - Demonstrates basic usage with vector similarity search and a user's query
    - Helps verify the integration works end-to-end - particularly interesting when testing the backend communication with the LLM
 
-2. `ollama_client.py` (no RAG): 
+2. [`ollama_client.py`](./ollama_client.py) (no RAG): 
    - Provides a clean interface to interact with the Ollama API (with or without streaming enabled)
    - Handles streaming responses from the LLM
    - Manages API communication and error handling
    - Supports both streaming and non-streaming generation modes
 
 Feel free to use these files to your convenience when setting up the system.
+
+## 3. Troubleshooting
+
+### Common Issues
+
+1. **Vector Store Connection**
+   - Error: "Unable to connect to Oracle"
+   - Solution: Check credentials and network connectivity
+
+2. **Ollama Issues**
+   - Error: "Model not found"
+   - Solution: Run `ollama pull phi3`
+
+3. **Performance Issues**
+   - Slow response times
+   - Solution: Adjust batch sizes and caching
+
 
 ### Notes
 
@@ -264,4 +319,3 @@ The distributed nature of the LLM chat component comes from:
 - Using REST APIs for communication between components, conforming to the MERN standard
 - Allowing independent scaling of vector search and LLM inference
 - Supporting multiple LLM instances and models through the Ollama feamework. By default, I enabled `phi3` as the standard model to use.
-
