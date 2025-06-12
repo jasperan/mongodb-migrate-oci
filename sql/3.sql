@@ -25,7 +25,8 @@ begin
   for c in (
     select table_name
       from all_tables
-     where owner = 'ECOMMERCE' and table_name != 'DBTOOLS$EXECUTION_HISTORY'
+      -- here, I take out this table present in autonomous automatically - we only want our collections.
+     where owner = 'ECOMMERCE' and table_name in ('addresses', 'brands', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists')
      order by 1
   ) loop
     begin
@@ -34,15 +35,17 @@ begin
           '{
                         "sourceSchema": "ECOMMERCE",
                         "tableNames" : ["'
-          || c.table_name
+          || lower(c.table_name)
           || '"],
                         "viewNames" : ["'
           || lower(c.table_name)
-          || '"],
+        || '"],
                         "useFlexFields" : true,
                         "updatability" : true,
                         "outputFormat" : "standalone",
-                        "normalize": false
+                        "normalize": false,
+                        "softnessThreshold": 0,
+                        "hints": [{"type" : "normalize", "table" : "' || c.table_name || '",  "path" : "$", "value" : false}]
                 }'
         )
       );

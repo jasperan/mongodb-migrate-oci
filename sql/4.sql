@@ -2,7 +2,7 @@ begin
 	for c in (
 		select table_name
 		  from all_tables
-		 where owner = 'ECOMMERCE'
+		 where owner = 'ECOMMERCE' and table_name in ('addresses', 'brands', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists')
 	) loop
 		begin
 			dbms_errlog.create_error_log(
