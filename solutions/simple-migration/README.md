@@ -310,41 +310,17 @@ FROM ECOMMERCE."products" p
 
 > **Note**: get the full script [here.](../../sql/simple_migration_views.sql)
 
-And now, we can set up a data stream to our Excel application to keep track of these products!
+And now, we can set up a data stream to our Excel application to keep track of these products! By installing this plugin on Excel, we will have access to several features of Oracle Autonomous, directly in Excel:
 
+![plugin name](../../img/office_plugin.png)
 
+We're able to access and query the views that we created:
 
+![views in excel](../../img/views_excel.png)
 
+While still having access to **Select AI**, which allows you to make queries to the database in **natural language** and get the results directly in Excel:
 
-
-
-
-
-
-
-
-
-
-
-
-TODO
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![natural language in excel](../../img/natural_language.png)
 
 ## 4. Start the MERN App with Oracle MongoDB API URI
 
