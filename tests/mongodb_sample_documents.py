@@ -2,7 +2,7 @@ import os
 from pymongo import MongoClient
 
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/mern_ecommerce')
-COLLECTIONS = ['products', 'brands', 'users', 'categories']
+COLLECTIONS = ['addresses', 'brands', 'cartitems', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists']
 
 print('--- MongoDB Sample Documents Test ---')
 try:
