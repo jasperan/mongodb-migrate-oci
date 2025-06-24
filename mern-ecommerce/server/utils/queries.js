@@ -18,15 +18,15 @@ exports.getStoreProductsQuery = (min, max, rating) => {
 
   const basicQuery = process.env.MONGO_URI.includes('loadBalanced') ? [
     {
-       $lookup: {
+       /*$lookup: {
         from: 'brands',
         localField: 'brand',
         foreignField: '_id',
         as: 'brands'
-      }
-      /*$sql: `select json_mergepatch(i.data, json_object('brands' : json_array(b.data returning json) returning json))
+      }*/
+      $sql: `select json_mergepatch(i.data, json_object('brands' : json_array(b.data returning json) returning json))
  from input i 
-left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`*/
+left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
     },
     {
       $unwind: {

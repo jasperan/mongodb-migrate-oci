@@ -68,7 +68,7 @@ At the moment, we should have three different database users:
 
 Knowing this, we will use the `ecommercedv` user for most of these things, as we used the `ecommerce` user for most things during the simple app migration.
 
-### 1. Generate JSON DVs and root tables
+### Step 1: Generate JSON DVs and root tables
 
 With the script [`3.sql`](../../sql/3.sql), we will automate the generation of JSON DVs and their corresponding root tables (used for querying). With the function `dbms_json_duality.infer_and_generate_schema`,  we will automatically infer and generate the duality view schema for that specific table. We will repeat this process for all collections in the MERN app (more concretely, those tables that got migrated into Autonomous under user `ecommerce`), to facilitate the creation of all their JSON DVs.
 
@@ -103,7 +103,7 @@ begin
     select table_name
       from all_tables
       -- here, I take out this table present in autonomous automatically - we only want our collections.
-     where owner = 'ECOMMERCE' and table_name in ('addresses', 'brands', 'cartitems', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists')
+     where owner = 'ECOMMERCE' and table_name in ('addresses', 'brands', 'carts', 'categories', 'contacts', 'merchants', 'orders', 'products', 'reviews', 'users', 'wishlists')
      order by 1
   ) loop
     begin
@@ -112,15 +112,18 @@ begin
           '{
                         "sourceSchema": "ECOMMERCE",
                         "tableNames" : ["'
-          || c.table_name
+          || lower(c.table_name)
           || '"],
                         "viewNames" : ["'
           || lower(c.table_name)
-          || '"],
+        || '"],
                         "useFlexFields" : true,
                         "updatability" : true,
                         "outputFormat" : "standalone",
-                        "normalize": false
+                        "normalize": false,
+                        "enableUnnestedAttributes": false,
+                        "enableNestedAttributes": false,
+                        "hints": [{"type" : "normalize", "table" : "' || c.table_name || '",  "path" : "$", "value" : false}]
                 }'
         )
       );
@@ -147,22 +150,21 @@ end;
 /
 ```
 
-### 2. Run DVs generation schema in ecommercedv
+### Step 2: Run DVs generation schema in ecommercedv
 
-After executing the script in section 1, you will get some kind of SQL script similar to the one I uploaded in [`my_script_fixed.sql`](../../sql/my_script_fixed.sql).
+After executing the script in Step 1, you will get a SQL script output. However, you will probably need to fix syntax errors, as the generations may contain unescaped characters that may break the SQL interpreter when running these queries.
 
 However, you will probably need to fix syntax errors, as the generations may contain unescaped characters that may break the SQL interpreter when running these queries. For the output:
 - Include `DROP` statements (take my script as an example) at the beginning of the script, so you can run the script multiple times without errors / conflicts
 - Fix indentation every ~40/50 lines
-- Make sure table and view names are in **lower caps** (e.g. "products" instead of "PRODUCTS")
+- Ensure table and view names are in **lowercase** (e.g., "products" instead of "PRODUCTS")
+- Validate the syntax before execution
 
-Until you arrive to something (if not exactly the same) as my script. If you have successfully imported all collections from the MERN app, you can also try running my script directly, as it creates the root tables and JSON Duality Views for all collections present in the MERN app automatically.
+> **Note**: Make sure to run the script with the `ecommercedv` user. Then, you will have successfully created your JSON DVs!
 
-> **Note**: make sure to run the script with the `ecommercedv` user. Then, you will have successfully created your JSON DVs!
+### Step 3: Import into JSON Duality Views
 
-### 3. Import into JSON Duality Views
-
-Now that we have the root tables and JSON DVs, created, we simply need to perform an import with a preset function in the database management system called `dbms_json_duality.import()`.
+Now that we have the root tables and JSON DVs created, we need to perform an import with the preset function `dbms_json_duality.import()`.
 
 For that, you can take [this script (`4.sql`)](../../sql/4.sql) as reference. In this script:
 
@@ -212,9 +214,9 @@ After you run this script, you should see your non-relational data being display
 
 ![views ecommercedv data](../../img/views_ecommerce_dv_data.png)
 
-> **Note**: this query runs against the view "products" in schema `ECOMMERCEDV`, NOT against table "products" in schema `ECOMMERCE`
+> **Note**: This query runs against the view "products" in schema `ECOMMERCEDV`, NOT against table "products" in schema `ECOMMERCE`
 
-### 6. Start the MERN App with Oracle MongoDB API URI
+### Step 4: Start the MERN App with Oracle MongoDB API URI
 
 Edit the `./mern-ecommerce/server/.env` file and swap the MongoDB original URI we had with the one from Autonomous - more specifically, for user and schema `ecommercedv` (the one we will use from now on).
 
@@ -240,7 +242,7 @@ Finally, start the backend and frontend as usual:
 
 Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all features of the app (all CRUD operations + product searches!), and we've finished the migration process.
 
-### 7. Handle Missing Collections
+### Step 5: Handle Missing Collections
 
 If you are missing any collections (e.g. `addresses`, `cartitems`, `contacts`, `merchants`, `wishlists`):
 - **In MongoDB:** Create them with at least one dummy document before running `mongorestore`. You can compare if you have all collections by taking a look at the `dump/` directory generated by `mongodump`, and inspecting if all the files you have match with [my list of collections in the MERN app here.](../../docs/mern_collection_examples.json)

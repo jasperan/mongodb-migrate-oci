@@ -10,7 +10,7 @@ The application has the following features:
 - **R**eact frontend components
 - **N**ode.js backend environment
 
-Building on the foundation of the [Simple Migration](../simple-migration/README.md) solution—which guides you through migrating your MongoDB-based MERN app to Oracle Autonomous JSON Database 23ai — this solution adds advanced features such as:
+Building on the foundation of the [Simple Migration](../simple-migration/README.md) and [Complex Migration](../complex-migration/README.md) solutions—which guide you through migrating your MongoDB-based MERN app to Oracle Autonomous JSON Database 23ai and creating JSON Duality Views — this solution adds advanced features such as:
 - In-database vector search using Oracle 23ai's vector capabilities
 - Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the `ollama` API
 - Seamless integration of LLM-powered chat and analytics into your MERN app, accessible through the familiar React frontend
@@ -82,10 +82,13 @@ flowchart LR
 ### Prerequisites
 
 - Oracle 23ai Autonomous JSON Database instance
-- Having performed [simple migration](../simple-migration/README.md) and [complex migration](../complex-migration/README.md) beforehand, which will ensure your database backend is running properly
+- **Completed [Simple Migration](../simple-migration/README.md)**: Successfully migrated MongoDB collections to Oracle using `mongorestore`
+- **Completed [Complex Migration](../complex-migration/README.md)**: Successfully created JSON Duality Views using the normalized script and imported data into the `ecommercedv` schema
 - Python 3.10+ to expose the LLM through FastAPI
 - Node.js 18+ and `npm` for the MERN application
-- Access to a GPU infra compute to install `ollama` and deploy the LLM for inference
+- Access to a GPU infrastructure compute to install `ollama` and deploy the LLM for inference
+
+### Required Setup
 
 We will need to install `ollama` in a server that has a GPU (a prerequisite for most Large Language Models): 
 
@@ -119,7 +122,7 @@ ollama pull phi3
 # Start RAG API endpoint, which will be called by the express API
 uvicorn rag_api:app --host 0.0.0.0 --port 8000 --reload
 
-# Now, we're our extra endpoint is running and we can start making requests to it just by spinning up the app.
+# Now, our extra endpoint is running and we can start making requests to it just by spinning up the app.
 # Start MERN app
 # go to the root directory
 cd mongodb-migrate-oci/mern-ecommerce
@@ -136,7 +139,7 @@ npm run dev
 - [MongoDB Shell](https://www.mongodb.com/try/download/shell)
 - [Connect to a MongoDB Instance](https://www.mongodb.com/docs/database-tools/mongodump/#connect-to-a-mongodb-instance)
 
-## 1. LLM Chat Feature Implementation
+## LLM Chat Feature Implementation
 
 We're going to expand the original functionality of the app to include an AI chat feature. This will allow us to chat with whatever data is on the database. 
 
@@ -167,7 +170,7 @@ The distributed RAG implementation is achieved through several key components wo
 
 Let's go a bit into detail for each one of these components:
 
-### 1.1. Vector Store
+### Vector Store Setup
 
 To perform vector similarity search, we need to have a `ReviewCollection` table created beforehand, to allow us to store the LLM's embeddings (the values that hold the value for LLM's text).
 
@@ -195,7 +198,7 @@ If you don't have enough reviews to test this system as you're implementing, I h
 
 You can generate *100* randomized reviews for a product and insert them into the Oracle `ecommercedv.reviews` table.
 
-For this, run the following script, and then proceed with the above content in section 1.1:
+For this, run the following script, and then proceed with the above content in section `Vector Store Setup`:
 
 1. Fill in `config.yaml` with your Oracle DB and Ollama endpoint details.
 2. Run the script
@@ -209,7 +212,7 @@ For this, run the following script, and then proceed with the above content in s
    # python generate_reviews.py --generate --insert
    ```
 
-### 1.2. RAG API
+### RAG API Implementation
 
 Now that we have a RAG pipeline in place, we need to expose it / integrate it with the MERN architecture. How do we do that? There are lots of ways to achieve it, but the easiest way is to **run a REST microservice** that allows request from the MERN app from a specific Express endpoint, and retrieves the RAG context when needed. 
 
@@ -254,7 +257,7 @@ Below are code snippets showing how the MERN app communicates with the distribut
 
 2. **Frontend**: Displaying the LLM Response
 
-   The chat UI component `(LlmChat.js)` was also updated to display the LLM’s response from the answer field in the returned JSON:
+   The chat UI component `(LlmChat.js)` was also updated to display the LLM's response from the answer field in the returned JSON:
 
    ```jsx
    // client/app/components/Store/LlmChat/LlmChat.js
@@ -326,7 +329,7 @@ Below are code snippets showing how the MERN app communicates with the distribut
 
 These examples show how the MERN frontend sends a chat message to the distributed RAG API, which performs vector search and LLM inference, and returns the answer to be displayed in the chat UI.
 
-### 1.3. Testing
+### Testing
 
 For testing, I created two specific Python files that can be helpful for this purpose:
 

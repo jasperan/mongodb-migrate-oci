@@ -44,7 +44,8 @@ begin
                         "updatability" : true,
                         "outputFormat" : "standalone",
                         "normalize": false,
-                        "softnessThreshold": 0,
+                        "enableUnnestedAttributes": false,
+                        "enableNestedAttributes": false,
                         "hints": [{"type" : "normalize", "table" : "' || c.table_name || '",  "path" : "$", "value" : false}]
                 }'
         )
