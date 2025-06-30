@@ -263,18 +263,18 @@ Aggregation pipelines are widely used in real-world MongoDB applications for gro
 
 **Migration Challenge:**
 - Many companies rely heavily on aggregation pipelines in their MongoDB workloads.
-- To support these workloads, Oracle's MongoDB API must be compatible with the aggregation framework.
+- To support these workloads, Oracle's MongoDB API must be compatible with the aggregation framework
 - However, MongoDB's aggregation framework is large and evolving, with many operators and features. Oracle's implementation covers the most common operators, but not all (due to resource, priority, or technical reasons).
 
 **Oracle's Approach:**
 - The MongoDB API in Oracle Autonomous Database (implemented in ORDS, a Java application) translates incoming aggregation pipelines into equivalent SQL queries.
-- These SQL queries are executed by Oracle's mature SQL engine, and the results are returned as JSON documents to the application.
+- These SQL queries are executed by Oracle's SQL engine, and the results are returned as JSON documents to the application.
 - This approach leverages Oracle's powerful SQL engine rather than building a new aggregation engine from scratch.
 
 **Limitations and Workarounds:**
 - Not all MongoDB aggregation operators are supported yet. Some may be buggy, unsupported, or not yet implemented (especially new or rarely used ones).
 - To help bridge this gap, Oracle provides a special `$sql` operator in the aggregation pipeline. This allows users to write custom SQL for cases where the MongoDB aggregation framework is not fully supported.
-- The `$sql` operator is not part of the MongoDB standard, but is provided by Oracle to help with migration and compatibility.
+- The `$sql` operator is not part of the MongoDB standard, but is provided by Oracle to help with migration and compatibility
 
 **Summary:**
 - Most common aggregation pipelines will work out of the box, but some advanced or new operators may not be supported.
