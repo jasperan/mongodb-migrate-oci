@@ -168,7 +168,7 @@ The distributed RAG implementation is achieved through several key components wo
 3. RAG API `(rag_api.py)`
 4. Testing `(test_rag.py)`
 
-Let's go a bit into detail for each one of these components:
+Let's go into detail for each one of these components:
 
 ### Vector Store Setup
 
@@ -201,7 +201,7 @@ You can generate *100* randomized reviews for a product and insert them into the
 For this, run the following script, and then proceed with the above content in section `Vector Store Setup`:
 
 1. Fill in `config.yaml` with your Oracle DB and Ollama endpoint details.
-2. Run the script
+2. Run the script:
 
    ```bash
    # Generate reviews and save to file (specify a product id from your database)
@@ -211,6 +211,12 @@ For this, run the following script, and then proceed with the above content in s
    # Generate and insert in one step (uses default product id)
    # python generate_reviews.py --generate --insert
    ```
+
+After these reviews have been imported into `ecommercedv.ReviewCollection`, they will already be in the embeddings format, so we can just query to check if the insertions were performed correctly:
+
+```bash
+python 
+```
 
 ### RAG API Implementation
 

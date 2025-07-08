@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+"""
+Multi-Collection MongoDB to Oracle Migration Script
+
+This script automates the migration of all collections from MongoDB to Oracle Database.
+It performs the following operations:
+1. Connects to MongoDB and retrieves all collection names
+2. Iterates through each collection
+3. Updates the configuration file with the current collection name
+4. Executes the migration script (mongo2ora_data.py) for each collection
+5. Logs the progress and any errors encountered
+
+The script is part of the complex migration solution that handles advanced MongoDB
+features and provides comprehensive logging and error handling.
+
+@author jasperan
+"""
 
 import os
 import subprocess

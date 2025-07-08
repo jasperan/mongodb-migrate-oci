@@ -1,3 +1,15 @@
+"""
+@author jasperan
+This file will connect to a MongoDB instance and export
+all collections to a JSON file, so specific documents from these
+collections can be inspected.
+
+Should also be used to clear the collections and export
+the data to a JSON file, so they can be re-imported.
+
+WARNING: this will delete all documents from the collections! Beware!
+"""
+
 import os
 import json
 from pymongo import MongoClient
