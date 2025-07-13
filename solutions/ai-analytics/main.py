@@ -1,4 +1,8 @@
 import yaml
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+import oracledb
+oracledb.init_oracle_client(lib_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient'))
 from oracle_vector_store import OracleVectorStore
 from ollama_client import OllamaClient
 import json
@@ -15,9 +19,6 @@ def build_context(docs, max_tokens=1000):
         context += text + "\n"
         token_count += tokens
     return context.strip()
-
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
 
 vector_store = OracleVectorStore(config)
 ollama = OllamaClient(config['ollama']['endpoint'])

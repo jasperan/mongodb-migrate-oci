@@ -11,9 +11,10 @@ The application has the following features:
 - **N**ode.js backend environment
 
 Building on the foundation of the [Simple Migration](../simple-migration/README.md) and [Complex Migration](../complex-migration/README.md) solutions—which guide you through migrating your MongoDB-based MERN app to Oracle Autonomous JSON Database 23ai and creating JSON Duality Views — this solution adds advanced features such as:
-- In-database vector search using Oracle 23ai's vector capabilities
+- In-database vector search using Oracle 23ai's vector capabilities on native JSON collections
 - Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the `ollama` API
 - Seamless integration of LLM-powered chat and analytics into your MERN app, accessible through the familiar React frontend
+- **Database-focused approach**: Uses the existing `reviews` JSON collection instead of creating separate relational tables
 
 The architecture enables you to:
 - Migrate your data and application logic from MongoDB to Oracle with minimal changes
@@ -159,7 +160,7 @@ Here is a simple architecture that details the numbered steps performed in the b
 
 ![distributed rag architecture](./img/distributed_rag_architecture.png)
 
-- The backend will call the Ollama API for chat completions using the context retrieved from your Oracle JSON collections.
+- The backend will call the Ollama API for chat completions using the context retrieved from your Oracle JSON collections (specifically the `reviews` collection in the `ecommercedv` schema).
 
 The distributed RAG implementation is achieved through several key components working together:
 
@@ -170,33 +171,34 @@ The distributed RAG implementation is achieved through several key components wo
 
 Let's go into detail for each one of these components:
 
-### Vector Store Setup
+### 1. Vector Store Setup
 
-To perform vector similarity search, we need to have a `ReviewCollection` table created beforehand, to allow us to store the LLM's embeddings (the values that hold the value for LLM's text).
+To perform vector similarity search, we need to add embeddings to the existing `reviews` JSON collection in the `ecommercedv` schema. This collection was created during the migration process and contains all the review documents.
 
 Thanks to Oracle Autonomous database, we will already have access to this `VECTOR_DISTANCE()` function that will already allow us to compute the distance between two vectors (*Euclidean* distance in our case, although the algorithm is configurable), which is the backbone of any RAG system.
 
-It's important to note that, in order to successfully enable RAG as a pipeline, we need to consider that all the incoming reviews for our MERN application will **not automatically** go into the `ReviewCollection` table, as this is an external additional feature we're providing to the app. Therefore, we need to set up some kind of automation system that will take all the current reviews from the MERN app's review collection, and put it into this table. Additionally, we will use this opportunity to also **create the embeddings** to the JSON documents, so the vector distance between reviews can be computed!
+It's important to note that, in order to successfully enable RAG as a pipeline, we need to consider that all the incoming reviews for our MERN application will **not automatically** have embeddings, as this is an external additional feature we're providing to the app. Therefore, we need to set up some kind of automation system that will take all the current reviews from the MERN app's review collection, and add embeddings to them. Additionally, we will use this opportunity to also **create the embeddings** to the JSON documents, so the vector distance between reviews can be computed!
 
 Therefore, this file called [`review_collection_sync`](./review_collection_sync.py) does exactly this.
 
-Run the script once (after you've performed your migration) - note that after getting new reviews you'll have to re-run this script to update the `ReviewCollection` table:
+Run the script once (after you've performed your migration) - note that after getting new reviews you'll have to re-run this script to update the embeddings in the `reviews` collection:
 
 ```bash
 python review_collection_sync.py --ingest # run with ingest mode
+# this adds embeddings to existing reviews in ecommercedv.reviews JSON collection
 ```
 
 Then, when we have the database backend created, we already have access to:
 - Vector similarity search function 
-- ReviewCollection table with its embeddings
+- Reviews JSON collection with embeddings
 
 Now, the LLM has everything it needs to talk with the RAG system!
 
-#### Don't have enough reviews?
+#### Don't have enough reviews / want more?
 
 If you don't have enough reviews to test this system as you're implementing, I have prepared [this Python script](./generate_reviews.py).
 
-You can generate *100* randomized reviews for a product and insert them into the Oracle `ecommercedv.reviews` table.
+You can generate *100* randomized reviews for a product and insert them into the Oracle `ecommercedv.reviews` JSON collection.
 
 For this, run the following script, and then proceed with the above content in section `Vector Store Setup`:
 
@@ -206,19 +208,19 @@ For this, run the following script, and then proceed with the above content in s
    ```bash
    # Generate reviews and save to file (specify a product id from your database)
    python generate_reviews.py --generate --product-id <product_id> --file my_reviews.json
-   # Insert generated reviews into Autonomous
+   # Insert generated reviews into Autonomous JSON collection
    python generate_reviews.py --insert --file my_reviews.json
    # Generate and insert in one step (uses default product id)
    # python generate_reviews.py --generate --insert
    ```
 
-After these reviews have been imported into `ecommercedv.ReviewCollection`, they will already be in the embeddings format, so we can just query to check if the insertions were performed correctly:
+After these reviews have been imported into `ecommercedv.reviews`, they will already be in the embeddings format, so we can just query to check if the insertions were performed correctly:
 
 ```bash
-python 
+python review_collection_sync.py --display
 ```
 
-### RAG API Implementation
+### 2. RAG API Implementation
 
 Now that we have a RAG pipeline in place, we need to expose it / integrate it with the MERN architecture. How do we do that? There are lots of ways to achieve it, but the easiest way is to **run a REST microservice** that allows request from the MERN app from a specific Express endpoint, and retrieves the RAG context when needed. 
 
@@ -335,7 +337,7 @@ Below are code snippets showing how the MERN app communicates with the distribut
 
 These examples show how the MERN frontend sends a chat message to the distributed RAG API, which performs vector search and LLM inference, and returns the answer to be displayed in the chat UI.
 
-### Testing
+### 3. Testing
 
 For testing, I created two specific Python files that can be helpful for this purpose:
 

@@ -2,9 +2,13 @@
 # This file exposes a REST API endpoint that enables the frontend to query the LLM
 # with context from the Oracle vector store, implementing the RAG pattern
 
+import yaml
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+import oracledb
+oracledb.init_oracle_client(lib_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient'))
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-import yaml
 from oracle_vector_store import OracleVectorStore
 from ollama_client import OllamaClient
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,10 +28,6 @@ app.add_middleware(
 # Request model for the RAG endpoint
 class RAGRequest(BaseModel):
     question: str
-
-# Load configuration for vector store and Ollama client
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
 
 # Initialize components for RAG pipeline
 vector_store = OracleVectorStore(config)

@@ -1,9 +1,12 @@
+import yaml
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+import oracledb
+oracledb.init_oracle_client(lib_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient'))
 import argparse
 import random
 import json
 from datetime import datetime, timedelta
-import yaml
-import oracledb
 import array
 from sentence_transformers import SentenceTransformer
 
@@ -72,14 +75,10 @@ def generate_reviews(product_id, n=100):
         }
         review_id = review_obj["_id"]
         text = json.dumps(review_obj, ensure_ascii=False)
-        metadata = json.dumps({"source_table": "python_generated"})
         embedding = encoder.encode(text)
-        reviews.append({
-            "id": review_id,
-            "text": text,
-            "metadata": metadata,
-            "embedding": embedding.tolist()
-        })
+        # Add embedding to the review object
+        review_obj["embedding"] = embedding.tolist()
+        reviews.append(review_obj)
     return reviews
 
 
@@ -89,50 +88,73 @@ def save_reviews(reviews, filename):
     print(f"Saved {len(reviews)} reviews to {filename}")
 
 
-def insert_reviews_oracle(reviews, config):
-    conn = oracledb.connect(
-        user=config['ORACLE_DB_USERNAME'],
-        password=config['ORACLE_DB_PASSWORD'],
-        dsn=config['ORACLE_DB_DSN']
-    )
-    cursor = conn.cursor()
-    for review in reviews:
-        try:
-            cursor.execute(
-                f"INSERT INTO ecommercedv.ReviewCollection (id, text, metadata, embedding) VALUES (:1, :2, :3, :4)",
-                (
-                    review["id"],
-                    review["text"],
-                    review["metadata"],
-                    array.array("f", review["embedding"])
+def insert_reviews_json_collection(reviews, config):
+    conn = None
+    cursor = None
+    try:
+        conn = oracledb.connect(
+            user=config['ORACLE_DB_USERNAME'],
+            password=config['ORACLE_DB_PASSWORD'],
+            dsn=config['ORACLE_DB_DSN'],
+            config_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient')
+        )
+        cursor = conn.cursor()
+        
+        inserted_count = 0
+        for review in reviews:
+            try:
+                # Insert into JSON collection using JSON_TABLE syntax
+                cursor.execute(
+                    "INSERT INTO ecommercedv.reviews (data) VALUES (:review_json)",
+                    {"review_json": json.dumps(review, ensure_ascii=False)}
                 )
-            )
-        except oracledb.IntegrityError:
-            continue  # skip duplicates
-    conn.commit()
-    print(f"Inserted {len(reviews)} reviews into ecommercedv.ReviewCollection.")
-    cursor.close()
-    conn.close()
+                inserted_count += 1
+                
+                # Commit after each insert to avoid long transactions
+                conn.commit()
+                
+            except oracledb.IntegrityError:
+                continue  # skip duplicates
+            except Exception as e:
+                print(f"Error inserting review {review.get('_id')}: {e}")
+                if conn:
+                    conn.rollback()
+                continue
+        
+        print(f"Inserted {inserted_count} reviews into ecommercedv.reviews JSON collection.")
+        
+    except Exception as e:
+        print(f"Error in insert_reviews_json_collection: {e}")
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate and/or insert fake product reviews for ReviewCollection.")
+    parser = argparse.ArgumentParser(description="Generate and/or insert fake product reviews for JSON collection.")
     parser.add_argument('--generate', action='store_true', help='Generate review JSONs and save to file')
-    parser.add_argument('--insert', action='store_true', help='Insert reviews from file into Oracle ReviewCollection')
+    parser.add_argument('--insert', action='store_true', help='Insert reviews from file into Oracle JSON collection')
     parser.add_argument('--product-id', type=str, default=DEFAULT_PRODUCT_ID, help='Product ID for reviews')
     parser.add_argument('--file', type=str, default='generated_reviews.json', help='File to save/load reviews')
     args = parser.parse_args()
 
-    if args.generate:
-        reviews = generate_reviews(args.product_id)
-        save_reviews(reviews, args.file)
+    try:
+        if args.generate:
+            reviews = generate_reviews(args.product_id)
+            save_reviews(reviews, args.file)
 
-    if args.insert:
-        with open('config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
-        with open(args.file, 'r', encoding='utf-8') as f:
-            reviews = json.load(f)
-        insert_reviews_oracle(reviews, config)
+        if args.insert:
+            with open(args.file, 'r', encoding='utf-8') as f:
+                reviews = json.load(f)
+            insert_reviews_json_collection(reviews, config)
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
 
 if __name__ == "__main__":
     main() 
