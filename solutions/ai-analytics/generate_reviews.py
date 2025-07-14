@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timedelta
 import array
 from sentence_transformers import SentenceTransformer
+from soda_utils import SodaUtils
 
 DEFAULT_PRODUCT_ID = "68252aa00200de17ccc48b75"
 TITLES = [
@@ -88,72 +89,50 @@ def save_reviews(reviews, filename):
     print(f"Saved {len(reviews)} reviews to {filename}")
 
 
-def insert_reviews_json_collection(reviews, config):
-    conn = None
-    cursor = None
+def insert_reviews_soda_collection(reviews, config):
+    """
+    Insert reviews into the SODA collection using SODA operations
+    """
     try:
-        conn = oracledb.connect(
-            user=config['ORACLE_DB_USERNAME'],
-            password=config['ORACLE_DB_PASSWORD'],
-            dsn=config['ORACLE_DB_DSN'],
-            config_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient')
-        )
-        cursor = conn.cursor()
+        print("🔗 Initializing SODA connection...")
+        soda_utils = SodaUtils(config)
         
-        inserted_count = 0
-        for review in reviews:
-            try:
-                # Insert into JSON collection using JSON_TABLE syntax
-                cursor.execute(
-                    "INSERT INTO ecommercedv.reviews (data) VALUES (:review_json)",
-                    {"review_json": json.dumps(review, ensure_ascii=False)}
-                )
-                inserted_count += 1
-                
-                # Commit after each insert to avoid long transactions
-                conn.commit()
-                
-            except oracledb.IntegrityError:
-                continue  # skip duplicates
-            except Exception as e:
-                print(f"Error inserting review {review.get('_id')}: {e}")
-                if conn:
-                    conn.rollback()
-                continue
+        print(f"📊 Inserting {len(reviews)} reviews into SODA collection...")
+        inserted_count = soda_utils.insert_many_documents(reviews)
         
-        print(f"Inserted {inserted_count} reviews into ecommercedv.reviews JSON collection.")
+        print(f"✅ Successfully inserted {inserted_count} reviews into SODA collection.")
+        
+        # Get collection statistics
+        stats = soda_utils.get_collection_stats()
+        print(f"📈 Collection stats: {stats}")
         
     except Exception as e:
-        print(f"Error in insert_reviews_json_collection: {e}")
-        if conn:
-            conn.rollback()
+        print(f"❌ Error in insert_reviews_soda_collection: {e}")
         raise
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate and/or insert fake product reviews for JSON collection.")
+    parser = argparse.ArgumentParser(description="Generate and/or insert fake product reviews for SODA collection.")
     parser.add_argument('--generate', action='store_true', help='Generate review JSONs and save to file')
-    parser.add_argument('--insert', action='store_true', help='Insert reviews from file into Oracle JSON collection')
+    parser.add_argument('--insert', action='store_true', help='Insert reviews from file into Oracle SODA collection')
     parser.add_argument('--product-id', type=str, default=DEFAULT_PRODUCT_ID, help='Product ID for reviews')
     parser.add_argument('--file', type=str, default='generated_reviews.json', help='File to save/load reviews')
     args = parser.parse_args()
 
     try:
         if args.generate:
+            print("🔄 Generating reviews...")
             reviews = generate_reviews(args.product_id)
             save_reviews(reviews, args.file)
 
         if args.insert:
+            print("🔄 Loading reviews from file...")
             with open(args.file, 'r', encoding='utf-8') as f:
                 reviews = json.load(f)
-            insert_reviews_json_collection(reviews, config)
+            insert_reviews_soda_collection(reviews, config)
+            
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         return 1
 
 if __name__ == "__main__":

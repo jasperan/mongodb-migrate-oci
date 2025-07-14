@@ -14,7 +14,7 @@ Building on the foundation of the [Simple Migration](../simple-migration/README.
 - In-database vector search using Oracle 23ai's vector capabilities on native JSON collections
 - Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the `ollama` API
 - Seamless integration of LLM-powered chat and analytics into your MERN app, accessible through the familiar React frontend
-- **Database-focused approach**: Uses the existing `reviews` JSON collection instead of creating separate relational tables
+- **Database-focused approach**: Uses the existing `reviews` JSON collection via SODA (Simple Oracle Document Access) instead of creating separate relational tables
 
 The architecture enables you to:
 - Migrate your data and application logic from MongoDB to Oracle with minimal changes
@@ -160,7 +160,7 @@ Here is a simple architecture that details the numbered steps performed in the b
 
 ![distributed rag architecture](./img/distributed_rag_architecture.png)
 
-- The backend will call the Ollama API for chat completions using the context retrieved from your Oracle JSON collections (specifically the `reviews` collection in the `ecommercedv` schema).
+- The backend will call the Ollama API for chat completions using the context retrieved from your Oracle SODA collections (specifically the `reviews` collection).
 
 The distributed RAG implementation is achieved through several key components working together:
 
@@ -173,19 +173,19 @@ Let's go into detail for each one of these components:
 
 ### 1. Vector Store Setup
 
-To perform vector similarity search, we need to add embeddings to the existing `reviews` JSON collection in the `ecommercedv` schema. This collection was created during the migration process and contains all the review documents.
+To perform vector similarity search, we need to add embeddings to the existing `reviews` JSON collection using SODA (Simple Oracle Document Access). This collection was created during the migration process and contains all the review documents.
 
-Thanks to Oracle Autonomous database, we will already have access to this `VECTOR_DISTANCE()` function that will already allow us to compute the distance between two vectors (*Euclidean* distance in our case, although the algorithm is configurable), which is the backbone of any RAG system.
+Thanks to Oracle Autonomous database and SODA, we can perform NoSQL-style operations on JSON documents while leveraging vector capabilities for similarity search. The system uses Euclidean distance for vector similarity calculations, which is the backbone of any RAG system.
 
 It's important to note that, in order to successfully enable RAG as a pipeline, we need to consider that all the incoming reviews for our MERN application will **not automatically** have embeddings, as this is an external additional feature we're providing to the app. Therefore, we need to set up some kind of automation system that will take all the current reviews from the MERN app's review collection, and add embeddings to them. Additionally, we will use this opportunity to also **create the embeddings** to the JSON documents, so the vector distance between reviews can be computed!
 
-Therefore, this file called [`review_collection_sync`](./review_collection_sync.py) does exactly this.
+Therefore, this file called [`review_collection_sync`](./review_collection_sync.py) does exactly this using SODA operations.
 
 Run the script once (after you've performed your migration) - note that after getting new reviews you'll have to re-run this script to update the embeddings in the `reviews` collection:
 
 ```bash
 python review_collection_sync.py --ingest # run with ingest mode
-# this adds embeddings to existing reviews in ecommercedv.reviews JSON collection
+# this adds embeddings to existing reviews in SODA collection
 ```
 
 Then, when we have the database backend created, we already have access to:
@@ -198,7 +198,7 @@ Now, the LLM has everything it needs to talk with the RAG system!
 
 If you don't have enough reviews to test this system as you're implementing, I have prepared [this Python script](./generate_reviews.py).
 
-You can generate *100* randomized reviews for a product and insert them into the Oracle `ecommercedv.reviews` JSON collection.
+You can generate *100* randomized reviews for a product and insert them into the Oracle SODA collection.
 
 For this, run the following script, and then proceed with the above content in section `Vector Store Setup`:
 
@@ -214,7 +214,7 @@ For this, run the following script, and then proceed with the above content in s
    # python generate_reviews.py --generate --insert
    ```
 
-After these reviews have been imported into `ecommercedv.reviews`, they will already be in the embeddings format, so we can just query to check if the insertions were performed correctly:
+After these reviews have been imported into the SODA collection, they will already be in the embeddings format, so we can just query to check if the insertions were performed correctly:
 
 ```bash
 python review_collection_sync.py --display

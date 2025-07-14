@@ -4,7 +4,7 @@ with open('config.yaml', 'r') as f:
 import oracledb
 oracledb.init_oracle_client(lib_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient'))
 import sys
-from oracle_vector_store import OracleVectorStore
+from soda_utils import SodaUtils
 
 def check_credentials():
     try:
@@ -18,21 +18,27 @@ def check_credentials():
         print(f"✗ Error reading config.yaml: {e}")
         return False
 
-def test_connection():
-    print("Testing Oracle DB connection...")
+def test_soda_connection():
+    print("Testing SODA connection...")
     try:
-        store = OracleVectorStore(config)
-        print("✓ Connection successful!")
+        soda_utils = SodaUtils(config)
+        print("✓ SODA connection successful!")
+        
+        # Test basic SODA operations
+        print("Testing SODA operations...")
+        stats = soda_utils.get_collection_stats()
+        print(f"✓ Collection stats: {stats}")
+        
         return True
     except Exception as e:
-        print(f"✗ Connection failed: {e}")
+        print(f"✗ SODA connection failed: {e}")
         return False
 
 if __name__ == "__main__":
-    print("=== Oracle DB Connection Test ===\n")
+    print("=== Oracle DB SODA Connection Test ===\n")
     if not check_credentials():
         print("✗ Please update config.yaml with valid Oracle DB credentials.")
         sys.exit(1)
-    if not test_connection():
+    if not test_soda_connection():
         sys.exit(1)
     print("\n=== Test Completed ===") 
