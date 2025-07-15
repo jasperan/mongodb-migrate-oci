@@ -12,33 +12,52 @@ async function getOracleConnection() {
   });
 }
 
-// Vector search using Oracle 23ai JSON DB
-async function vectorSearch(query) {
+// Helper: Euclidean distance
+function euclideanDistance(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return Infinity;
+  return Math.sqrt(a.reduce((sum, v, i) => sum + Math.pow(v - b[i], 2), 0));
+}
+
+// Vector search using SODA (products, reviews collections)
+async function vectorSearch(queryEmbedding) {
   const conn = await getOracleConnection();
-  // Example: search products and reviews by semantic similarity
-  const sql = `
-    SELECT 'product' as type, json_value(data, '$.name') as name, json_value(data, '$.description') as description, vector_distance(product_vector, text_embedding(:q)) as similarity
-    FROM products_collection
-    ORDER BY similarity
-    FETCH FIRST 2 ROWS ONLY
-    UNION ALL
-    SELECT 'review' as type, NULL as name, json_value(data, '$.reviewText') as description, vector_distance(review_vector, text_embedding(:q)) as similarity
-    FROM reviews_collection
-    ORDER BY similarity
-    FETCH FIRST 2 ROWS ONLY
-  `;
-  const result = await conn.execute(sql, { q: query });
-  await conn.close();
-  const products = [];
-  const reviews = [];
-  for (const row of result.rows) {
-    if (row[0] === 'product') {
-      products.push({ name: row[1], description: row[2] });
-    } else if (row[0] === 'review') {
-      reviews.push({ reviewText: row[2] });
+  try {
+    const soda = conn.getSodaDatabase();
+    const collections = [
+      { name: 'products', type: 'product', nameField: 'name', descField: 'description' },
+      { name: 'reviews', type: 'review', nameField: null, descField: 'reviewText' }
+    ];
+    let results = [];
+    for (const col of collections) {
+      const collection = await soda.openCollection(col.name);
+      if (!collection) continue;
+      // Find all docs with embedding
+      const cursor = await collection.find().filter({ "embedding": { "$exists": true } }).getCursor();
+      let docs = [];
+      let doc;
+      while ((doc = await cursor.getNext())) {
+        const content = doc.getContent();
+        if (Array.isArray(content.embedding)) {
+          const dist = euclideanDistance(queryEmbedding, content.embedding);
+          docs.push({
+            type: col.type,
+            name: col.nameField ? content[col.nameField] : null,
+            description: content[col.descField],
+            similarity: dist
+          });
+        }
+      }
+      // Sort and take top 2
+      docs.sort((a, b) => a.similarity - b.similarity);
+      results = results.concat(docs.slice(0, 2));
     }
+    // Separate products and reviews for return
+    const products = results.filter(r => r.type === 'product').map(r => ({ name: r.name, description: r.description }));
+    const reviews = results.filter(r => r.type === 'review').map(r => ({ reviewText: r.description }));
+    return { products, reviews };
+  } finally {
+    await conn.close();
   }
-  return { products, reviews };
 }
 
 // Call Ollama LLM API (OpenAPI-compatible)

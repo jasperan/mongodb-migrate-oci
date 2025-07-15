@@ -23,7 +23,7 @@ router.get('/collections/mongo/:name/count', async (req, res) => {
   }
 });
 
-// List Oracle tables
+// List Oracle SODA collections
 router.get('/collections/oracle', async (req, res) => {
   try {
     const conn = await oracledb.getConnection({
@@ -31,15 +31,16 @@ router.get('/collections/oracle', async (req, res) => {
       password: process.env.ORACLE_PASSWORD,
       connectString: process.env.ORACLE_CONNECT_STRING
     });
-    const result = await conn.execute('SELECT table_name FROM user_tables');
+    const soda = conn.getSodaDatabase();
+    const collectionNames = await soda.getCollectionNames();
     await conn.close();
-    res.json(result.rows.map(r => r[0]));
+    res.json(collectionNames);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get row count for an Oracle table
+// Get document count for a SODA collection
 router.get('/collections/oracle/:name/count', async (req, res) => {
   try {
     const conn = await oracledb.getConnection({
@@ -47,10 +48,14 @@ router.get('/collections/oracle/:name/count', async (req, res) => {
       password: process.env.ORACLE_PASSWORD,
       connectString: process.env.ORACLE_CONNECT_STRING
     });
-    const sql = `SELECT COUNT(*) FROM "${req.params.name}"`;
-    const result = await conn.execute(sql);
+    const soda = conn.getSodaDatabase();
+    const collection = await soda.openCollection(req.params.name);
+    let count = 0;
+    if (collection) {
+      count = await collection.find().count();
+    }
     await conn.close();
-    res.json({ table: req.params.name, count: result.rows[0][0] });
+    res.json({ collection: req.params.name, count });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
