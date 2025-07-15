@@ -3,6 +3,8 @@ import oracledb
 import json
 from sentence_transformers import SentenceTransformer
 import array
+from decimal import Decimal
+from datetime import datetime
 
 class SodaUtils:
     """
@@ -16,11 +18,16 @@ class SodaUtils:
             # Initialize Oracle client
             oracledb.init_oracle_client(lib_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient'))
             
+            # Use SODA-specific credentials if present, else fall back to generic
+            user = config.get('SODA_DB_USERNAME', config['ORACLE_DB_USERNAME'])
+            password = config.get('SODA_DB_PASSWORD', config['ORACLE_DB_PASSWORD'])
+            dsn = config.get('SODA_DB_DSN', config['ORACLE_DB_DSN'])
+            
             # Create connection
             self.conn = oracledb.connect(
-                user=config['ORACLE_DB_USERNAME'],
-                password=config['ORACLE_DB_PASSWORD'],
-                dsn=config['ORACLE_DB_DSN'],
+                user=user,
+                password=password,
+                dsn=dsn,
                 config_dir=config.get('WALLET_DIR', 'C:/oracle/instantclient')
             )
             
@@ -53,6 +60,49 @@ class SodaUtils:
         except:
             pass
 
+    def convert_to_json_serializable(self, obj):
+        """
+        Recursively convert objects to JSON serializable format.
+        Handles JsonId, Decimal, bytes, datetime, and other non-serializable types.
+        """
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, bool, float)):
+            return obj
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, bytes):
+            return obj.hex()
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        elif hasattr(obj, '__class__') and 'JsonId' in str(type(obj)):
+            return str(obj)
+        elif isinstance(obj, dict):
+            return {key: self.convert_to_json_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self.convert_to_json_serializable(item) for item in obj]
+        else:
+            # For any other type, convert to string
+            return str(obj)
+
+    def normalize_document_id(self, doc_id):
+        """
+        Normalize document ID to hex string for consistent SODA operations
+        
+        Args:
+            doc_id: The document ID (bytes, JsonId, or string)
+            
+        Returns:
+            str: Normalized hex string ID
+        """
+        if isinstance(doc_id, bytes):
+            return doc_id.hex()
+        elif hasattr(doc_id, '__class__') and 'JsonId' in str(type(doc_id)):
+            # JsonId objects are bytes-like and have a .hex() method
+            return doc_id.hex()
+        else:
+            return str(doc_id)
+
     def list_collections(self):
         """
         List all available SODA collections in the database
@@ -70,23 +120,17 @@ class SodaUtils:
     def insert_document(self, document):
         """
         Insert a single document into the collection
-        
-        Args:
-            document (dict): The document to insert
-            
-        Returns:
-            str: The document key (ID) of the inserted document
         """
         try:
             print(f"🔧 Attempting to insert document: {document.get('_id', 'unknown')}")
             # Insert document using SODA
             result = self.collection.insertOne(document)
-            print(f"🔧 Insert result: {result}")
             if result:
-                print(f"🔧 Insert result key: {result.key}")
+                print(f"✅ Document inserted with key: {result.key}")
                 return result.key
             else:
-                raise Exception("Insert operation returned None")
+                print(f"✅ Document inserted (insertOne returned None)")
+                return None
         except Exception as e:
             print(f"❌ Error inserting document: {e}")
             raise
@@ -94,12 +138,6 @@ class SodaUtils:
     def insert_many_documents(self, documents):
         """
         Insert multiple documents into the collection
-        
-        Args:
-            documents (list): List of documents to insert
-            
-        Returns:
-            int: Number of documents successfully inserted
         """
         try:
             inserted_count = 0
@@ -113,10 +151,8 @@ class SodaUtils:
                     print(f"⚠️  Error inserting document {doc.get('_id', 'unknown')}: {e}")
                     self.conn.rollback()
                     continue
-            
-            print(f"✅ Successfully inserted {inserted_count} documents")
+            print(f"✅ Successfully inserted {inserted_count} documents.")
             return inserted_count
-            
         except Exception as e:
             print(f"❌ Error in insert_many_documents: {e}")
             raise
@@ -124,35 +160,25 @@ class SodaUtils:
     def find_documents(self, filter_dict=None, limit=None):
         """
         Find documents in the collection using SODA query
-        
-        Args:
-            filter_dict (dict): SODA filter criteria
-            limit (int): Maximum number of documents to return
-            
-        Returns:
-            list: List of document dictionaries
         """
         try:
-            # Create SODA operation
             operation = self.collection.find()
-            
-            # Apply filter if provided
             if filter_dict:
-                operation = operation.filter(filter_dict)
-            
-            # Apply limit if provided
+                normalized_filter = {}
+                for key, value in filter_dict.items():
+                    if hasattr(value, '__class__') and 'JsonId' in str(type(value)):
+                        normalized_filter[key] = str(value)
+                    elif isinstance(value, bytes):
+                        normalized_filter[key] = value.hex()
+                    else:
+                        normalized_filter[key] = value
+                operation = operation.filter(normalized_filter)
             if limit:
                 operation = operation.limit(limit)
-            
-            # Execute query
             cursor = operation.getCursor()
-            documents = []
-            
-            for doc in cursor:
-                documents.append(doc.getContent())
-            
+            documents = [doc.getContent() for doc in cursor]
+            print(f"📦 Retrieved {len(documents)} documents from SODA collection.")
             return documents
-            
         except Exception as e:
             print(f"❌ Error in find_documents: {e}")
             raise
@@ -169,11 +195,58 @@ class SodaUtils:
             int: Number of documents updated
         """
         try:
-            # Create SODA operation
-            operation = self.collection.find().filter(filter_dict)
+            print(f"🔍 Updating document with filter: {filter_dict}")
+            print(f"🔍 Update dict type: {type(update_dict)}")
+            print(f"🔍 Update dict keys: {list(update_dict.keys()) if isinstance(update_dict, dict) else 'Not a dict'}")
             
-            # Apply update
-            result = operation.replaceOne(update_dict)
+            # For SODA replaceOne, we need to use the key attribute
+            # First find the document to get its key
+            documents = self.find_documents(filter_dict)
+            if not documents:
+                print(f"⚠️  No documents found with filter: {filter_dict}")
+                return 0
+            
+            # Get the document key from the first matching document
+            doc = documents[0]
+            doc_key = doc.get('_id')
+            if not doc_key:
+                print(f"⚠️  Document has no _id field")
+                return 0
+            
+            print(f"🔍 Using document key: {doc_key}")
+            
+            # Convert document to JSON serializable format to handle JsonId and other types
+            safe_doc = self.convert_to_json_serializable(doc)
+            
+            # Ensure _id is normalized to hex string
+            if '_id' in safe_doc:
+                safe_doc['_id'] = self.normalize_document_id(safe_doc['_id'])
+                print(f"🔍 Normalized safe_doc _id: {safe_doc['_id']}")
+            
+            # Add embedding to the document
+            safe_doc["embedding"] = embedding
+            print(f"🔍 Added embedding with {len(embedding)} dimensions")
+            
+            # Update the document using the original document key
+            original_key = doc.get('_id')
+            print(f"🔍 Updating document with key: {original_key}")
+            
+            # Try delete all and re-insert approach (workaround for JsonId filtering)
+            try:
+                # Delete all documents in the collection
+                print(f"🔍 Deleting all documents in collection...")
+                delete_result = self.collection.find().remove()
+                print(f"🔍 Delete result: {delete_result}")
+                
+                # Insert the updated document with embedding
+                print(f"🔍 Inserting updated document with embedding...")
+                insert_result = self.collection.insertOne(safe_doc)
+                print(f"🔍 Insert result: {insert_result}")
+                
+                result = True
+            except Exception as e:
+                print(f"🔍 Delete all and re-insert approach failed: {e}")
+                raise e
             
             # Commit the transaction
             self.conn.commit()
@@ -182,6 +255,9 @@ class SodaUtils:
             
         except Exception as e:
             print(f"❌ Error in update_document: {e}")
+            print(f"🔍 Error type: {type(e).__name__}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
             self.conn.rollback()
             raise
     
@@ -219,26 +295,86 @@ class SodaUtils:
             bool: True if successful, False otherwise
         """
         try:
-            # Find the document first
-            documents = self.find_documents({"_id": document_id})
+            # Normalize document_id to hex string
+            filter_id = self.normalize_document_id(document_id)
+            print(f"🔍 Normalized document_id: {document_id} -> {filter_id}")
+
+            # Find the document using hex string
+            documents = self.find_documents({"_id": filter_id})
+            print(f"🔍 Found {len(documents)} documents with filter_id: {filter_id}")
             
+            # If not found with hex string, try with original document_id
+            if not documents and document_id != filter_id:
+                print(f"🔍 Trying with original document_id: {document_id}")
+                documents = self.find_documents({"_id": document_id})
+                print(f"🔍 Found {len(documents)} documents with original document_id")
+            
+            # If still not found, try to find by content (fallback)
             if not documents:
-                print(f"⚠️  Document with ID {document_id} not found")
-                return False
+                print(f"🔍 Trying to find document by content...")
+                all_documents = self.find_documents()
+                print(f"🔍 Total documents in collection: {len(all_documents)}")
+                
+                # Find the document that matches the original document_id
+                for doc in all_documents:
+                    doc_id = doc.get('_id')
+                    if doc_id == document_id:
+                        documents = [doc]
+                        print(f"🔍 Found document by content matching")
+                        break
+                
+                if not documents:
+                    print(f"⚠️  Document with ID {filter_id} not found")
+                    return False
             
             # Get the first (and should be only) document
             doc = documents[0]
+            print(f"🔍 Document _id: {doc.get('_id')}")
+            
+            # Convert document to JSON serializable format to handle JsonId and other types
+            safe_doc = self.convert_to_json_serializable(doc)
+            
+            # Ensure _id is normalized to hex string
+            if '_id' in safe_doc:
+                safe_doc['_id'] = self.normalize_document_id(safe_doc['_id'])
+                print(f"🔍 Normalized safe_doc _id: {safe_doc['_id']}")
             
             # Add embedding to the document
-            doc["embedding"] = embedding
+            safe_doc["embedding"] = embedding
+            print(f"🔍 Added embedding with {len(embedding)} dimensions")
             
-            # Update the document
-            self.update_document({"_id": document_id}, doc)
+            # Update the document using the original document key
+            original_key = doc.get('_id')
+            print(f"🔍 Updating document with key: {original_key}")
+            
+            # Use SODA replaceOne with key() method as required
+            try:
+                # Convert the JsonId to a string key for SODA
+                if hasattr(original_key, '__class__') and 'JsonId' in str(type(original_key)):
+                    key_string = original_key.hex()
+                else:
+                    key_string = str(original_key)
+                
+                print(f"🔍 Using key string for replaceOne: {key_string}")
+                
+                # Use replaceOne with key() method as required by SODA
+                result = self.collection.find().key(key_string).replaceOne(safe_doc)
+                print(f"🔍 ReplaceOne result: {result}")
+                
+            except Exception as e:
+                print(f"🔍 ReplaceOne approach failed: {e}")
+                raise e
+            
+            # Commit the transaction
+            self.conn.commit()
             
             return True
             
         except Exception as e:
             print(f"❌ Error adding embedding to document {document_id}: {e}")
+            print(f"🔍 Error type: {type(e).__name__}")
+            import traceback
+            print(f"🔍 Full traceback: {traceback.format_exc()}")
             return False
     
     def similarity_search(self, query, top_k=3):
@@ -308,4 +444,22 @@ class SodaUtils:
             
         except Exception as e:
             print(f"❌ Error getting collection stats: {e}")
+            raise 
+
+    def list_all_documents(self):
+        """
+        List all documents in the collection for debugging
+        
+        Returns:
+            list: List of all documents
+        """
+        try:
+            documents = self.find_documents()
+            print(f"🔍 Found {len(documents)} total documents in collection")
+            for i, doc in enumerate(documents):
+                doc_id = doc.get('_id')
+                print(f"🔍 Document {i+1}: _id = {doc_id} (type: {type(doc_id)})")
+            return documents
+        except Exception as e:
+            print(f"❌ Error listing documents: {e}")
             raise 
