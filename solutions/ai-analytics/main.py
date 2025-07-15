@@ -24,13 +24,18 @@ vector_store = OracleVectorStore(config)
 ollama = OllamaClient(config['ollama']['endpoint'])
 
 def rag_query(user_query):
+    print("🔍 Performing similarity search for your query...")
     docs = vector_store.similarity_search(user_query, top_k=5)
-    print('--- DOCS --- {}'.format(docs))
+    print(f"📄 Retrieved {len(docs)} relevant documents from Oracle.")
     context = build_context(docs)
-    print('--- CONTEXT --- {}'.format(context))
+    print(f"📝 Built context with {len(context.split())} words.")
     prompt = f"You are an expert assistant. Use the following context to answer the question.\n\nContext:\n{context}\n\nQuestion: {user_query}\nAnswer:"
+    print("🤖 Generating answer using Ollama...")
     return ollama.generate(prompt, model="phi3")
 
 if __name__ == "__main__":
-    q = input("Enter your question: ")
-    print(rag_query(q)) 
+    print("💬 Ready for your question!")
+    q = input("❓ Enter your question: ")
+    answer = rag_query(q)
+    print("\n🟢 Answer:")
+    print(answer) 

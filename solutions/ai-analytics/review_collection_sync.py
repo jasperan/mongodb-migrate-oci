@@ -61,46 +61,83 @@ def add_embeddings_to_reviews(config):
         print("🔗 Initializing SODA connection...")
         soda_utils = SodaUtils(config)
         
-        # Get all reviews from the SODA collection
-        print("🔍 Querying SODA collection for reviews...")
-        documents = soda_utils.find_documents()
-        print(f"📊 Found {len(documents)} reviews in SODA collection.")
-
-        updated_count = 0
-        for i, doc in enumerate(documents, 1):
+        # Load reviews from generated_reviews.json
+        print("📖 Loading reviews from generated_reviews.json...")
+        with open('generated_reviews.json', 'r') as f:
+            reviews_data = json.load(f)
+        
+        print(f"📊 Found {len(reviews_data)} reviews in generated_reviews.json")
+        
+        # Get existing documents in SODA collection to avoid duplicates
+        print("🔍 Checking existing documents in SODA collection...")
+        existing_docs = soda_utils.find_documents()
+        existing_ids = {doc.get('_id') for doc in existing_docs}
+        print(f"📋 Found {len(existing_ids)} existing documents in SODA collection")
+        
+        inserted_count = 0
+        skipped_count = 0
+        
+        for i, review_data in enumerate(reviews_data, 1):
             try:
-                print(f"🔄 Processing review {i}/{len(documents)}...")
-                review_id = doc.get('_id') or doc.get('id')
+                print(f"🔄 Processing review {i}/{len(reviews_data)}...")
+                
+                # Parse the review text to get the review object
+                review_text = review_data.get('text', '{}')
+                review_obj = json.loads(review_text)
+                
+                review_id = review_obj.get('_id') or review_obj.get('id')
                 print(f"📋 Review ID: {review_id}")
                 
-                # Check if embedding already exists
-                if 'embedding' in doc:
-                    print(f"⏭️  Review {review_id} already has embedding, skipping...")
+                # Check if review already exists
+                if review_id in existing_ids:
+                    print(f"⏭️  Review {review_id} already exists, skipping...")
+                    skipped_count += 1
                     continue
+                
+                # Add embedding from the review data
+                embedding = review_data.get('embedding')
+                if not embedding:
+                    print(f"⚠️  Review {review_id} has no embedding, skipping...")
+                    skipped_count += 1
+                    continue
+                
+                print(f"🧠 Adding embedding with {len(embedding)} dimensions to review {review_id}...")
+                
+                # Insert the review with embedding into SODA collection
+                review_obj['embedding'] = embedding
+                
+                # Insert the document
+                try:
+                    print(f"🔧 Attempting to insert review {review_id}...")
+                    insert_result = soda_utils.collection.insertOne(review_obj)
+                    print(f"🔧 Insert result: {insert_result}")
+                    # insertOne() returns None on success, so we check if it's not an exception
+                    if insert_result is not None:
+                        print(f"✅ Review {review_id} inserted successfully!")
+                        inserted_count += 1
+                    else:
+                        print(f"✅ Review {review_id} inserted successfully! (insertOne returned None)")
+                        inserted_count += 1
                     
-                # Create embedding for the review text
-                print(f"🧠 Creating embedding for review {review_id}...")
-                text = json.dumps(doc, ensure_ascii=False)
-                print(f"📝 Text length: {len(text)} characters")
-                embedding = soda_utils.encoder.encode(text)
-                print(f"🔢 Embedding created with {len(embedding)} dimensions")
-                
-                # Add embedding to the document using SODA
-                print(f"💾 Adding embedding to review {review_id}...")
-                success = soda_utils.add_embedding_to_document(review_id, embedding.tolist())
-                
-                if success:
-                    print(f"✅ Review {review_id} updated successfully!")
-                    updated_count += 1
-                else:
-                    print(f"⚠️  Failed to update review {review_id}")
+                    # Commit the transaction to persist the changes
+                    soda_utils.conn.commit()
+                    print(f"💾 Transaction committed for review {review_id}")
+                    
+                except Exception as insert_error:
+                    print(f"❌ Insert error for review {review_id}: {insert_error}")
+                    print(f"🔍 Insert error type: {type(insert_error).__name__}")
+                    soda_utils.conn.rollback()
+                    skipped_count += 1
+                    continue
                 
             except Exception as e:
-                print(f"❌ Error updating review {review_id}: {e}")
+                print(f"❌ Error processing review {review_id}: {e}")
                 print(f"🔍 Error type: {type(e).__name__}")
+                skipped_count += 1
                 continue
         
-        print(f"🎉 Successfully added embeddings to {updated_count} reviews in SODA collection.")
+        print(f"🎉 Successfully inserted {inserted_count} reviews to SODA collection.")
+        print(f"⏭️  Skipped {skipped_count} reviews (already exist or errors).")
         
         # Get final statistics
         stats = soda_utils.get_collection_stats()
@@ -110,6 +147,31 @@ def add_embeddings_to_reviews(config):
         print(f"❌ Error in add_embeddings_to_reviews: {e}")
         print(f"🔍 Error type: {type(e).__name__}")
         raise
+
+def convert_to_json_serializable(obj):
+    """
+    Recursively convert objects to JSON serializable format.
+    Handles JsonId, Decimal, bytes, datetime, and other non-serializable types.
+    """
+    if obj is None:
+        return None
+    elif isinstance(obj, (str, int, bool, float)):
+        return obj
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, bytes):
+        return obj.hex()
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif hasattr(obj, '__class__') and 'JsonId' in str(type(obj)):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_json_serializable(item) for item in obj]
+    else:
+        # For any other type, convert to string
+        return str(obj)
 
 def review_similarity_search(config, query, top_k=3):
     print(f"🔍 Starting similarity search for query: '{query}' using SODA")
@@ -143,18 +205,9 @@ def display_reviews_from_soda_collection(config):
         stats = soda_utils.get_collection_stats()
         print(f"📊 Collection stats: {stats}")
         
-        # Get sample documents
-        print("🔍 Fetching sample reviews...")
-        sample_docs = soda_utils.find_documents(limit=3)
-        print(f"📋 Displaying {len(sample_docs)} sample reviews from SODA collection:")
-        print("=" * 80)
-        
-        for i, doc in enumerate(sample_docs, 1):
-            review_id = doc.get('_id') or doc.get('id')
-            print(f"\n📋 Review #{i}")
-            print(f"🆔 ID: {review_id}")
-            print(f"📄 Content: {json.dumps(doc, ensure_ascii=False, indent=2)}")
-            print("-" * 40)
+        # Get total number of documents
+        total_docs = stats.get('total_documents', 0)
+        print(f"📦 Total reviews in SODA collection: {total_docs}")
         
     except Exception as e:
         print(f"❌ Error in display_reviews_from_soda_collection: {e}")

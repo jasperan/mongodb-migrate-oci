@@ -10,7 +10,7 @@ class OracleVectorStore:
             self.soda_utils = SodaUtils(config)
             print("✅ OracleVectorStore initialized with SODA successfully!")
         except Exception as e:
-            print(f"Failed to initialize OracleVectorStore: {e}")
+            print(f"❌ Failed to initialize OracleVectorStore: {e}")
             raise
 
     def __del__(self):
@@ -23,9 +23,11 @@ class OracleVectorStore:
 
     def similarity_search(self, query, top_k=3):
         try:
+            print(f"🔍 Searching for top {top_k} similar reviews in Oracle...")
             # Use SODA similarity search
             results = self.soda_utils.similarity_search(query, top_k)
+            print(f"📄 Found {len(results)} similar reviews.")
             return results
         except Exception as e:
-            print(f"Error in similarity_search: {e}")
+            print(f"❌ Error in similarity_search: {e}")
             raise 
