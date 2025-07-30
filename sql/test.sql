@@ -1,0 +1,373 @@
+drop view if exists ecommercedv.cartitems;
+drop table if exists ecommercedv.cartitems_root purge;
+drop view if exists ecommercedv.contacts;
+drop table if exists ecommercedv.contacts_root purge;
+drop view if exists ecommercedv.addresses;
+drop table if exists ecommercedv.addresses_root purge;
+drop table if exists ecommercedv.brands_root purge;
+drop table if exists ecommercedv.brands_root_subentity_1 purge;
+drop view if exists ecommercedv.brands;
+drop table if exists ecommercedv.carts_products purge;
+drop table if exists ecommercedv.carts_root purge;
+drop view if exists ecommercedv.carts;
+drop table if exists ecommercedv.categories_root purge;
+drop table if exists ecommercedv.categories_root_subentity_1 purge;
+drop view if exists ecommercedv.categories;
+drop table if exists ecommercedv.merchants_root purge;
+drop view if exists ecommercedv.merchants;
+drop table if exists ecommercedv.orders_root purge;
+drop view if exists ecommercedv.orders;
+drop table if exists ecommercedv.products_root purge;
+drop table if exists ecommercedv.products_root_subentity_1 purge;
+drop view if exists ecommercedv.products;
+drop table if exists ecommercedv.reviews_root purge;
+drop view if exists ecommercedv.reviews;
+drop table if exists ecommercedv.users_root purge;
+drop view if exists ecommercedv.users;
+drop table if exists ecommercedv.wishlists_root purge;
+drop view if exists ecommercedv.wishlists;
+
+
+
+CREATE TABLE ecommercedv.addresses_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   city  varchar2(64)  /* UNIQUE */,
+   ora$user  raw(64)  /* UNIQUE */,
+   state  varchar2(64)  /* UNIQUE */,
+   address  varchar2(64)  /* UNIQUE */,
+   country  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   zip_code  varchar2(64)  /* UNIQUE */,
+   is_default  boolean,
+   "__v"  number  /* UNIQUE */,
+   ora$addresses_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."addresses" AS 
+addresses_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  city
+  user: ora$user @cast(as: id)
+  state
+  address
+  country
+  created
+  zipCode: zip_code
+  isDefault: is_default
+  ora$addresses_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.brands_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   name  varchar2(64)  /* UNIQUE */,
+   slug  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   merchant  varchar2(64),
+   is_active  boolean,
+   description  varchar2(128)  /* UNIQUE */,
+   "__v"  number  /* UNIQUE */,
+   ora$brands_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."brands" AS 
+brands_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  name
+  slug
+  created
+  isActive: is_active
+  merchant
+  description
+  ora$brands_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.carts_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   ora$user  raw(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   "__v"  number  /* UNIQUE */,
+   ora$carts_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+CREATE TABLE ecommercedv.carts_products(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   status  varchar2(64)  /* UNIQUE */,
+   product  raw(64)  /* UNIQUE */,
+   quantity  number  /* UNIQUE */,
+   total_tax  json VALIDATE '{"oneOf" : [{ "type" :"number"}, { "extendedType" :"double"}]}',
+   total_price  number  /* UNIQUE */,
+   "_id_carts_root"  raw(64),
+   price_with_tax  json VALIDATE '{"oneOf" : [{ "type" :"number"}, { "extendedType" :"double"}]}',
+   purchase_price  number  /* UNIQUE */,
+   ora$carts_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+ALTER TABLE ecommercedv.carts_products
+ADD CONSTRAINT fk_carts_products_to_carts_root FOREIGN KEY ("_id_carts_root") REFERENCES ecommercedv.carts_root("_id") DEFERRABLE;
+CREATE INDEX IF NOT EXISTS fk_carts_products_to_carts_root_index ON ecommercedv.carts_products("_id_carts_root");
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."carts" AS 
+carts_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  user: ora$user @cast(as: id)
+  created
+  products: carts_products @insert @update @delete @array
+  { 
+    "_id" @cast(as: id)
+    status
+    product @cast(as: id)
+    quantity
+    totalTax: total_tax
+    totalPrice: total_price
+    priceWithTax: price_with_tax
+    purchasePrice: purchase_price
+    ora$carts_flex @flex
+  } 
+  ora$carts_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.categories_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   name  varchar2(64)  /* UNIQUE */,
+   slug  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   products  json VALIDATE '{"oneOf" : [{ "type" :"array"}]}', 
+   is_active  boolean,
+   description  varchar2(128)  /* UNIQUE */,
+   "__v"  number  /* UNIQUE */,
+   ora$categories_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."categories" AS 
+categories_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  name
+  slug
+  created
+  isActive: is_active
+  products
+  description
+  ora$categories_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.contacts_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   name  varchar2(64)  /* UNIQUE */,
+   email  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   message  varchar2(64)  /* UNIQUE */,
+   "__v"  number  /* UNIQUE */,
+   ora$contacts_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."contacts" AS 
+contacts_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  name
+  email
+  created
+  message
+  ora$contacts_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.merchants_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   name  varchar2(64)  /* UNIQUE */,
+   brand  varchar2(64),
+   email  varchar2(64)  /* UNIQUE */,
+   status  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone, 
+   business  varchar2(64)  /* UNIQUE */,
+   is_active  boolean,
+   brand_name  varchar2(64)  /* UNIQUE */,
+   phone_number  varchar2(64)  /* UNIQUE */,
+   "__v"  number  /* UNIQUE */,
+   ora$merchants_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."merchants" AS 
+merchants_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  name
+  brand
+  email
+  status
+  created
+  business
+  isActive: is_active
+  brandName: brand_name
+  phoneNumber: phone_number
+  ora$merchants_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.orders_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   cart  raw(64)  /* UNIQUE */,
+   ora$user  raw(64)  /* UNIQUE */,
+   total  number  /* UNIQUE */,
+   created  timestamp with time zone,
+   "__v"  number  /* UNIQUE */,
+   ora$orders_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."orders" AS 
+orders_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  cart @cast(as: id)
+  user: ora$user @cast(as: id)
+  total
+  created
+  ora$orders_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.products_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   sku  varchar2(64)  /* UNIQUE */,
+   name  varchar2(64)  /* UNIQUE */,
+   slug  varchar2(64)  /* UNIQUE */,
+   brand  raw(64)  /* UNIQUE */,
+   price  number  /* UNIQUE */,
+   created  timestamp with time zone,
+   taxable  boolean,
+   quantity  number  /* UNIQUE */,
+   is_active  boolean,
+   description  varchar2(128)  /* UNIQUE */,
+   "__v"  number,
+   ora$products_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."products" AS 
+products_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  sku
+  name
+  slug
+  brand @cast(as: id)
+  price
+  created
+  taxable
+  isActive: is_active
+  quantity
+  description
+  ora$products_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.reviews_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   ora$user  raw(64)  /* UNIQUE */,
+   title  varchar2(64)  /* UNIQUE */,
+   rating  number  /* UNIQUE */,
+   review  varchar2(64)  /* UNIQUE */,
+   status  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   product  raw(64)  /* UNIQUE */,
+   is_recommended  boolean,
+   "__v"  number  /* UNIQUE */,
+   ora$reviews_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."reviews" AS 
+reviews_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  user: ora$user @cast(as: id)
+  title
+  rating
+  review
+  status
+  created
+  product @cast(as: id)
+  isRecommended: is_recommended
+  ora$reviews_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.users_root(
+   "_id"  raw(64)  DEFAULT ON NULL SYS_GUID(),
+   role  varchar2(64)  /* UNIQUE */,
+   email  varchar2(64)  /* UNIQUE */,
+   created  timestamp with time zone,
+   merchant  varchar2(64),
+   password  varchar2(64)  /* UNIQUE */,
+   provider  varchar2(64)  /* UNIQUE */,
+   last_name  varchar2(64)  /* UNIQUE */,
+   first_name  varchar2(64)  /* UNIQUE */,
+   "__v"  number  /* UNIQUE */,
+   ora$users_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."users" AS 
+users_root @insert @update @delete
+{ 
+  "__v"
+  "_id" @cast(as: id)
+  role
+  email
+  created
+  lastName: last_name
+  merchant
+  password
+  provider
+  firstName: first_name
+  ora$users_flex @flex
+}; 
+
+CREATE TABLE ecommercedv.wishlists_root(
+   "_id"  varchar2(64)  DEFAULT ON NULL SYS_GUID(),
+   ora$user  varchar2(64)  /* UNIQUE */,
+   created  timestamp,
+   product  varchar2(64)  /* UNIQUE */,
+   updated  timestamp,
+   is_liked  boolean,
+   ora$wishlists_flex  JSON(Object),
+   PRIMARY KEY("_id")
+);
+
+
+CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ecommercedv."wishlists" AS 
+wishlists_root @insert @update @delete
+{ 
+  "_id"
+  user: ora$user
+  created
+  isLiked: is_liked
+  product
+  updated
+  ora$wishlists_flex @flex
+}; 

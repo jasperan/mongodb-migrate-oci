@@ -1,34 +1,60 @@
 -- this query was created to automatically monitor those products
 -- that are over $50 and are active
-CREATE OR REPLACE VIEW ECOMMERCE.active_products_over_50 AS
+CREATE OR REPLACE VIEW ECOMMERCEDV.active_products_over_50 AS
 SELECT
-  p.data.sku AS sku,
-  p.data.price AS price,
-  p.data.isActive AS is_active,
-  p.data.description AS description,
-  p.data.taxable AS taxable,
-  p.data.created AS created,
-  p.data."__v" AS version,
-  p.data.quantity AS quantity,
-  p.data.slug AS slug,
-  p.data.name AS name,
-  p.data.brand AS brand
-FROM ECOMMERCE."products" p
-WHERE p.data.price > 50;
+  jt.sku,
+  jt.price,
+  jt.isActive AS is_active,
+  jt.description,
+  jt.taxable,
+  jt.created,
+  jt."__v" AS version,
+  jt.quantity,
+  jt.slug,
+  jt.name,
+  jt.brand
+FROM ECOMMERCE."products" p,
+     JSON_TABLE(p.data, '$' COLUMNS (
+       sku VARCHAR2(100) PATH '$.sku',
+       price NUMBER PATH '$.price',
+       isActive BOOLEAN PATH '$.isActive',
+       description VARCHAR2(4000) PATH '$.description',
+       taxable BOOLEAN PATH '$.taxable',
+       created VARCHAR2(50) PATH '$.created',
+       "__v" NUMBER PATH '$."__v"',
+       quantity NUMBER PATH '$.quantity',
+       slug VARCHAR2(200) PATH '$.slug',
+       name VARCHAR2(200) PATH '$.name',
+       brand VARCHAR2(100) PATH '$.brand'
+     )) jt
+WHERE jt.price > 50;
 
 -- also filter in taxable products
-CREATE OR REPLACE VIEW ECOMMERCE.active_nontaxable_products AS
+CREATE OR REPLACE VIEW ECOMMERCEDV.active_nontaxable_products AS
 SELECT
-  p.data.sku AS sku,
-  p.data.price AS price,
-  p.data.isActive AS is_active,
-  p.data.description AS description,
-  p.data.taxable AS taxable,
-  p.data.created AS created,
-  p.data."__v" AS version,
-  p.data.quantity AS quantity,
-  p.data.slug AS slug,
-  p.data.name AS name,
-  p.data.brand AS brand
-FROM ECOMMERCE."products" p
-  WHERE p.data.taxable = false;
+  jt.sku,
+  jt.price,
+  jt.isActive AS is_active,
+  jt.description,
+  jt.taxable,
+  jt.created,
+  jt."__v" AS version,
+  jt.quantity,
+  jt.slug,
+  jt.name,
+  jt.brand
+FROM ECOMMERCE."products" p,
+     JSON_TABLE(p.data, '$' COLUMNS (
+       sku VARCHAR2(100) PATH '$.sku',
+       price NUMBER PATH '$.price',
+       isActive BOOLEAN PATH '$.isActive',
+       description VARCHAR2(4000) PATH '$.description',
+       taxable BOOLEAN PATH '$.taxable',
+       created VARCHAR2(50) PATH '$.created',
+       "__v" NUMBER PATH '$."__v"',
+       quantity NUMBER PATH '$.quantity',
+       slug VARCHAR2(200) PATH '$.slug',
+       name VARCHAR2(200) PATH '$.name',
+       brand VARCHAR2(100) PATH '$.brand'
+     )) jt
+WHERE jt.taxable = false;

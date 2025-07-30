@@ -154,27 +154,17 @@ From your MongoDB container or host, run:
 mongodump --uri "mongodb://localhost:27017/mern_ecommerce?ssl=false&authSource=admin" -u <user> -p <password>
 ```
 
-This will create a `dump/mern_ecommerce` directory with your data. Note that this MongoDB API URI corresponds to your own MongoDB host, not the Autonomous version.
+This will create a `dump/mern_ecommerce` directory with your data.
+
+> **Note**: this MongoDB API URI corresponds to your own MongoDB host, not the Autonomous version.
 
 ### 2. Create Oracle DB Users/Schemas in Autonomous
 
-Run the following SQL as an admin user (see [`sql/1.sql`](../../sql/1.sql)). This will create two new users: the first one will be used to perform the migration, and the other one will be used to create the JSON Duality Views of these collections, which will essentially allow us to have a relational schema compatible and updated with the JSON collections that were migrated:
+Run the following SQL as the `admin` user (see [`sql/1.sql`](../../sql/1.sql)). This will create the user which will host the JSON native collections in our Autonomous database:
 
 ```sql
 -- as admin
-GRANT DB_DEVELOPER_ROLE, DWROLE, UNLIMITED TABLESPACE, SODA_APP to ecommerce identified by "password";
 GRANT DB_DEVELOPER_ROLE, DWROLE, UNLIMITED TABLESPACE, SODA_APP to ecommercedv identified by "password";
-
-BEGIN
-  ORDS.ENABLE_SCHEMA(
-    p_enabled => TRUE,
-    p_schema => 'ECOMMERCE',
-    p_url_mapping_type => 'BASE_PATH',
-    p_url_mapping_pattern => 'ecommerce',
-    p_auto_rest_auth => FALSE
-  );
-END;
-/
 
 BEGIN
   ORDS.ENABLE_SCHEMA(
@@ -187,29 +177,6 @@ BEGIN
 END;
 /
 ```
-
-> **Note**: the full script is [here.](../../sql/1.sql)
-
-After the users and schemas have been created, grant select permissions from user `ecommercedv` to all the JSON native collections in the `ecommerce` user. Execute [`2.sql`](../../sql/2.sql):
-
-```sql
--- run as admin
--- only execute after running mongorestore (collections need to have been created):
-grant select on ecommerce.addresses to ecommercedv;
-grant select on ecommerce.brands to ecommercedv;
-grant select on ecommerce.cartitems to ecommercedv;
-grant select on ecommerce.carts to ecommercedv;
-grant select on ecommerce.categories to ecommercedv;
-grant select on ecommerce.contacts to ecommercedv;
-grant select on ecommerce.merchants to ecommercedv;
-grant select on ecommerce.orders to ecommercedv;
-grant select on ecommerce.products to ecommercedv;
-grant select on ecommerce.reviews to ecommercedv;
-grant select on ecommerce.users to ecommercedv;
-grant select on ecommerce.wishlists to ecommercedv;
-```
-
-> **Note**: by granting only select, we will ensure that the user `ecommercedv` can read, but not modify the data from the `ecommerce` user.
 
 ### 3. Autonomous database setup
 
@@ -227,23 +194,23 @@ Copy this URI, remove the `[user@password]` part (we'll authenticate another way
 
 ```bash
 # keep these additional parameters, only replacing the first part of the uri (mongodb://<oracle_host>:27017/ecommerce)
-MONGO_URI=mongodb://<oracle_host>:27017/ecommerce?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true 
-ORACLE_USER=ecommerce # we will dump the data into the ecommerce user
+MONGO_URI=mongodb://<oracle_host>:27017/ecommercedv?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true 
+ORACLE_USER=ecommercedv # we will dump the data into the ecommerce user
 ORACLE_PASSWORD=<oracle_password>
 ORACLE_CONNECT_STRING=<oracle_connect_string>
 ```
 
 ### 4. Import Data to Oracle Autonomous (mongorestore)
 
-Having checked that we already created users `ecommerce` and `ecommercedv` in step 2, it's time to import the data to the `ecommerce` user.
+Having checked that we already created user `ecommercedv` in step 2, it's time to import the data into the user.
 
 Use the MongoDB API endpoint for your Oracle Autonomous DB. Example (see [`dump_restore.sh`](../../dump_restore.sh)):
 
 ```sh
-mongorestore -u ecommerce -p '<oracle_password>' --drop \
-  --uri "mongodb://<oracle_host>:27017/ecommerce?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&ssl=true" \
+mongorestore -u ecommercedv -p '<oracle_password>' --drop \
+  --uri "mongodb://<oracle_host>:27017/ecommercedv?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&ssl=true" \
   --nsInclude=mern_ecommerce \
-  --writeConcern '{w:0}' \
+  --writeConcern '{w:1}' \
   --ssl \
   --tlsInsecure \
   ./dump/mern_ecommerce
@@ -276,39 +243,65 @@ With this data, we'll then set up a couple of views using dot notation, to keep 
 -- run as admin 
 CREATE OR REPLACE VIEW ECOMMERCE.active_products_over_50 AS
 SELECT
-  p.data.sku AS sku,
-  p.data.price AS price,
-  p.data.isActive AS is_active,
-  p.data.description AS description,
-  p.data.taxable AS taxable,
-  p.data.created AS created,
-  p.data."__v" AS version,
-  p.data.quantity AS quantity,
-  p.data.slug AS slug,
-  p.data.name AS name,
-  p.data.brand AS brand
-FROM ECOMMERCE."products" p
-WHERE p.data.price > 50;
+  jt.sku,
+  jt.price,
+  jt.isActive AS is_active,
+  jt.description,
+  jt.taxable,
+  jt.created,
+  jt."__v" AS version,
+  jt.quantity,
+  jt.slug,
+  jt.name,
+  jt.brand
+FROM ECOMMERCEDV."products" p,
+     JSON_TABLE(p.data, '$' COLUMNS (
+       sku VARCHAR2(100) PATH '$.sku',
+       price NUMBER PATH '$.price',
+       isActive BOOLEAN PATH '$.isActive',
+       description VARCHAR2(4000) PATH '$.description',
+       taxable BOOLEAN PATH '$.taxable',
+       created VARCHAR2(50) PATH '$.created',
+       "__v" NUMBER PATH '$."__v"',
+       quantity NUMBER PATH '$.quantity',
+       slug VARCHAR2(200) PATH '$.slug',
+       name VARCHAR2(200) PATH '$.name',
+       brand VARCHAR2(100) PATH '$.brand'
+     )) jt
+WHERE jt.price > 50;
 
 -- also filter in taxable products
 CREATE OR REPLACE VIEW ECOMMERCE.active_nontaxable_products AS
 SELECT
-  p.data.sku AS sku,
-  p.data.price AS price,
-  p.data.isActive AS is_active,
-  p.data.description AS description,
-  p.data.taxable AS taxable,
-  p.data.created AS created,
-  p.data."__v" AS version,
-  p.data.quantity AS quantity,
-  p.data.slug AS slug,
-  p.data.name AS name,
-  p.data.brand AS brand
-FROM ECOMMERCE."products" p
-  WHERE p.data.taxable = false;
+  jt.sku,
+  jt.price,
+  jt.isActive AS is_active,
+  jt.description,
+  jt.taxable,
+  jt.created,
+  jt."__v" AS version,
+  jt.quantity,
+  jt.slug,
+  jt.name,
+  jt.brand
+FROM ECOMMERCEDV."products" p,
+     JSON_TABLE(p.data, '$' COLUMNS (
+       sku VARCHAR2(100) PATH '$.sku',
+       price NUMBER PATH '$.price',
+       isActive BOOLEAN PATH '$.isActive',
+       description VARCHAR2(4000) PATH '$.description',
+       taxable BOOLEAN PATH '$.taxable',
+       created VARCHAR2(50) PATH '$.created',
+       "__v" NUMBER PATH '$."__v"',
+       quantity NUMBER PATH '$.quantity',
+       slug VARCHAR2(200) PATH '$.slug',
+       name VARCHAR2(200) PATH '$.name',
+       brand VARCHAR2(100) PATH '$.brand'
+     )) jt
+WHERE jt.taxable = false;
 ```
 
-> **Note**: get the full script [here.](../../sql/simple_migration_views.sql)
+> **Note**: full script [here.](../../sql/simple_migration_views.sql)
 
 And now, we can set up a data stream to our Excel application to keep track of these products! By installing this plugin on Excel, we will have access to several features of Oracle Autonomous, directly in Excel:
 
@@ -331,19 +324,25 @@ Start the backend and frontend as usual:
   npm run dev
   ```
 
-Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all the simplest features of the app (all CRUD operations). Here are some of the operations that are officially supported by JSON native collections (which means, they will work after the simple app migration):
+Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all the simplest features of the app (all CRUD operations). Here are some of the operations that are officially supported by JSON native collections (which means, they will work after having performed this migration):
 - Adding addresses
 - Adding brands
 - Adding items
+- Customizing your profile
 
-For all other features that use **aggregation pipelines** (e.g. the product search page), we will need to perform a few more steps to transition from JSON native collections to accessing this data via JSON Duality Views. We will take a look at this process in the next solution called [complex app migration.](../complex-migration/README.md)
+For all other features that use **aggregation pipelines** (e.g. the product search page), we will need to perform a few more steps to transition from JSON native collections to accessing this data via JSON Duality Views.
 
+You can have a look at this next guide [here](../complex-migration/README_2.md), where we will finish enabling the rest of the features of the MERN e-commerce application.
 
-## Annex: Handle Missing Collections
+## Annex / Troubleshooting: Handle Missing Collections
 
-If you are missing any collections (e.g. `addresses`, `cartitems`, `contacts`, `merchants`, `wishlists`):
-- **In MongoDB:** Create them with at least one dummy document before running `mongorestore` in section 2 of this guide. You can compare if you have all collections by taking a look at your `dump/` directory generated by `mongodump`, and inspecting if all the files you have match with [my list of collections in the MERN app here.](../../docs/mern_collection_examples.json)
-- **In Oracle:** After running `mongorestore`, you can manually create empty collections using the following SQL (see end of `script_fixed.sql`):
+If you don't have any data in your initial MERN e-commerce application before performing the migration to Autonomous, you might be missing some collections (e.g. `addresses`, `cartitems`, `contacts`, `merchants`, `wishlists`)...
+
+If you have missed this and have performed the migration already, worry not! You can create these collections manually afterwards, even if they might be empty you can still populate them as you use the app after migrating.
+
+Here are the steps to do so:
+- If you haven't performed the migration, create collections with at least one dummy document before running `mongorestore` in section 2 of this guide. You can compare if you have all collections by taking a look at your `dump/` directory generated by `mongodump`, and inspecting if all the files you have match with [my list of collections in the MERN app here.](../../docs/mern_collection_examples.json)
+- Otherwise, in Autonomous, you can manually create empty collections using the following SQL:s
 
   ```sql
   create json collection table "collection_name" with etag;

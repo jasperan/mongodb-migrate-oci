@@ -10,12 +10,42 @@ import json
 from decimal import Decimal
 from datetime import datetime
 from soda_utils import SodaUtils
+import uuid
 
 """
 WARNING:
 This script now works with the native JSON collection 'reviews' using SODA.
 It adds embeddings to existing review documents in the SODA collection.
 """
+
+def convert_string_id_to_binary(string_id):
+    """
+    Convert a string ID to a binary format that Oracle JSON Relational Duality Views expect.
+    Oracle expects _id to be a binary string (UUID format).
+    """
+    # Create a deterministic UUID based on the string ID
+    # This ensures the same string ID always produces the same binary ID
+    namespace = uuid.NAMESPACE_DNS  # Use DNS namespace for consistency
+    binary_id = uuid.uuid5(namespace, str(string_id))
+    return binary_id.bytes
+
+def convert_review_ids_to_binary(review_obj):
+    """
+    Convert all ID fields in a review object to binary format for Oracle JSON Relational Duality Views.
+    """
+    # Convert _id
+    if '_id' in review_obj and isinstance(review_obj['_id'], str):
+        review_obj['_id'] = convert_string_id_to_binary(review_obj['_id'])
+    
+    # Convert user
+    if 'user' in review_obj and isinstance(review_obj['user'], str):
+        review_obj['user'] = convert_string_id_to_binary(review_obj['user'])
+    
+    # Convert product
+    if 'product' in review_obj and isinstance(review_obj['product'], str):
+        review_obj['product'] = convert_string_id_to_binary(review_obj['product'])
+    
+    return review_obj
 
 def test_soda_operations(config):
     """Test basic SODA operations to ensure connection is stable"""
@@ -88,8 +118,13 @@ def add_embeddings_to_reviews(config):
                 review_id = review_obj.get('_id') or review_obj.get('id')
                 print(f"📋 Review ID: {review_id}")
                 
-                # Check if review already exists
-                if review_id in existing_ids:
+                # Convert all ID fields to binary format for Oracle
+                review_obj = convert_review_ids_to_binary(review_obj)
+                print(f"🔄 Converted all IDs to binary format for review {review_id}")
+                
+                # Check if review already exists (using binary ID)
+                binary_id = review_obj.get('_id')
+                if binary_id in existing_ids:
                     print(f"⏭️  Review {review_id} already exists, skipping...")
                     skipped_count += 1
                     continue

@@ -34,14 +34,33 @@ class SodaUtils:
             # Get SODA database object
             self.soda_db = self.conn.getSodaDatabase()
             
-            # Get or create the reviews collection
+            # Create or open the reviews collection as a pure JSON collection
+            metadata = {
+                "keyColumn": {
+                    "name": "_id",
+                    "sqlType": "BLOB"
+                },
+                "contentColumn": {
+                    "name": "JSON_DOCUMENT",
+                    "sqlType": "BLOB"
+                },
+                "lastModifiedColumn": {
+                    "name": "LAST_MODIFIED"
+                },
+                "versionColumn": {
+                    "name": "VERSION"
+                }
+            }
+            
             try:
+                # Try to open existing collection
                 self.collection = self.soda_db.openCollection("reviews")
                 if not self.collection:
-                    self.collection = self.soda_db.createCollection("reviews")
+                    # Create as pure JSON collection
+                    self.collection = self.soda_db.createCollection("reviews", metadata)
             except Exception:
-                # Collection doesn't exist, create it
-                self.collection = self.soda_db.createCollection("reviews")
+                # Collection doesn't exist, create it as pure JSON collection
+                self.collection = self.soda_db.createCollection("reviews", metadata)
             
             # Initialize sentence transformer for embeddings
             self.encoder = SentenceTransformer('all-MiniLM-L12-v2')
