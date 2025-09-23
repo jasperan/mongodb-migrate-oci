@@ -3,7 +3,7 @@
 
 ---
 
-## **1. Migration Recap: The Foundation for AI (5 minutes)**
+## **1. Migration Recap: The Foundation for AI**
 
 ### **What We Accomplished in Our Previous Session**
 - **Successfully migrated** a complete MERN ecommerce application from MongoDB to Oracle Autonomous Database
@@ -24,7 +24,7 @@
 
 ---
 
-## **2. Distributed RAG Architecture: Why We Chose This Approach (8 minutes)**
+## **2. Distributed RAG Architecture: Why We Chose This Approach**
 
 ### **What is RAG and Why It Matters**
 - **Retrieval-Augmented Generation**: Combines vector search with Large Language Models
@@ -57,7 +57,7 @@
 
 ---
 
-## **3. Vector Store Implementation: Building the AI Brain (8 minutes)**
+## **3. Vector Store Implementation: Building the AI Brain**
 
 ### **How We Built the Vector Store**
 
@@ -182,15 +182,10 @@ def batch_update_embeddings(self, batch_size=100):
             self.collection.find().key(doc['_id']).replaceOne(doc)
 ```
 
-### **Performance Optimizations**
-- **Binary storage**: BLOB columns for efficient JSON and vector storage
-- **Connection pooling**: Reusable database connections for high throughput
-- **Batch operations**: Process multiple documents simultaneously
-- **Indexed queries**: Automatic indexing on key columns and vector operations
 
 ---
 
-## **4. OCI Distributed Compute: Deploying Ollama at Scale (5 minutes)**
+## **4. OCI Distributed Compute: Deploying Ollama at Scale**
 
 ### **Why OCI for AI Workloads?**
 - **High-performance compute**: GPU instances for model inference
@@ -212,40 +207,12 @@ def batch_update_embeddings(self, batch_size=100):
 └─────────────────┴─────────────────┴─────────────────────────────┘
 ```
 
-### **Deployment Configuration**
-```yaml
-# Docker Compose for OCI deployment
-version: '3.8'
-services:
-  ollama-rag:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_ORIGINS=*
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./models:/models
-    command: serve
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  fastapi-service:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - OLLAMA_BASE_URL=http://ollama-rag:11434
-      - ORACLE_CONNECTION_STRING=${ORACLE_CONNECTION_STRING}
-    depends_on:
-      - ollama-rag
-```
+### **Ollama Deployment on OCI**
+- **GPU instances**: High-performance compute for model inference
+- **Network configuration**: Direct connection to Oracle Autonomous Database
+- **Security groups**: Proper firewall rules for port 11434
+- **Auto-scaling**: Scale compute nodes based on demand
+- **Health monitoring**: Continuous health checks and failover
 
 ### **Model Management and Scaling**
 - **Model loading**: Pre-load models on startup for faster response times
@@ -255,7 +222,7 @@ services:
 
 ---
 
-## **5. The Complete RAG Pipeline: From Query to Response (4 minutes)**
+## **5. The Complete RAG Pipeline: From Query to Response**
 
 ### **Step-by-Step RAG Process**
 
@@ -331,53 +298,97 @@ response = ollama_client.generate(
 
 ---
 
-## **6. Real-World Results and Business Impact (3 minutes)**
+## **6. Oracle Vector Store & SODA: The Database Magic**
 
-### **Performance Metrics**
-- **Response time**: < 2 seconds for complex queries
-- **Accuracy**: 95%+ of responses grounded in actual data
-- **Scalability**: Handles 100+ concurrent users
-- **Uptime**: 99.9% availability with distributed architecture
+### **What is SODA?**
+- **Simple Oracle Document Access**: Oracle's NoSQL interface for JSON collections
+- **MongoDB-compatible operations**: Familiar API for developers
+- **Native JSON storage**: No schema constraints, flexible document structure
+- **Vector capabilities**: Built-in support for embeddings and similarity search
 
-### **Business Value Delivered**
-- **Customer satisfaction**: Faster, more accurate product information
-- **Reduced support load**: AI handles common product questions
-- **Data insights**: Understanding customer sentiment and preferences
-- **Competitive advantage**: AI-powered customer experience
+### **Collection Architecture**
+```python
+# SODA collection metadata for optimal performance
+metadata = {
+    "keyColumn": {
+        "name": "_id",
+        "sqlType": "BLOB"  # Binary storage for efficient lookups
+    },
+    "contentColumn": {
+        "name": "JSON_DOCUMENT",
+        "sqlType": "BLOB"  # Binary JSON storage
+    },
+    "lastModifiedColumn": {
+        "name": "LAST_MODIFIED"  # Automatic timestamp tracking
+    },
+    "versionColumn": {
+        "name": "VERSION"  # Optimistic locking support
+    }
+}
+```
 
-### **Technical Advantages Achieved**
-- **No vendor lock-in**: Open-source models and standard APIs
-- **Cost efficiency**: Pay-per-use compute model
-- **Data sovereignty**: All data remains in Oracle cloud
-- **Future-proof**: Easy to upgrade models and add new capabilities
+### **Document Structure with Embeddings**
+```json
+{
+    "_id": "binary_id_here",
+    "title": "Wireless Headphones",
+    "review": "Great sound quality and comfortable fit",
+    "rating": 5,
+    "isRecommended": true,
+    "embedding": [0.123, -0.456, 0.789, ...],  // 384-dimensional vector
+    "metadata": {
+        "created_at": "2025-01-15T10:30:00Z",
+        "user_id": "user123"
+    }
+}
+```
+
+### **Vector Similarity Search Implementation**
+```python
+def similarity_search(self, query, top_k=3):
+    # 1. Convert query to embedding using sentence transformers
+    embedding = self.encoder.encode(query)
+    
+    # 2. Find all documents with embeddings
+    documents = self.find_documents({"embedding": {"$exists": True}})
+    
+    # 3. Calculate Euclidean distance for each document
+    similarities = []
+    for doc in documents:
+        doc_embedding = doc["embedding"]
+        # Convert Oracle numeric types to float
+        doc_embedding_float = [float(x) for x in doc_embedding]
+        
+        # Calculate Euclidean distance
+        distance = sum((a - b) ** 2 for a, b in zip(embedding, doc_embedding_float)) ** 0.5
+        similarities.append((distance, doc))
+    
+    # 4. Sort by similarity (lower distance = more similar)
+    similarities.sort(key=lambda x: x[0])
+    
+    # 5. Return top_k results
+    return [doc for _, doc in similarities[:top_k]]
+```
+
+### **Embedding Generation & Storage**
+- **Sentence Transformers**: Uses 'all-MiniLM-L12-v2' model for 384-dimensional embeddings
+- **Automatic processing**: New reviews automatically get embeddings when added
+- **Batch operations**: Can process hundreds of reviews simultaneously
+- **Transaction safety**: All operations are ACID compliant
+
+### **SODA Operations Used**
+```python
+# Core SODA operations for document management
+collection.insertOne(document)           # Insert single document
+collection.find().filter(criteria)       # Query documents
+collection.find().key(id).replaceOne()   # Update document
+collection.find().key(id).remove()       # Delete document
+collection.find().getCursor()            # Iterate through results
+```
 
 ---
 
-## **7. Key Takeaways and Next Steps (2 minutes)**
-
-### **What We've Accomplished**
-1. **Built a production-ready RAG system** using Oracle Vector Database
-2. **Implemented distributed microservices** for scalable AI deployment
-3. **Created a vector store** that combines NoSQL flexibility with AI capabilities
-4. **Deployed Ollama on OCI** for cost-effective model serving
-5. **Eliminated hallucinations** through proper prompt engineering
-
-### **Architecture Benefits**
-- **Scalable**: Independent scaling of AI and web components
-- **Maintainable**: Clear separation of concerns
-- **Reliable**: Enterprise-grade infrastructure and data consistency
-- **Cost-effective**: Pay only for compute resources used
-- **Future-ready**: Easy to add new AI capabilities
-
-### **Next Steps for Your Organization**
-- **Start small**: Implement RAG on one product category
-- **Expand gradually**: Add more data sources and use cases
-- **Monitor and optimize**: Track performance and user satisfaction
-- **Scale horizontally**: Add more compute nodes as demand grows
-
----
-
-## **Questions & Discussion**
+## **7. Questions & Discussion**
 
 *"This architecture demonstrates how to build enterprise-grade AI systems that are both powerful and practical. By combining Oracle's vector database capabilities with distributed microservices, we've created a system that can scale with your business while maintaining the reliability and security your organization requires."*
 
