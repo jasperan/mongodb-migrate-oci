@@ -31,6 +31,9 @@ def rag_query(user_query):
     print(f"📝 Built context with {len(context.split())} words.")
     prompt = f"You are an expert assistant. Use the following context to answer the question.\n\nContext:\n{context}\n\nQuestion: {user_query}\nAnswer:"
     print("🤖 Generating answer using Ollama...")
+    health = ollama.health()
+    if not health.get("ok"):
+        return f"[Error] Ollama unreachable: {health}"
     return ollama.generate(prompt, model="phi3")
 
 if __name__ == "__main__":

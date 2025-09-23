@@ -410,6 +410,7 @@ class SodaUtils:
         try:
             # Create embedding for the query
             embedding = self.encoder.encode(query)
+            print(f"🔍 Query embedding type: {type(embedding[0]) if embedding is not None and len(embedding) > 0 else 'None'}, length: {len(embedding) if embedding is not None and len(embedding) > 0 else 0}")
             
             # Find documents with embeddings
             documents = self.find_documents({"embedding": {"$exists": True}})
@@ -424,7 +425,26 @@ class SodaUtils:
                 if "embedding" in doc:
                     # Calculate Euclidean distance
                     doc_embedding = doc["embedding"]
-                    distance = sum((a - b) ** 2 for a, b in zip(embedding, doc_embedding)) ** 0.5
+                    print(f"🔍 Document embedding type: {type(doc_embedding[0]) if doc_embedding is not None and len(doc_embedding) > 0 else 'None'}, length: {len(doc_embedding) if doc_embedding is not None and len(doc_embedding) > 0 else 0}")
+                    # Convert any Oracle numeric types (decimal.Decimal, etc.) to float to avoid type mismatch
+                    doc_embedding_float = []
+                    for x in doc_embedding:
+                        if hasattr(x, 'as_tuple'):  # decimal.Decimal
+                            doc_embedding_float.append(float(x))
+                        elif isinstance(x, (int, float)):
+                            doc_embedding_float.append(float(x))
+                        else:
+                            # Fallback: try to convert to float, if it fails, skip this document
+                            try:
+                                doc_embedding_float.append(float(x))
+                            except (ValueError, TypeError):
+                                print(f"⚠️  Skipping document with invalid embedding value: {x} (type: {type(x)})")
+                                continue
+                    
+                    # Skip this document if we couldn't convert all values
+                    if len(doc_embedding_float) != len(doc_embedding):
+                        continue
+                    distance = sum((a - b) ** 2 for a, b in zip(embedding, doc_embedding_float)) ** 0.5
                     similarities.append((distance, doc))
             
             # Sort by similarity (lower distance = more similar)
@@ -433,8 +453,10 @@ class SodaUtils:
             # Return top_k results
             results = []
             for _, doc in similarities[:top_k]:
+                # Convert document to JSON serializable format before serializing
+                doc_serializable = self.convert_to_json_serializable(doc)
                 results.append({
-                    "text": json.dumps(doc, ensure_ascii=False),
+                    "text": json.dumps(doc_serializable, ensure_ascii=False),
                     "metadata": "SODA collection"
                 })
             

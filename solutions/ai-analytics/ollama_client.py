@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 
@@ -7,8 +8,10 @@ class OllamaClient:
     Handles both streaming and non-streaming text generation requests.
     """
     def __init__(self, endpoint):
-        # Store the Ollama API endpoint URL for making requests
-        self.endpoint = endpoint
+        # Allow environment variable override
+        self.endpoint = os.getenv("OLLAMA_ENDPOINT", endpoint)
+        # Default timeouts (connect, read)
+        self.timeout = (5, 60)
 
     def generate(self, prompt, **kwargs):
         """
@@ -24,7 +27,10 @@ class OllamaClient:
         """
         payload = {"prompt": prompt}
         payload.update(kwargs)
-        resp = requests.post(self.endpoint, json=payload, stream=True)
+        try:
+            resp = requests.post(self.endpoint, json=payload, stream=True, timeout=self.timeout)
+        except requests.exceptions.RequestException as exc:
+            return f"[Ollama error] {type(exc).__name__}: {exc}"
         responses = []
         try:
             # Process streaming response line by line
@@ -58,6 +64,17 @@ class OllamaClient:
         """
         payload = {"prompt": prompt}
         payload.update(kwargs)
-        resp = requests.post(self.endpoint, json=payload)
+        resp = requests.post(self.endpoint, json=payload, timeout=self.timeout)
         resp.raise_for_status()
         return resp.json().get("response", "")
+
+    def health(self):
+        """Basic health check against Ollama /api/version."""
+        try:
+            base = self.endpoint.split("/api/")[0]
+            r = requests.get(f"{base}/api/version", timeout=(3, 5))
+            if r.ok:
+                return {"ok": True, "version": r.text}
+            return {"ok": False, "status": r.status_code}
+        except requests.exceptions.RequestException as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
