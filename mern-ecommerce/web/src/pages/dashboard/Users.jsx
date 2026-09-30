@@ -14,10 +14,10 @@ import {
   TableShell,
   Td,
   Th,
-  Toolbar,
-  apiErrorMessage
+  Toolbar
 } from '../../components/manager'
 import { useSearchUsersQuery, useUsersQuery } from '../../features/manager/managerApi'
+import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
 
 const LIMIT = 20

@@ -56,7 +56,8 @@ stack. This repository keeps that developer experience and moves the data layer 
 | `sql/26ai` | Migration setup, validation, view, duality and AI scripts (this release) |
 | `sql/23ai` | The previous 23ai-era scripts, kept for reference |
 | `scripts/verify_migration.py` | Document-level source↔target verification (counts, ids, content hashes) |
-| `docs/26ai/migration-guide.md` | Step-by-step migration + verification runbook |
+| `docs/26ai/migration-guide.md` | Step-by-step migration + verification runbook (Plan → Prepare → Execute → Validate) |
+| `docs/26ai/demo-runbook.md` | Presenter script in deck order, with timings, reset procedure and fallbacks |
 | `docs/26ai/api-contract.md` | Every Express endpoint, payload and side effect |
 | `solutions/` | Simple migration, complex migration and AI/analytics narratives |
 | `livelabs/` | Oracle LiveLabs workshop content on JSON + MongoDB duality |
@@ -81,19 +82,36 @@ Seed an administrator on the source database with
 
 ## Migration in one page
 
-1. **Plan** — profile the workload and review the MongoDB operators used by the application
-   (`server/utils/queries.js` contains the aggregation pipelines).
-2. **Prepare** — enable the MongoDB API on the Autonomous Database, create the target schemas
-   (`sql/26ai/01_schemas.sql`).
-3. **Execute** — `mongodump` the source, `mongorestore` it into the target schema through the
-   MongoDB API (no application changes beyond `MONGO_URI`).
-4. **Validate** — `python scripts/verify_migration.py` compares every document (ids, counts,
-   content hashes) and `sql/26ai/02_verify_counts.sql` performs the SQL-side count check.
+1. **Plan** — profile the source with `db.serverStatus()`, `db.setProfilingLevel(2)` and a read-only
+   pass, then check every stage/operator the application uses against Oracle's support matrix:
+   `ASSESS_MODE=status|start|report mongosh "$MONGO_URI" --file mern-ecommerce/server/scripts/assess_workload.js`
+   (the pipelines themselves are in `server/utils/queries.js`; the two findings that matter are
+   `$lookup`'s restrictions on the target, and the fact that the Oracle API has no `profiler`
+   command — use SQL Monitor there).
+2. **Prepare** — enable the MongoDB API for the target schema, which the deck shows as the Database
+   Actions *REST, GraphQL, MongoDB API, and Web access* toggle and which `sql/26ai/01_schemas.sql`
+   runs as `ORDS.ENABLE_SCHEMA` plus grants.
+3. **Execute** — `mongodump` the source, then `mongorestore` it into the target schema through the
+   MongoDB API. The positional directory follows the URI: a URI that names a database (as the target
+   does) wants the **database directory** — the wrong pairing restores 0 documents and still exits 0,
+   so the argument matters ([guide §3.2](docs/26ai/migration-guide.md)). `--drop` then invalidates
+   everything built on the collections, so re-run `sql/26ai/03`, `03b`, `04`, `06`, `10`, `07`, `08` —
+   and use the `$sql` operator where the MongoDB pipelines need it
+   (`select banner from v$version` returns
+   `Oracle AI Database 26ai Enterprise Edition Release 23.26.3.3.0 - Production`). No application
+   changes beyond `MONGO_URI`.
+4. **Validate** — with no writers running: `python scripts/verify_migration.py` compares every
+   document (ids, counts, content hashes), `sql/26ai/02_verify_counts.sql` performs the SQL-side
+   count check, and `_scratch/e2e` replays 96 API assertions, 27 pages (plus the 8-step member flow)
+   and 13 user flows against both backends.
 5. **Extend** — relational views (`04`), duality views (`05`/`06`), JSON validity views (`07`) and
-   the AI layer (`08`/`09`).
+   the AI layer (`08`/`09`; `09` is re-runnable and reads its provider key from the gitignored
+   `sql/26ai/09_select_ai_key.sql`, with the one-time ADMIN ACL in `09b`).
 
-Full details, including the reference run's results (204 documents, 12 collections, 12 duality
-views, 132/132 valid documents): [`docs/26ai/migration-guide.md`](docs/26ai/migration-guide.md).
+Presenter version, in deck order, with timings and fallbacks:
+[`docs/26ai/demo-runbook.md`](docs/26ai/demo-runbook.md). Full details, including the reference
+run's results (204 documents, 12 collections, 12 duality views, 132/132 valid documents):
+[`docs/26ai/migration-guide.md`](docs/26ai/migration-guide.md).
 
 ## Solutions
 

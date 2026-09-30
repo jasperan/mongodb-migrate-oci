@@ -6,9 +6,7 @@ exports.getStoreProductsQuery = (min, max, rating) => {
   min = Number(min);
 
   const priceFilter = min && max ? { price: { $gte: min, $lte: max } } : {};
-  const ratingFilter = rating
-    ? { rating: { $gte: rating } }
-    : { rating: { $gte: rating } };
+  const ratingFilter = { rating: { $gte: rating } };
 
   const matchQuery = {
     isActive: true,
@@ -152,14 +150,9 @@ left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
 };
 
 exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
-
-  if (brandDoc) {
-    console.log("Brand doc present");
-  } else {
-    console.log("Brand doc NOT present");
-  }
-
-  var alias = "Q12";
+  // The `$sql` stage addresses the caller's previous stage by name, so the alias
+  // has to grow with the number of filter stages product.js pushed before it.
+  let alias = "Q12";
 
   if (brandDoc && categoryDoc) {
     alias = "Q14";

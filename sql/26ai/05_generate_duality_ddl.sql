@@ -6,7 +6,8 @@
 -- source collections - with targetSchema pointed at the duality schema.
 --
 -- Output is "standalone" DDL: it is reviewed, then executed in the target schema
--- (see sql/26ai/06_create_duality_views.sql and sql/26ai/generated/).
+-- (see sql/26ai/generated/duality_ddl/*.sql and sql/26ai/06_import_duality_views.sql,
+-- which loads the migrated documents into the views once they exist).
 
 set echo on
 set serveroutput on size unlimited

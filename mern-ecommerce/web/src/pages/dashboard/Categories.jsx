@@ -20,7 +20,6 @@ import {
   Td,
   Th,
   Toolbar,
-  apiErrorMessage,
   matches,
   useClientPage
 } from '../../components/manager'
@@ -32,6 +31,7 @@ import {
 } from '../../features/manager/managerApi'
 import { useAllCategoriesQuery, useProductOptionsQuery } from '../../features/catalog/catalogApi'
 import { toastShown } from '../../features/ui/uiSlice'
+import { apiErrorMessage } from '../../lib/apiError'
 import clsx from 'clsx'
 
 const PER_PAGE = 12

@@ -7,7 +7,7 @@ import { API_BASE_URL } from '../../app/api'
 // that the server can inject; when neither is present the provider buttons are
 // rendered disabled and a note explains why, instead of linking to an endpoint
 // that would fail the handshake.
-export function readConfiguredProviders() {
+function readConfiguredProviders() {
   const runtime = typeof window !== 'undefined' ? window.__AUTH_PROVIDERS__ : null
   const raw = runtime || import.meta.env?.VITE_AUTH_PROVIDERS || ''
   const list = String(raw)

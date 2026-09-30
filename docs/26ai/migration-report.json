@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T00:22:14+00:00",
+  "generatedAt": "2026-09-30T05:39:10+00:00",
   "sourceLabel": "mern_ecommerce",
   "targetLabel": "mern26",
   "sourceDocuments": 204,
@@ -7,6 +7,7 @@
   "targetViews": [
     "PRODUCTS_ENRICHED"
   ],
+  "skippedSystemCollections": [],
   "verified": true,
   "collections": [
     {

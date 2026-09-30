@@ -13,7 +13,7 @@ const STATUS_TONES = {
   'Not processed': 'neutral'
 }
 
-export const statusTone = (status) => STATUS_TONES[status] || 'neutral'
+const statusTone = (status) => STATUS_TONES[status] || 'neutral'
 
 function Row({ label, value, hint, strong = false }) {
   return (

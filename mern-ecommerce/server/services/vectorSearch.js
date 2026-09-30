@@ -67,4 +67,4 @@ const search = async (text, topK = 6) => {
   return { ...result, dimension: EMBEDDING_DIM, model: EMBEDDING_MODEL || llm.config().embeddingModel || null };
 };
 
-module.exports = { search, EMBEDDING_TABLE, EMBEDDING_MODEL, EMBEDDING_DIM, hasInDatabaseModel };
+module.exports = { search, EMBEDDING_TABLE, EMBEDDING_MODEL, EMBEDDING_DIM };

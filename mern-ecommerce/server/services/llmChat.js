@@ -47,13 +47,26 @@ const keywordFallback = async (message) => {
       fetch first 5 rows only`,
     binds
   );
-  return rows.map((row) => contextLine(row));
+  return rows.map(toDocument);
 };
+
+// Both retrieval paths come back from SQL with the same four fields, so the
+// document shape - and the context line built from it - lives in one place.
+const toDocument = (row) => ({
+  name: row.NAME,
+  description: row.DESCRIPTION,
+  price: row.PRICE,
+  brand: row.BRAND
+});
+
+// Shoppers ask about brands and categories as often as about products, so both
+// travel with the retrieved document when the database returned them.
+const formatLine = (doc) =>
+  `- ${doc.name} ($${doc.price})${doc.brand ? ` · ${doc.brand}` : ''}: ${doc.description}`;
 
 const retrieve = async (message) => {
   try {
     const { results, source } = await vectorSearch.search(message, 5);
-    if (!results.length) throw new Error('empty vector store');
     // Join on product id, not name: the catalogue holds same-named products in
     // different departments, and a name join would silently drop them.
     const ids = results.map((row) => `'${String(row.id).replace(/'/g, "''")}'`).join(',');
@@ -70,31 +83,20 @@ const retrieve = async (message) => {
         where json_value(data, '$._id') in (${ids})
         fetch first 5 rows only`
     );
-    return {
-      source,
-      documents: rows.map((row) => ({ name: row.NAME, description: row.DESCRIPTION, price: row.PRICE, brand: row.BRAND })),
-      scores: results
-    };
+    return { source, documents: rows.map(toDocument) };
   } catch (error) {
-    const documents = await keywordFallback(message);
-    return { source: `keyword-fallback (${error.message})`, documents: null, lines: documents };
+    // The keyword path covers exactly one boundary: no embedding store to search.
+    // Any other error (a broken join, a driver failure) is a real failure and must
+    // not be answered with a plausible-looking keyword result.
+    if (error.status !== 503) throw error;
+    return {
+      source: `keyword-fallback (${error.message})`,
+      documents: await keywordFallback(message)
+    };
   }
 };
 
-// Shoppers ask about brands and categories as often as about products, so both
-// travel with the retrieved document.
-const contextLine = (row) => {
-  const brand = row.BRAND ? ` · ${row.BRAND}` : '';
-  const categories = row.CATEGORIES ? ` · ${row.CATEGORIES}` : '';
-  return `- ${row.NAME} ($${row.PRICE})${brand}${categories}: ${row.DESCRIPTION}`;
-};
-
-const buildContext = (retrieval) => {
-  if (retrieval.lines) return retrieval.lines.join('\n');
-  return retrieval.documents
-    .map((doc) => `- ${doc.name} ($${doc.price})${doc.brand ? ` · ${doc.brand}` : ''}: ${doc.description}`)
-    .join('\n');
-};
+const buildContext = (retrieval) => retrieval.documents.map(formatLine).join('\n');
 
 const ragQuery = async (message) => {
   const retrieval = await retrieve(message);
@@ -121,8 +123,8 @@ const ragQuery = async (message) => {
     configured: true,
     model: completion.model,
     usage: completion.usage,
-    retrieval: { source: retrieval.source, documents: retrieval.documents || retrieval.lines }
+    retrieval: { source: retrieval.source, documents: retrieval.documents }
   };
 };
 
-module.exports = { ragQuery, retrieve, buildContext };
+module.exports = { ragQuery };

@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 
-const { query, isConfigured, schema } = require('../../services/oracle');
+const { query, schema } = require('../../services/oracle');
 const vectorSearch = require('../../services/vectorSearch');
 
 const router = express.Router();
@@ -89,6 +89,7 @@ router.get(
        where v.view_name not in (
               select view_name from user_json_duality_views
              )
+         and v.view_name not like 'DM$%'   -- Oracle Data Mining / ONNX model internals (DM$V<model>)
        order by v.view_name`);
 
     const result = [];
@@ -98,6 +99,9 @@ router.get(
         const counted = await query(`select count(*) as documents from "${safeIdentifier(row.VIEW_NAME)}"`);
         documents = counted[0].DOCUMENTS;
       } catch {
+        // Some views cannot be counted by this schema (missing grants, a
+        // dictionary-backed view). The panel keeps the row with a null count
+        // instead of a wrong number.
         documents = null;
       }
       result.push({
@@ -116,6 +120,30 @@ router.get(
 );
 
 // -------------------------------------------------------------- duality views
+// The duality views are populated from the JSON collections by
+// DBMS_JSON_DUALITY.IMPORT_ALL, so they are a point-in-time copy: documents the
+// application writes through the MongoDB API afterwards are only visible in the
+// view after a re-import. Reporting both counts (plus the key-level difference)
+// keeps the dashboard from showing duality numbers that silently disagree with
+// the collections panel.
+//
+// The duality view renders an ObjectId as UPPER-case hex while the collection
+// table renders it lower-case, so the key comparison folds case.
+const dualitySyncState = (view, collection) =>
+  query(
+    `select (select count(*) from ${view}) as documents,
+            (select count(*) from "${collection}") as collection_documents,
+            (select count(*) from (
+               select upper(json_value(data, '$._id')) id from "${collection}"
+               minus
+               select upper(json_value(data, '$._id')) id from ${view})) as pending,
+            (select count(*) from (
+               select upper(json_value(data, '$._id')) id from ${view}
+               minus
+               select upper(json_value(data, '$._id')) id from "${collection}")) as stale
+       from dual`
+  );
+
 router.get(
   '/duality-views',
   handle(async () => {
@@ -126,20 +154,38 @@ router.get(
     );
     const views = [];
     for (const row of rows) {
-      let documents = null;
+      const name = safeIdentifier(row.VIEW_NAME);
+      const dvView = `${safeIdentifier(schema.dv)}."${name}"`;
+      const collection = name.replace(/_DV$/, '').toLowerCase();
+      const view = {
+        name,
+        source: `${schema.app}.${collection}`,
+        documents: null,
+        collectionDocuments: null,
+        pending: null,
+        stale: null,
+        inSync: null,
+        insert: row.ALLOW_INSERT === 'YES',
+        update: row.ALLOW_UPDATE === 'YES',
+        delete: row.ALLOW_DELETE === 'YES'
+      };
       try {
-        const counted = await query(`select count(*) as documents from ${safeIdentifier(schema.dv)}."${safeIdentifier(row.VIEW_NAME)}"`);
-        documents = counted[0].DOCUMENTS;
+        const [counted] = await dualitySyncState(dvView, collection);
+        view.documents = counted.DOCUMENTS;
+        view.collectionDocuments = counted.COLLECTION_DOCUMENTS;
+        view.pending = counted.PENDING;
+        view.stale = counted.STALE;
+        view.inSync = counted.PENDING === 0 && counted.STALE === 0;
       } catch {
-        documents = null;
+        // keep the row with nulls; the panel degrades instead of failing
       }
-      views.push({
-        name: row.VIEW_NAME,
-        source: `${schema.app}.${row.VIEW_NAME.replace(/_DV$/, '').toLowerCase()}`,
-        documents
-      });
+      views.push(view);
     }
-    return { views, schema: schema.dv };
+    return {
+      views,
+      schema: schema.dv,
+      source: `DBMS_JSON_DUALITY import of ${schema.app} (snapshot; re-run sql/26ai/06_import_duality_views.sql to refresh)`
+    };
   })
 );
 

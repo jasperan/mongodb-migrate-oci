@@ -20,7 +20,6 @@ import {
   Td,
   Th,
   Toolbar,
-  apiErrorMessage,
   matches,
   useClientPage
 } from '../../components/manager'
@@ -33,6 +32,7 @@ import {
 } from '../../features/manager/managerApi'
 import { selectRole } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
 
 const PER_PAGE = 12

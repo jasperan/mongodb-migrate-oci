@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { Badge } from '../ui/Display'
-import { roleLabel } from '../../lib/format'
+import { initials, roleLabel } from '../../lib/format'
 
 // Inline active/inactive switch used on products, categories, brands and merchants.
 // The label states the current server state, so the button reads as a fact you can flip.
@@ -52,12 +52,7 @@ export function RoleBadge({ role }) {
 
 // Initials avatar used wherever the API returns a person without a picture.
 export function Avatar({ name, className }) {
-  const text = (name || '?')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase())
-    .join('')
+  const text = initials(name || '?')
   return (
     <span
       aria-hidden

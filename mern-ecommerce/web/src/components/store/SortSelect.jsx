@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { Select } from '../ui/Field'
 
 // The list endpoint takes a raw $sort object serialised as JSON.
-export const SORT_OPTIONS = [
+const SORT_OPTIONS = [
   { key: 'newest', label: 'Newest', sortOrder: { created: -1 } },
   { key: 'price-desc', label: 'Price: high to low', sortOrder: { price: -1 } },
   { key: 'price-asc', label: 'Price: low to high', sortOrder: { price: 1 } },

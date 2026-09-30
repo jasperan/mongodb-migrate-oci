@@ -1,18 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 
-// The API answers failures in three different shapes: `400 {error}`, `404 {message}`,
-// plain text for 401/403, plus RTK Query's own FETCH_ERROR. Collapse them into one
-// string so every screen can render the server's own words.
-export function apiErrorMessage(error, fallback = 'Your request could not be processed. Please try again.') {
-  if (!error) return fallback
-  const { data } = error
-  if (typeof data === 'string' && data.trim()) return data.trim()
-  if (data && typeof data === 'object') return data.error || data.message || fallback
-  if (error.status === 'FETCH_ERROR') return 'Cannot reach the server. Check your connection and try again.'
-  if (typeof error.message === 'string' && error.message) return error.message
-  return fallback
-}
-
 // Debounced mirror of a value — lists stay snappy while the query fires once.
 export function useDebouncedValue(value, delay = 350) {
   const [debounced, setDebounced] = useState(value)

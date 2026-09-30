@@ -17,8 +17,7 @@ import {
   TableShell,
   Td,
   Th,
-  Toolbar,
-  apiErrorMessage
+  Toolbar
 } from '../../components/manager'
 import {
   useApproveMerchantMutation,
@@ -29,6 +28,7 @@ import {
   useSetMerchantActiveMutation
 } from '../../features/manager/managerApi'
 import { toastShown } from '../../features/ui/uiSlice'
+import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
 
 const LIMIT = 20

@@ -42,14 +42,44 @@ select json_value(r.data, '$.product')                       as product_ref,
   from reviews r
  group by json_value(r.data, '$.product');
 
--- Business view: order lines joined to users and order totals.
+-- Business view: orders joined to customers, with the tax and totals the order actually carries.
+-- The order document stores only the checkout total (`{_id, cart, user, total, created, __v}`);
+-- the money lives on the cart's line items, which is exactly where the application reads it back
+-- from (utils/store.js -> caculateTaxAmount): line price = purchasePrice * quantity,
+-- priceWithTax = line price + totalTax. The view sums the same lines, so `order_subtotal` /
+-- `order_tax` / `order_total_with_tax` match what GET /api/order/:id reports. Cancelled lines are
+-- excluded; an order whose cart is already gone (cancelled orders delete the cart) reports NULL
+-- for the derived columns rather than a made-up zero. `order_total` stays the migrated document
+-- field, as sent by the client at checkout.
 create or replace view order_summary as
 select json_value(o.data, '$._id')                                as order_id,
        json_value(u.data, '$.firstName') || ' ' || json_value(u.data, '$.lastName') as customer,
        json_value(u.data, '$.email')                              as customer_email,
        json_value(o.data, '$.total'    returning number)          as order_total,
-       json_value(o.data, '$.totalTax' returning number)          as order_tax,
-       json_value(o.data, '$.totalWithTax' returning number)      as order_total_with_tax,
+       (select sum(nvl(i.unit_price, 0) * nvl(i.quantity, 0))
+          from carts c,
+               json_table(c.data, '$.products[*]'
+                          columns (unit_price number       path '$.purchasePrice',
+                                   quantity   number       path '$.quantity',
+                                   status     varchar2(32) path '$.status')) i
+         where json_value(c.data, '$._id') = json_value(o.data, '$.cart')
+           and nvl(i.status, 'x') <> 'Cancelled')                 as order_subtotal,
+       (select sum(nvl(i.total_tax, 0))
+          from carts c,
+               json_table(c.data, '$.products[*]'
+                          columns (total_tax number       path '$.totalTax',
+                                   status    varchar2(32) path '$.status')) i
+         where json_value(c.data, '$._id') = json_value(o.data, '$.cart')
+           and nvl(i.status, 'x') <> 'Cancelled')                 as order_tax,
+       (select sum(nvl(i.unit_price, 0) * nvl(i.quantity, 0) + nvl(i.total_tax, 0))
+          from carts c,
+               json_table(c.data, '$.products[*]'
+                          columns (unit_price number       path '$.purchasePrice',
+                                   quantity   number       path '$.quantity',
+                                   total_tax  number       path '$.totalTax',
+                                   status     varchar2(32) path '$.status')) i
+         where json_value(c.data, '$._id') = json_value(o.data, '$.cart')
+           and nvl(i.status, 'x') <> 'Cancelled')                 as order_total_with_tax,
        json_value(o.data, '$.created')                            as created
   from orders o
   left join users u

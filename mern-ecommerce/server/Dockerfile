@@ -1,4 +1,4 @@
-# Use official Node.js 14 as base image
+# Use official Node.js 16 (the version the migrated server runs on)
 FROM node:16.20.2-buster-slim
 
 # Set working directory

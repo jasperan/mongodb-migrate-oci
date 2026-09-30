@@ -22,6 +22,3 @@ export function StatusBadge({ status, className }) {
     </Badge>
   )
 }
-
-export const isCancelled = (status) => status === 'Cancelled'
-export const isDelivered = (status) => status === 'Delivered'

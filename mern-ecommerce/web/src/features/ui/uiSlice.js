@@ -30,5 +30,4 @@ const uiSlice = createSlice({
 
 export const { toastShown, toastDismissed, cartToggled, searchToggled } = uiSlice.actions
 export const selectToasts = (state) => state.ui.toasts
-export const selectCartOpen = (state) => state.ui.cartOpen
 export default uiSlice.reducer

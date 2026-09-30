@@ -110,6 +110,17 @@ def iter_docs(collection, batch: int = 500):
         yield doc
 
 
+def is_system_collection(name: str) -> bool:
+    """MongoDB's own namespaces (system.profile, system.views, system.buckets.*).
+
+    They are server bookkeeping, not migrated data: enabling the profiler — which
+    the planning step of the migration guide does with db.setProfilingLevel() —
+    creates ``system.profile`` on the source, and comparing it would report a
+    collection that no target can ever have.
+    """
+    return name.startswith("system.")
+
+
 def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sample: int) -> tuple[bool, dict]:
     src_client = MongoClient(source_uri, serverSelectionTimeoutMS=15000)
     tgt_client = MongoClient(target_uri, serverSelectionTimeoutMS=30000)
@@ -122,13 +133,19 @@ def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sampl
         raise SystemExit("target URI must include a database name")
 
     excluded = {"system.indexes", "system.views"} | ignore_collections
-    src_names = {n for n in src_db.list_collection_names() if n not in excluded}
+    src_all = src_db.list_collection_names()
+    src_names = {n for n in src_all if n not in excluded and not is_system_collection(n)}
+    src_system = sorted(n for n in src_all if is_system_collection(n) and n not in excluded)
     # The target legitimately carries extra read-only objects (JSON collection
     # views created on top of the migrated collections); only real collections
     # are compared one-to-one.
     tgt_all = {entry["name"]: entry.get("type", "collection") for entry in tgt_db.list_collections()}
-    tgt_views = sorted(name for name, kind in tgt_all.items() if kind == "view" and name not in excluded)
-    tgt_names = {name for name, kind in tgt_all.items() if kind != "view" and name not in excluded}
+    tgt_views = sorted(
+        name for name, kind in tgt_all.items() if kind == "view" and name not in excluded and not is_system_collection(name)
+    )
+    tgt_names = {
+        name for name, kind in tgt_all.items() if kind != "view" and name not in excluded and not is_system_collection(name)
+    }
 
     ok = True
     report = {
@@ -138,12 +155,15 @@ def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sampl
         "sourceDocuments": 0,
         "targetDocuments": 0,
         "targetViews": tgt_views,
+        "skippedSystemCollections": src_system,
         "verified": False,
         "collections": [],
     }
     print(f"source: {src_db.name}  ({len(src_names)} collections)")
     print(f"target: {tgt_db.name}  ({len(tgt_names)} collections, {len(tgt_views)} views)"
           + (f"  [views: {', '.join(tgt_views)}]" if tgt_views else ""))
+    if src_system:
+        print(f"skipped: {len(src_system)} MongoDB system collection(s): {', '.join(src_system)}")
     print("-" * 78)
 
     for name in sorted(src_names - tgt_names):
@@ -188,9 +208,9 @@ def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sampl
                         ))
                     )
 
-        status = "OK       "
-        if missing or extra or mismatches:
-            status = "MISMATCH "
+        matched = not (missing or extra or mismatches)
+        status = "OK       " if matched else "MISMATCH "
+        if not matched:
             ok = False
         report["collections"].append(
             {
@@ -200,7 +220,7 @@ def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sampl
                 "missing": len(missing),
                 "extra": len(extra),
                 "differing": len(mismatches),
-                "status": "match" if status == "OK       " else "mismatch",
+                "status": "match" if matched else "mismatch",
                 "sampleDiffs": [{"id": key, "diffs": diffs} for key, diffs in mismatches],
             }
         )
@@ -209,7 +229,7 @@ def verify(source_uri: str, target_uri: str, ignore_collections: set[str], sampl
         print(
             f"[{status}] {name}: source={src_count} target={tgt_count} "
             f"missing={len(missing)} extra={len(extra)} differing={len(mismatches)}"
-            + ("" if status == "OK       " else f" (showing up to {sample} diffs)")
+            + ("" if matched else f" (showing up to {sample} diffs)")
         )
         for key in sorted(missing)[:sample]:
             print(f"             - missing in target: {key}")

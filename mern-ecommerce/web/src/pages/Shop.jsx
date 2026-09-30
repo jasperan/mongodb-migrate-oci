@@ -5,7 +5,7 @@ import { EmptyState, LoadingBlock } from '../components/ui/Display'
 import { Button } from '../components/ui/Button'
 import { Pagination } from '../components/ui/Pagination'
 import { ProductCard } from '../components/catalog/ProductCard'
-import { Filters, DEFAULT_PRICE } from '../components/store/Filters'
+import { Filters, PRICE_BOUNDS } from '../components/store/Filters'
 import { SortSelect, DEFAULT_SORT, sortOrderFor } from '../components/store/SortSelect'
 import { useProductsQuery, useStoreBrandsQuery, useStoreCategoriesQuery } from '../features/catalog/catalogApi'
 
@@ -29,7 +29,7 @@ export default function Shop() {
   const term = params.get('q') || ''
   const page = Math.max(1, Number(params.get('page')) || 1)
 
-  const [price, setPrice] = useState(DEFAULT_PRICE)
+  const [price, setPrice] = useState(PRICE_BOUNDS)
   const [rating, setRating] = useState(0)
   const [sort, setSort] = useState(DEFAULT_SORT)
 
@@ -76,10 +76,10 @@ export default function Shop() {
   const activeBrand = brands.find((item) => item.slug === brand)
 
   const hasFilters =
-    Boolean(category || brand || term) || rating !== 0 || price.min !== DEFAULT_PRICE.min || price.max !== DEFAULT_PRICE.max
+    Boolean(category || brand || term) || rating !== 0 || price.min !== PRICE_BOUNDS.min || price.max !== PRICE_BOUNDS.max
 
   const resetAll = () => {
-    setPrice(DEFAULT_PRICE)
+    setPrice(PRICE_BOUNDS)
     setRating(0)
     setSort(DEFAULT_SORT)
     setParams(new URLSearchParams())

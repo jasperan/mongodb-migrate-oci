@@ -201,12 +201,24 @@ function readDuality(data) {
   return {
     schema: pick(data, ['schema', 'targetSchema', 'target_schema']) ?? null,
     total: num(pick(data, ['count', 'total', 'documents'])) ?? null,
+    source: pick(data, ['source', 'method']) ?? null,
     rows: rows.map((row, index) => {
-      if (typeof row === 'string') return { name: row, count: null, status: null }
-      if (!isObject(row)) return { name: `view-${index + 1}`, count: null, status: null }
+      if (typeof row === 'string') return { name: row, count: null, sourceDocuments: null, pending: null, stale: null, inSync: null, status: null }
+      if (!isObject(row)) return { name: `view-${index + 1}`, count: null, sourceDocuments: null, pending: null, stale: null, inSync: null, status: null }
+      const count = num(pick(row, ['count', 'documents', 'documentCount', 'document_count', 'rows', 'rowCount', 'row_count', 'total', 'totalDocuments']))
+      const sourceDocuments = num(
+        pick(row, ['collectionDocuments', 'collection_documents', 'sourceDocuments', 'source_documents', 'sourceCount', 'source_count'])
+      )
+      const pending = num(pick(row, ['pending', 'pendingDocuments', 'pending_documents']))
+      const stale = num(pick(row, ['stale', 'staleDocuments', 'stale_documents']))
+      const inSync = pick(row, ['inSync', 'in_sync'])
       return {
         name: String(pick(row, NAME_KEYS) ?? `view-${index + 1}`),
-        count: num(pick(row, ['count', 'documents', 'documentCount', 'document_count', 'rows', 'rowCount', 'row_count', 'total', 'totalDocuments'])),
+        count,
+        sourceDocuments,
+        pending,
+        stale,
+        inSync: typeof inSync === 'boolean' ? inSync : pending !== null && stale !== null ? pending === 0 && stale === 0 : null,
         status: pick(row, ['status', 'state', 'updatable', 'isUpdatable', 'valid']) ?? null
       }
     })
@@ -578,7 +590,7 @@ export default function AdminDb() {
       <SectionCard
         icon={GitMerge}
         title="Duality views"
-        subtitle="Updatable JSON-relational views, one per migrated collection"
+        subtitle="Updatable JSON-relational views, one per migrated collection, populated by the 26ai duality import"
         action={
           <Button variant="outline" size="sm" onClick={duality.refetch} loading={duality.isFetching}>
             Refresh
@@ -604,22 +616,37 @@ export default function AdminDb() {
               emptyLabel="No duality views reported — the duality schema is generated but no view is exposed yet."
               columns={[
                 { key: 'name', header: 'View', render: (row) => <span className="font-mono text-xs">{row.name}</span> },
-                { key: 'count', header: 'Documents', align: 'right', render: (row) => row.count ?? '—' },
+                { key: 'count', header: 'In the view', align: 'right', render: (row) => row.count ?? '—' },
+                { key: 'source', header: 'In the collection', align: 'right', render: (row) => row.sourceDocuments ?? '—' },
                 {
-                  key: 'status',
-                  header: 'Status',
+                  key: 'sync',
+                  header: 'Sync',
                   align: 'right',
-                  render: (row) =>
-                    row.status === null || row.status === undefined ? (
-                      <Badge tone="neutral">view</Badge>
-                    ) : (
-                      <Badge tone={String(row.status).toLowerCase() === 'true' ? 'success' : 'duality'}>
-                        {String(row.status)}
+                  render: (row) => {
+                    if (row.inSync === null) return <Badge tone="neutral">snapshot</Badge>
+                    if (row.inSync) return <Badge tone="success">in sync</Badge>
+                    return (
+                      <Badge tone="warning">
+                        {[
+                          row.pending ? `${row.pending} awaiting import` : null,
+                          row.stale ? `${row.stale} removed` : null
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </Badge>
                     )
+                  }
                 }
               ]}
             />
+            {dualityData.rows.some((row) => row.inSync === false) && (
+              <p className="mt-2 text-xs text-ink-400">
+                Duality views are a point-in-time copy of the collections, filled by{' '}
+                <span className="font-mono">DBMS_JSON_DUALITY.IMPORT_ALL</span>. Documents the application writes
+                through the MongoDB API after that import show as <em>awaiting import</em> until the duality views are
+                refreshed (<span className="font-mono">sql/26ai/06_import_duality_views.sql</span>).
+              </p>
+            )}
           </>
         )}
       </SectionCard>

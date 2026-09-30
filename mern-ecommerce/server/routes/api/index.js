@@ -1,8 +1,6 @@
 const router = require('express').Router();
 const { ragQuery } = require('../../services/llmChat');
 
-console.log('Registering /chat route');
-
 const authRoutes = require('./auth');
 const userRoutes = require('./user');
 const addressRoutes = require('./address');

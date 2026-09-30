@@ -39,7 +39,7 @@ const authSlice = createSlice({
       persist(state)
     },
     profileReceived(state, action) {
-      state.user = { ...(state.user || {}), ...action.payload }
+      state.user = { ...state.user, ...action.payload }
       persist(state)
     },
     authFailed(state, action) {

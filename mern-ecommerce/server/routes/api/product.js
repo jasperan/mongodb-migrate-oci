@@ -10,6 +10,7 @@ const Category = require('../../models/category');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const checkAuth = require('../../utils/auth');
+const { escapeRegex } = require('../../utils/utils');
 const { s3Upload } = require('../../utils/storage');
 const {
   getStoreProductsQuery,
@@ -56,8 +57,11 @@ router.get('/list/search/:name', async (req, res) => {
   try {
     const name = req.params.name;
 
+    // The case-insensitivity flag has to live on the RegExp: the Oracle Database
+    // API for MongoDB ignores the separate $options field of a find filter, which
+    // silently turned every storefront search case-sensitive.
     const productDoc = await Product.find(
-      { name: { $regex: new RegExp(name), $options: 'is' }, isActive: true },
+      { name: { $regex: new RegExp(escapeRegex(name), 'i') }, isActive: true },
       { name: 1, slug: 1, imageUrl: 1, price: 1, _id: 0 }
     );
 
@@ -151,8 +155,7 @@ router.get('/list', async (req, res) => {
       currentPage,
       count
     });
-  } catch (error) {
-    console.log('error', error);
+  } catch {
     res.status(400).json({
       error: 'Your request could not be processed. Please try again.'
     });

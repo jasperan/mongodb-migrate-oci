@@ -1,0 +1,8 @@
+-- Local, gitignored copy of the Select AI key.
+--   cp sql/26ai/09_select_ai_key.sql.example sql/26ai/09_select_ai_key.sql
+-- then replace the placeholder with your OCI Generative AI API key.
+--
+-- The value is a bearer token for the OpenAI-compatible endpoint configured in
+-- sql/26ai/09_select_ai.sql (`provider_endpoint`). Keep it out of version control:
+-- the application holds the same key in server/.env (OCI_GENAI_API_KEY).
+define mern_llm_key = <oci-genai-api-key>

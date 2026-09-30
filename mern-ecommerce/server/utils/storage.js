@@ -1,7 +1,5 @@
 // const AWS = require('aws-sdk');
 
-const keys = require('../config/keys');
-
 exports.s3Upload = async image => {
   try {
     let imageUrl = '';

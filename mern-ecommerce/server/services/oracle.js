@@ -80,4 +80,4 @@ const schema = {
   dv: dvUser
 };
 
-module.exports = { getPool, query, isConfigured, schema, oracledb };
+module.exports = { getPool, query, isConfigured, schema };

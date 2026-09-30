@@ -22,18 +22,19 @@ app.use(
 );
 app.use(cors());
 
-setupDB();
 require('./config/passport')(app);
 app.use(routes);
 
-console.log('Routes registered');
+// Listen only once the database connection is up: setupDB() stops the process on
+// a connection failure, so a bad MONGO_URI never leaves a half-serving API.
+setupDB().then(() => {
+  const server = app.listen(port, () => {
+    console.log(
+      `${chalk.green('✓')} ${chalk.blue(
+        `Listening on port ${port}. Visit http://localhost:${port}/ in your browser.`
+      )}`
+    );
+  });
 
-const server = app.listen(port, () => {
-  console.log(
-    `${chalk.green('✓')} ${chalk.blue(
-      `Listening on port ${port}. Visit http://localhost:${port}/ in your browser.`
-    )}`
-  );
+  socket(server);
 });
-
-socket(server);

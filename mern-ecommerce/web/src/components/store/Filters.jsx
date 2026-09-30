@@ -4,11 +4,11 @@ import { Field, Input, Select } from '../ui/Field'
 import { Button } from '../ui/Button'
 
 // The list aggregation only applies the price window when BOTH bounds are
-// truthy, so the lower bound never drops below 1.
+// truthy, so the lower bound never drops below 1. Shop seeds its filter state
+// with the same window, so "no filter" and "full range" are one value.
 export const PRICE_BOUNDS = { min: 1, max: 5000 }
-export const DEFAULT_PRICE = { min: 1, max: 5000 }
 
-export const PRICE_PRESETS = [
+const PRICE_PRESETS = [
   { label: 'Under $25', min: 1, max: 25 },
   { label: '$25 – $50', min: 25, max: 50 },
   { label: '$50 – $100', min: 50, max: 100 },
@@ -16,7 +16,7 @@ export const PRICE_PRESETS = [
   { label: '$250+', min: 250, max: PRICE_BOUNDS.max }
 ]
 
-export const RATING_OPTIONS = [
+const RATING_OPTIONS = [
   { value: 0, label: 'Any' },
   { value: 1, label: '1★+' },
   { value: 2, label: '2★+' },

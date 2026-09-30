@@ -19,7 +19,6 @@ import {
   Td,
   Th,
   Toolbar,
-  apiErrorMessage,
   useClientPage
 } from '../../components/manager'
 import {
@@ -29,6 +28,7 @@ import {
   useReviewsQuery
 } from '../../features/reviews/reviewApi'
 import { toastShown } from '../../features/ui/uiSlice'
+import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
 
 const PER_PAGE = 12

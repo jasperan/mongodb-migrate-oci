@@ -1,21 +1,22 @@
 # Express API Contract — `mern-ecommerce/server`
 
-> **Scope.** This is the inventory of the *migrated* server as it stood when the React 19 client was
-> written: it documents the 79 handlers the client had to be built against. Endpoints added for the
-> 26ai layer afterwards — `POST /api/ai/similar`, `POST /api/ai/ask`, `GET /api/ai/status` and the
-> extra `/api/admin-db/*` showcase routes — are documented in
-> [migration-guide.md](./migration-guide.md) §7 and listed in the root README.
+> **Scope.** This is the inventory of the *migrated* server the React 19 client was built against,
+> plus the 26ai layer added on top of it: the migration showcase routes (`/api/admin-db/*`, §3.14),
+> the RAG chat route (`POST /api/chat`, §3.15) and the AI endpoints (`/api/ai/*`, §3.16). Field
+> names and payloads below were re-verified against live responses from the Oracle deployment
+> (`http://127.0.0.1:3000`), captured in `_scratch/oracle-ext/endpoints_oracle_final.txt`.
 
 Source of truth: `mern-ecommerce/server/routes/**`, `server/models/**`, `server/middleware/**`,
 `server/utils/**`, `server/socket/**`, `server/index.js`, `server/config/**`.
 
-**Endpoint count: 79 route handlers across the 16 route files in `server/routes/api/`.
-78 are reachable; 1 is dead code (`server/routes/api/llmChat.js` is never mounted — see §3.16).**
+**Endpoint count: 85 route handlers across the 16 route files in `server/routes/api/` plus the root
+router `server/routes/index.js`. All 85 are reachable; the unmounted `routes/api/llmChat.js` handler
+was removed (it was dead code — §3.15 documents what replaced it).**
 
 Per-file distribution (verified by counting `router.<verb>(` declarations):
 `auth` 9 · `user` 4 · `address` 5 · `newsletter` 1 · `product` 10 · `category` 7 · `brand` 8 ·
-`contact` 1 · `merchant` 8 · `cart` 4 · `order` 7 · `review` 7 · `wishlist` 2 · `adminDb` 4 ·
-`llmChat` 1 (dead) · `index` 1.
+`contact` 1 · `merchant` 8 · `cart` 4 · `order` 7 · `review` 7 · `wishlist` 2 · `adminDb` 8 ·
+`ai` 3 · `index` 1.
 
 Every endpoint below is listed with the HTTP method, the full mounted path, auth/role
 requirements, request fields, success response shape and the collection side effects.
@@ -37,6 +38,12 @@ Default port: `process.env.PORT || 3000` (`server/config/keys.js`).
 Global middleware: `express.urlencoded({extended:true})`, `express.json()`,
 `helmet({contentSecurityPolicy:false, frameguard:true})`, `cors()` (allow-all).
 
+**Startup is fail-fast.** `server/utils/db.js` connects with
+`serverSelectionTimeoutMS: 15000`, and on failure logs
+`x MongoDB connection failed: mongodb://***:***@host/… - <driver message>` (credentials masked) and
+`process.exit(1)`. `server/index.js` calls `app.listen` only inside that promise's `then`, so a wrong
+or unreachable `MONGO_URI` stops the process instead of leaving a half-serving API on the port.
+
 ### 1.2 Mount table (`server/routes/api/index.js`)
 
 | Mount prefix | Route file |
@@ -55,7 +62,7 @@ Global middleware: `express.urlencoded({extended:true})`, `express.json()`,
 | `/api/review` | `review.js` |
 | `/api/wishlist` | `wishlist.js` |
 | `/api/admin-db` | `adminDb.js` |
-| *(no mount)* | `llmChat.js` — **dead code** |
+| `/api/ai` | `ai.js` |
 | `/api/chat` | inline `router.post('/chat', …)` inside `index.js` |
 
 ### 1.3 Authentication
@@ -398,11 +405,20 @@ so any other `Address` field is also accepted.
 * This is the store PDP load; `averageRating` is **not** present here (see §6).
 
 #### `GET /api/product/list/search/:name` — public
-Path param `name` → regex with options `is` (case-insensitive + dotall).
+Path param `name` → `{ name: { $regex: new RegExp(escapeRegex(name), 'i') }, isActive: true }`
+(`server/routes/api/product.js:64`; `escapeRegex` is `server/utils/utils.js`).
 Projection: `{name:1, slug:1, imageUrl:1, price:1, _id:0}`, filtered to `isActive:true`.
 * 200 → `{ products: [ {name, slug, imageUrl, price} ] }`
 * The `if (productDoc.length < 0)` guard is always false — an empty result returns
   `200 {products: []}`, never 404.
+* **Cross-backend note (fixed):** the regex flags MUST sit on the `RegExp` (`'i'`), not in a
+  `$options` field — the Oracle Database API for MongoDB ignores `$options` on a find filter, so
+  the previous `{ $regex: new RegExp(name), $options: 'is' }` was case-insensitive on MongoDB and
+  case-sensitive on Oracle (`mug` → 3 hits locally, 0 on Oracle). Measured after the fix, on both
+  `:3001` and `:3000`: `mug`/`MUG`/`enamel`/`camp` → 3/3/3/3, and a term with regex metacharacters
+  (`(`) → 200 with 0 hits instead of the 400 error envelope (the term is escaped now).
+  The same pattern is reused by `GET /api/user/search` (`user.js:16`) and
+  `GET /api/merchant/search` (`merchant.js:75`).
 * Used by the navigation search bar (client fires every 3rd keystroke — see `ui-inventory.md`).
 
 #### `GET /api/product/list` — **public, optionally personalised**
@@ -424,7 +440,7 @@ Query parameters:
   where `count` is the **filtered total** (length of the aggregation without skip/limit).
   Pagination quirk: `size = count > limit ? page-1 : 0` and `currentPage = count > limit ? page : 1`,
   so a single page always reports `currentPage: 1`.
-* 400 → generic error envelope (logged to the server console as `error <...>`).
+* 400 → generic error envelope.
 * `brand` and `category` filters are appended as extra `$match` stages built from separate
   `Brand.findOne({slug, isActive:true})` / `Category.findOne({slug, isActive:true})` lookups.
   The category filter matches `_id ∈ category.products`. A non-matching slug silently yields an
@@ -944,27 +960,56 @@ Path param is the **product slug**.
 
 ---
 
-### 3.14 `routes/api/adminDb.js` — 4 endpoints (mount `/api/admin-db`)
+### 3.14 `routes/api/adminDb.js` — 8 endpoints (mount `/api/admin-db`)
 
-All four are **public (no auth, no role check)** and return **arrays / bare objects** — there is no
-`{success}` envelope. Errors → `500 {error: <message>}`.
+All eight are **public (no auth, no role check)** and return **objects** — there is no `{success}`
+envelope. Errors → `500 {error: <message>}` (a rejected identifier is `400`, see below).
 
 | Endpoint | Data source | Success body |
 |---|---|---|
 | `GET /api/admin-db/collections/mongo` | **mongoose** — `mongoose.connection.db.listCollections().toArray()` | `["users","products", …]` (bare string array) |
 | `GET /api/admin-db/collections/mongo/:name/count` | **mongoose** — `mongoose.connection.db.collection(name).countDocuments()` | `{ collection: "<name>", count: <n> }` |
-| `GET /api/admin-db/collections/oracle` | **node-oracledb / SODA** — new connection from `ORACLE_USER` / `ORACLE_PASSWORD` / `ORACLE_CONNECT_STRING`, `conn.getSodaDatabase().getCollectionNames()` | `["products","reviews", …]` (bare string array) |
-| `GET /api/admin-db/collections/oracle/:name/count` | **node-oracledb / SODA** — `soda.openCollection(name).find().count()` | `{ collection: "<name>", count: <n> }` |
+| `GET /api/admin-db/collections/oracle` | **node-oracledb SQL** — `select collection_name, collection_type from user_json_collections` | `[{ name, type }]` — `type` is `TABLE` or `VIEW` |
+| `GET /api/admin-db/collections/oracle/:name/count` | **node-oracledb SQL** — `select count(*) as documents from "<name>"` | `{ collection: "<name>", count: <n> }` |
+| `GET /api/admin-db/views` | `user_views` (duality views and Oracle model internals excluded) + one `count(*)` per view | `{ views: [{ name, kind, columns, documents }], schema }` |
+| `GET /api/admin-db/duality-views` | `MERN26DV.duality_view_manifest` + `count(*)` of the view, of its source collection and a key-level diff | `{ views: [{ name, source, documents, collectionDocuments, pending, stale, inSync, insert, update, delete }], schema, source }` |
+| `GET /api/admin-db/validity` | `DOCUMENT_VALIDITY` + the `*_VALIDITY` views + `JSON_SCHEMAS` | `{ collections: [{ name, documents, valid, invalid }], inferredSchemas: [{ collection, characters }], invalidDocuments: [{ view, doc_id, report }], source }` |
+| `GET /api/admin-db/migration-status` | the JSON report from `scripts/verify_migration.py` + live `count(*)` per Oracle collection | `{ generatedAt, reportPath, sourceLabel, targetLabel, sourceDocuments, targetDocuments, verified, comparisons: [{ collection, source, target, match }], targetViews, embeddingDimension, embeddingModel }` |
+
+Live values on the Oracle deployment (`schema.app = MERN26`, `schema.dv = MERN26DV`):
+
+* `/collections/mongo` returns **13** names, not 12: the Oracle branch of mongoose also sees the
+  JSON collection view `PRODUCTS_ENRICHED` created by `sql/26ai/04_relational_views.sql`.
+* `/collections/oracle` returns the same 13 objects, with `PRODUCTS_ENRICHED` typed `VIEW`.
+* `/views` currently returns **11** rows: `PRODUCT_CATALOG`, `ACTIVE_PRODUCTS_OVER_50`,
+  `ACTIVE_NONTAXABLE_PRODUCTS`, `PRODUCT_REVIEW_STATS`, `ORDER_SUMMARY` (`kind: "relational"`),
+  `PRODUCTS_ENRICHED` (`kind: "json-collection-view"`) and the five validity views
+  (`DOCUMENT_VALIDITY`, `PRODUCTS_VALIDITY`, `USERS_VALIDITY`, `ORDERS_VALIDITY`, `CARTS_VALIDITY`,
+  `kind: "validity"`). The three Oracle Data Mining internals that belong to the ONNX embedding
+  model — `DM$VJALL_MINILM_L12_V2`, `DM$VMALL_MINILM_L12_V2`, `DM$VPALL_MINILM_L12_V2` — are
+  filtered out (`view_name not like 'DM$%'`); they are not views over the JSON store.
+* `/duality-views` reports `pending`/`stale` per view. The duality views are **populated by
+  `DBMS_JSON_DUALITY.IMPORT_ALL`**, so they are a point-in-time copy of the collections:
+  documents the application writes through the MongoDB API afterwards show up as `pending` until
+  `sql/26ai/06_import_duality_views.sql` is re-run. (`pending` = in the collection but not in the
+  view, `stale` = in the view but no longer in the collection; the comparison folds ObjectId hex
+  case, because the duality view renders `_id` upper-case and the collection lower-case.)
+* `/migration-status` mixes a **static** report with **live** counts: `sourceDocuments` comes from
+  the report, `targetDocuments` from Oracle right now, so any test data written after the report
+  was generated shows as `match: false` until the source is re-verified.
 
 Notes for a rewrite:
-* The MongoDB branch uses the **existing mongoose connection** (no separate connection pool).
-* The Oracle branch opens and closes a **fresh connection per request**.
-* The returned collection names are raw: MongoDB names are the pluralised mongoose collections,
-  Oracle names are the SODA collection names (`products`, `reviews`, `brands`, `wishlists`, …).
-* No pagination, no document preview — counts only.
-* Data-source functions used elsewhere: `server/services/llmChat.js` also talks to Oracle via SODA
-  (`openCollection('products'|'reviews')` with an `embedding` filter) but is reachable only from
-  the RAG service, not from an HTTP route (see §3.15/§3.16).
+* Every `:name` path parameter goes through `safeIdentifier()` (`/^[A-Za-z0-9_$]{1,128}$/`) before
+  it reaches SQL, and SQL identifiers are double-quoted — `GET /collections/oracle/DROP TABLE x/count`
+  → `400 {"error":"Invalid identifier: DROP TABLE x"}`.
+* The MongoDB branch uses the **existing mongoose connection**; the Oracle branch uses the shared
+  node-oracledb pool from `server/services/oracle.js` (`ORACLE_APP_USER` / `ORACLE_APP_PASSWORD` /
+  `ORACLE_CONNECT_STRING`, defaulting to `ORACLE_USER` / `ORACLE_PASSWORD`). There is no SODA
+  database handle anywhere in these routes.
+* `/views` and `/duality-views` issue one `count(*)` per object (11 + 12 round-trips), so they are
+  the slowest calls in the dashboard (≈1–2 s against the ADB).
+* No pagination and no document preview anywhere — counts, catalogues and one validation sample
+  per collection (`fetch first 5 rows only`).
 
 ### 3.15 `POST /api/chat` — public (inline in `routes/api/index.js`)
 
@@ -972,20 +1017,49 @@ Notes for a rewrite:
 |---|---|---|
 | `message` | string | yes |
 
-* Proxies to `services/llmChat.js` → `ragQuery(message)`, which POSTs `{question: message}` to
-  `${RAG_API_URL || 'http://localhost:8000/rag'}` and returns `res.data.answer`.
-* 200 → `{ response: <answer string> }`
+RAG over the migrated catalogue. `services/llmChat.js` → `ragQuery(message)` runs **retrieval inside
+Oracle** (the question is embedded, then `VECTOR_DISTANCE` ranks `PRODUCT_EMBEDDINGS`) and sends the
+retrieved documents plus the question to the OpenAI-compatible chat model configured through
+`LLM_*` / `OCI_GENAI_*`. There is no `RAG_API_URL` proxy any more.
+
+* 200 → `{ response: <answer>, model: <provider model id>, retrieval: { source, documents: [{ name, description, price, brand }] } }`
+  — live: `model: "xai.grok-4.3"`, `retrieval.source: "in-database:ALL_MINILM_L12_V2"`. The provider's
+  token `usage` is passed through when it returns one.
+* 400 → `{ error: 'message is required' }`
+* 503 → `{ response: null, error: <configuration hint>, retrieval: { source, context } }` when no
+  LLM key is configured. Retrieval has already run at that point, so the caller can still show the
+  documents the database returned.
 * 500 → `{ error: 'RAG chat failed', details: <err.message> }`
-* Collections: none.
-* **Note the payload key is `message` in, `response` out** — asymmetric with the RAG service's
-  `question`/`answer`.
+* Collections: none (reads `PRODUCT_EMBEDDINGS` via SQL; the keyword fallback reads `products`).
+* **Retrieval degrades to a keyword `LIKE` search over the same collections in exactly one case** — no
+  embedding store to search — and reports that path as `retrieval.source: "keyword-fallback (<reason>)"`.
+  Both paths return the same `documents` array shape. Any other retrieval failure (a broken join, a
+  driver error) is rethrown, so the caller gets the 500 envelope instead of a plausible-looking
+  keyword answer.
+* **Note the payload key is `message` in, `response` out.**
 
-### 3.16 `routes/api/llmChat.js` — **NOT MOUNTED (dead code)**
+### 3.16 `routes/api/ai.js` — 3 endpoints (mount `/api/ai`)
 
-Defines `POST /api/llm-chat/message` with body `{message}` → `200 {response}` / `500 {error:'LLM chat failed', details}`.
-`routes/api/index.js` only requires `../../services/llmChat` for the inline `/chat` route and never
-`require('./llmChat')`. **The path `/api/llm-chat/message` therefore 404s.** A rewrite should
-expose exactly one of the two (recommended: keep `POST /api/chat`).
+| Endpoint | Auth | Request | Success body |
+|---|---|---|---|
+| `GET /api/ai/status` | public | — | `{ llm: { configured, provider, baseUrl, model, embeddingModel, hint }, embeddings: { inDatabaseModel, dimension, table, remoteModel }, selectAi: { profile, configured } }` |
+| `POST /api/ai/similar` | public | `{ text, topK? }` | `{ query, source, results: [{ id, name, score }], dimension, model }` |
+| `POST /api/ai/ask` | **auth + Admin** | `{ question }` | `{ question, provider, profile, sql, rows }` |
+
+* `POST /api/ai/similar` runs `VECTOR_DISTANCE` over `MERN26.PRODUCT_EMBEDDINGS` with the
+  in-database ONNX model (`vector_embedding(ALL_MINILM_L12_V2 using :text as data)`), so it needs no
+  provider key; `source` is `in-database:<MODEL>` (or `remote:<model>` when
+  `LLM_EMBEDDING_MODEL` is set instead). Live: 200 for `{"text":"warm camping blanket"}` →
+  `source: "in-database:ALL_MINILM_L12_V2"`, `dimension: 384`, top hit `Wool Blanket` (0.7256).
+  400 when `text` is empty; 500 with a `hint` when the embedding table is empty.
+* `POST /api/ai/ask` calls `DBMS_CLOUD_AI.GENERATE(..., action => 'showsql')`, then executes the
+  generated SQL when it starts with `select`, and returns both. Live: `{ question, provider:
+  "Oracle Select AI", profile: "MERN_LLM", sql: "SELECT COUNT(*) …", rows: [{ "product_count": 88 }] }`.
+  401 without a token, `403 {"error":"Admin role required"}` for a member — the generated SQL is
+  executed against the schema, so this one stays behind an administrator session.
+* `GET /api/ai/status` is what the dashboard reads to label the panels; `llm.hint` is the
+  configuration message to show when no key is present.
+* No `{success}` envelope and no collection writes: SQL reads only (§4 does not apply).
 
 ---
 
@@ -1116,16 +1190,16 @@ Preamble (plain JS, runs in both branches):
 ```js
 rating = Number(rating); max = Number(max); min = Number(min);
 const priceFilter  = min && max ? { price: { $gte: min, $lte: max } } : {};
-const ratingFilter = rating ? { rating: { $gte: rating } } : { rating: { $gte: rating } };  // both branches identical
+const ratingFilter = { rating: { $gte: rating } };   // one shape for both branches
 const matchQuery = { isActive: true, price: priceFilter.price, averageRating: ratingFilter.rating };
 ```
 
 Points to note:
 
 * The price filter only applies when **both** `min` and `max` are truthy.
-* `ratingFilter`'s ternary has identical branches. With the default (no `rating` query param)
-  `Number(undefined)` is `NaN`, so `matchQuery.averageRating` becomes `{ $gte: NaN }`.
-  The exact MongoDB match semantics of `$gte: NaN` are **UNVERIFIED**; the constructed value is not.
+* With the default (no `rating` query param) `Number(undefined)` is `NaN`, so
+  `matchQuery.averageRating` becomes `{ $gte: NaN }`. The match semantics of `$gte: NaN` are
+  **UNVERIFIED** on either backend — the value is constructed unconditionally.
 * When no price filter is supplied, `matchQuery.price` is `undefined` (the key exists with an
   undefined value), which the driver may serialise as `null` — behaviour **UNVERIFIED**.
 
@@ -1167,9 +1241,19 @@ optionally appends `$match` stages for the resolved category and brand, appends 
 stage when the caller is authenticated, and finally appends
 `[{$sort: sortOrder}, {$skip: size*limit}, {$limit: limit}]`.
 
+**Verified live on ADB 26ai** (see §6.2 for the exact evidence): both `$sql` stages of Branch A run
+through the MongoDB API, the `Q6` alias resolves to the previous stage, and the resulting rows carry
+the same `brand.{name,_id,isActive}` / `averageRating` / `totalReviews` shape as Branch B. Note that
+`$sql` returns the projection **as documents** — a `select` that yields scalars (e.g.
+`select i.data.name from input i`) fails with *"Document instance is empty or is not a JSON
+object"*, so every `$sql` stage must project a JSON object (`json_object(... returning json)`,
+`json_mergepatch(...)`, or `i.data` itself).
+
 ### 6.2 `getStoreProductsWishListQuery(userId, brandDoc, categoryDoc)`
 
-Determines an Oracle query alias purely for logging/telemetry purposes:
+Selects the alias of the stage the caller built before this one — the `$sql` below interpolates it
+(`from "Q12" i`), so the alias is functional, not cosmetic: the wrong one makes the stage fail with
+an unknown-query error. It grows with the number of filter stages `product.js` pushed first:
 
 ```js
 let alias = 'Q12';                                     // no brand, no category
@@ -1180,23 +1264,34 @@ else if (brandDoc || categoryDoc) alias = 'Q13';       // exactly one
 **Branch A — Oracle** (single `$sql` stage):
 
 ```sql
-select json_mergepatch(i.data, json_object('isLiked': w.is_liked returning json))
-from "<alias>" i
-left outer join wishlists_root w
-  on i.data."_id" = w.product
- and w.ora$user = hextoraw('<userId as a 24-char ObjectId hex>')
+select json_mergepatch(i.data,
+         json_object('isLiked' value nvl(json_value(w.data, '$.isLiked' returning boolean), false) returning json))
+  from "<alias>" i
+  left outer join wishlists w
+    on i.data."_id".idOnly() = w.data.product.idOnly()
+   and w.data."user".idOnly() = hextoraw('<userId as a 24-char ObjectId hex>')
 ```
 
+* The join targets the migrated **`wishlists` JSON collection**. The 23ai-era `wishlists_root`
+  duality root table referenced by earlier revisions of this document does not exist in the
+  migrated schema — `JSON_SCHEMAS`/`user_json_duality_views` list no such object, and the query
+  would fail if it did.
 * The `$addFields { isLiked: { $arrayElemAt: ['$isLiked.isLiked', 0] } }` stage is
-  **commented out** in this branch — the `json_mergepatch` already yields the scalar.
-* `wishlists_root` is the SODA root table for the `wishlists` collection and `ora$user` is the
-  Oracle-managed per-document user column.
-* The alias must be one of `Q12`/`Q13`/`Q14`, i.e. it names the **preceding** concatenated
-  pipeline built by the caller — the alias is coupled to how many `$match` stages
+  **commented out** in this branch — `json_mergepatch` already yields the scalar boolean.
+* The alias must be one of `Q12`/`Q13`/`Q14`, i.e. it names the output of the **preceding**
+  concatenated pipeline built by the caller — the alias is coupled to how many stages
   `GET /api/product/list` pushed before it.
 
-Oracle-stage equivalence is **UNVERIFIED** against a live Oracle 26ai instance in this review;
-the SQL text above is quoted verbatim from the source.
+Oracle-stage equivalence is **verified against the live Oracle 26ai instance** (this revision):
+
+| Query | Result |
+|---|---|
+| `db.products.aggregate([{$sql:'select i.data from input i fetch first 2 rows only'}])` | rows returned; `$sql` accepts only JSON-object rows |
+| §6.1 pipeline (brands `$sql`, `$unwind`, `$addFields`, `$match`, reviews `$sql` on alias `Q6`) | 2 products with `brand.name` and `totalReviews` from the joined `reviews` collection |
+| `GET /api/product/list?min=1&max=5000&rating=0&limit=200&sortOrder={"price":-1}` | 200, `count: 112`, every row carries `brand.{name,_id,isActive}`, `totalRatings`, `totalReviews`, `averageRating` |
+| same call with a member/admin bearer token | 200, every row additionally carries `isLiked: false` (key present, coalesced) |
+| same call anonymously | 200, no `isLiked` key at all |
+| `db.aggregate([{$sql:'select banner from v$version'}])` | `Oracle AI Database 26ai Enterprise Edition Release 23.26.3.3.0 - Production` |
 
 **Branch B — vanilla MongoDB:**
 
@@ -1206,10 +1301,11 @@ the SQL text above is quoted verbatim from the source.
 2. `$addFields { isLiked: { $arrayElemAt: ['$isLiked.isLiked', 0] } }`
    → a boolean, or **missing/undefined** when the user has no wishlist row for that product
 
-Important behavioural difference to preserve: in Branch B, `isLiked` is `undefined` (the key is
-absent) when there is no wishlist row; in Branch A the `json_mergepatch` also omits/keeps `null`
-depending on the join — **UNVERIFIED**. A React 19 client MUST treat a falsy `isLiked` as
-"not liked" rather than relying on the key existing.
+Important behavioural difference to preserve (both branches verified live): in Branch B, `isLiked`
+is `undefined` (the key is absent) when there is no wishlist row; in Branch A the `json_mergepatch`
+always sets it, so it is **`false`**. A React 19 client MUST treat a falsy `isLiked` as "not liked"
+rather than relying on the key existing — the shipped client does, because it reads the heart state
+from `GET /api/wishlist`.
 
 ### 6.3 `MONGO_URI.includes('loadBalanced')` — what it means
 
@@ -1276,17 +1372,16 @@ Response (`200`), shape only:
 
 | # | Gap | Where |
 |---|---|---|
-| 1 | `POST /api/llm-chat/message` is never mounted; use `POST /api/chat` | `routes/api/llmChat.js` |
-| 2 | No persisted `averageRating` on Product; PDP has no rating | `models/product.js`, `routes/api/product.js` |
-| 3 | Uploads are stubbed (no S3/SODA write); URLs are synthetic | `utils/storage.js` |
-| 4 | `GET /api/order` and `GET /api/user` have no role/ownership guard | `routes/api/order.js`, `user.js` |
-| 5 | `PUT /api/review/:id`, `DELETE /api/review/delete/:id`, all of address `/:id` are unauthenticated | `routes/api/review.js`, `address.js` |
-| 6 | Merchant approve/reject, review approve/reject require only `auth`, no role check | `merchant.js`, `review.js` |
-| 7 | `Order.total` is client-supplied and never recomputed server-side | `order.js` |
-| 8 | `POST /api/auth/reset` uses `password` = old, `confirmPassword` = new | `auth.js` |
-| 9 | `POST /api/merchant/signup/:token` 400s via a TypeError when the token is wrong | `merchant.js` |
-| 10 | `order-confirmation` e-mail is addressed to `undefined` | `order.js` |
-| 11 | `POST /api/product/add` never registers the product in its category | `product.js` |
-| 12 | Cart creation decrements stock; cancelling restores it; nothing else does | `cart.js`, `order.js` |
-| 13 | `GET /api/product/item/:slug` returns no `averageRating`, but `/api/product/list` does | `product.js` |
-| 14 | No CORS/CSRF concerns are handled (cors is wide open, no cookie auth) | `index.js` |
+| 1 | No persisted `averageRating` on Product; PDP has no rating | `models/product.js`, `routes/api/product.js` |
+| 2 | Uploads are stubbed (no S3/SODA write); URLs are synthetic | `utils/storage.js` |
+| 3 | `GET /api/order` and `GET /api/user` have no role/ownership guard | `routes/api/order.js`, `user.js` |
+| 4 | `PUT /api/review/:id`, `DELETE /api/review/delete/:id`, all of address `/:id` are unauthenticated | `routes/api/review.js`, `address.js` |
+| 5 | Merchant approve/reject, review approve/reject require only `auth`, no role check | `merchant.js`, `review.js` |
+| 6 | `Order.total` is client-supplied and never recomputed server-side | `order.js` |
+| 7 | `POST /api/auth/reset` uses `password` = old, `confirmPassword` = new | `auth.js` |
+| 8 | `POST /api/merchant/signup/:token` 400s via a TypeError when the token is wrong | `merchant.js` |
+| 9 | `order-confirmation` e-mail is addressed to `undefined` | `order.js` |
+| 10 | `POST /api/product/add` never registers the product in its category | `product.js` |
+| 11 | Cart creation decrements stock; cancelling restores it; nothing else does | `cart.js`, `order.js` |
+| 12 | `GET /api/product/item/:slug` returns no `averageRating`, but `/api/product/list` does | `product.js` |
+| 13 | No CORS/CSRF concerns are handled (cors is wide open, no cookie auth) | `index.js` |

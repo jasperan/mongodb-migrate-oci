@@ -45,3 +45,6 @@ mern-ecommerce.zip
 mongodb-migrate-oci.zip
 livelabs/*.zip
 __pycache__/
+
+# Select AI key (never commit)
+sql/26ai/09_select_ai_key.sql

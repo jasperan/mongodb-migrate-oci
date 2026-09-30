@@ -1,5 +1,3 @@
-exports.asyncForEach = async (array, callback) => {
-  for (let index = 0; index < array.length; index++) {
-    await callback(array[index], index, array);
-  }
-};
+// Turns a user-typed search term into a literal pattern. Search boxes feed the
+// value straight into a RegExp, so an unbalanced ( or * would otherwise throw.
+exports.escapeRegex = value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

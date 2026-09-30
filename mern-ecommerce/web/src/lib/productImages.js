@@ -6,6 +6,8 @@
 // Photos: Unsplash (https://unsplash.com/license) - free to use, no attribution
 // required. Files live in `public/products/`.
 
+import { slugify } from './format'
+
 const BASE = `${import.meta.env.BASE_URL}products/`
 
 const url = (file) => `${BASE}${file}`
@@ -251,8 +253,6 @@ const hash = (seed = '') => {
   for (let i = 0; i < seed.length; i += 1) value = (value * 31 + seed.charCodeAt(i)) % 100000
   return value
 }
-
-const slugify = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 const nounOf = (product) => String(product?.name || '').trim().split(/\s+/).pop().toLowerCase()
 

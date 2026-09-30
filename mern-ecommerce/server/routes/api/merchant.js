@@ -11,6 +11,7 @@ const Brand = require('../../models/brand');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const mailgun = require('../../services/mailgun');
+const { escapeRegex } = require('../../utils/utils');
 
 // add merchant api
 router.post('/add', async (req, res) => {
@@ -71,7 +72,7 @@ router.get('/search', auth, role.check(ROLES.Admin), async (req, res) => {
   try {
     const { search } = req.query;
 
-    const regex = new RegExp(search, 'i');
+    const regex = new RegExp(escapeRegex(search), 'i');
 
     const merchants = await Merchant.find({
       $or: [
