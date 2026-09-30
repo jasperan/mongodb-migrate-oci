@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "sqlcl": {
+      "command": "H:\\github\\devrel\\mongodb-migrate-oci\\.tools\\sqlcl\\bin\\sql.exe",
+      "args": ["-mcp"],
+      "env": {
+        "JAVA_HOME": "C:\\Users\\user\\AppData\\Local\\Programs\\Microsoft\\jdk-17.0.10.7-hotspot"
+      }
+    }
+  }
+}

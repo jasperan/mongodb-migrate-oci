@@ -1,0 +1,212 @@
+[
+  {
+    "_id": "682bcb73d25493b74b086916",
+    "name": "Sports",
+    "description": "Cupio amissio culpa colligo.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b086975",
+      "682bcb73d25493b74b0869b1",
+      "682bcb73d25493b74b0869d9",
+      "682bcb74d25493b74b086a4c",
+      "682bcb74d25493b74b086a5b",
+      "682bcb74d25493b74b086a97",
+      "682bcb74d25493b74b086ab0",
+      "682bcb74d25493b74b086ace",
+      "682bcb74d25493b74b086add",
+      "682bcb74d25493b74b086b2d"
+    ],
+    "created": "2025-05-20 00:23:15.794000",
+    "slug": "sports",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08691d",
+    "name": "Industrial",
+    "description": "Sui arceo vulnus tamen.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b086984",
+      "682bcb73d25493b74b086993",
+      "682bcb73d25493b74b0869bb",
+      "682bcb73d25493b74b0869c0",
+      "682bcb74d25493b74b086a29",
+      "682bcb74d25493b74b086a56",
+      "682bcb74d25493b74b086a6a",
+      "682bcb74d25493b74b086a79",
+      "682bcb74d25493b74b086aa6",
+      "682bcb74d25493b74b086ae2",
+      "682bcb74d25493b74b086aec"
+    ],
+    "created": "2025-05-20 00:23:15.809000",
+    "slug": "industrial",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086922",
+    "name": "Industrial",
+    "description": "Colligo aequus suffoco quas sum curso.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b086970",
+      "682bcb73d25493b74b08698e",
+      "682bcb73d25493b74b086998",
+      "682bcb73d25493b74b0869e3",
+      "682bcb74d25493b74b086a1f",
+      "682bcb74d25493b74b086a38",
+      "682bcb74d25493b74b086a6f",
+      "682bcb74d25493b74b086a83",
+      "682bcb74d25493b74b086a88",
+      "682bcb74d25493b74b086ab5",
+      "682bcb74d25493b74b086ad8",
+      "682bcb74d25493b74b086b0f",
+      "682bcb74d25493b74b086b23",
+      "682bcb74d25493b74b086b55"
+    ],
+    "created": "2025-05-20 00:23:15.815000",
+    "slug": "industrial-UtfqumYSxb",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086927",
+    "name": "Movies",
+    "description": "Arcesso taceo asperiores deputo quasi ciminatio synagoga volaticus umerus patruus.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b086989",
+      "682bcb73d25493b74b0869a7",
+      "682bcb73d25493b74b0869de",
+      "682bcb74d25493b74b086b19",
+      "682bcb74d25493b74b086b32",
+      "682bcb74d25493b74b086b3c"
+    ],
+    "created": "2025-05-20 00:23:15.821000",
+    "slug": "movies",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08692c",
+    "name": "Health",
+    "description": "Numquam natus excepturi.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b08697a",
+      "682bcb73d25493b74b08697f",
+      "682bcb73d25493b74b0869ca",
+      "682bcb74d25493b74b0869fc",
+      "682bcb74d25493b74b086a33",
+      "682bcb74d25493b74b086a65",
+      "682bcb74d25493b74b086aab",
+      "682bcb74d25493b74b086ae7"
+    ],
+    "created": "2025-05-20 00:23:15.826000",
+    "slug": "health",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086931",
+    "name": "Beauty",
+    "description": "Culpo iure debitis aveho impedit.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b0869cf",
+      "682bcb74d25493b74b0869f2",
+      "682bcb74d25493b74b086a42",
+      "682bcb74d25493b74b086a47",
+      "682bcb74d25493b74b086a51",
+      "682bcb74d25493b74b086ad3",
+      "682bcb74d25493b74b086afb",
+      "682bcb74d25493b74b086b14",
+      "682bcb74d25493b74b086b46",
+      "682bcb74d25493b74b086b50"
+    ],
+    "created": "2025-05-20 00:23:15.830000",
+    "slug": "beauty",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086936",
+    "name": "Tools",
+    "description": "Clementia cibo suppono clementia utrum.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b08699d",
+      "682bcb73d25493b74b0869ac",
+      "682bcb73d25493b74b0869c5",
+      "682bcb73d25493b74b0869d4",
+      "682bcb74d25493b74b0869f7",
+      "682bcb74d25493b74b086a01",
+      "682bcb74d25493b74b086a10",
+      "682bcb74d25493b74b086a15",
+      "682bcb74d25493b74b086a60",
+      "682bcb74d25493b74b086a74",
+      "682bcb74d25493b74b086aba",
+      "682bcb74d25493b74b086af1",
+      "682bcb74d25493b74b086b1e",
+      "682bcb74d25493b74b086b41"
+    ],
+    "created": "2025-05-20 00:23:15.835000",
+    "slug": "tools",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08693b",
+    "name": "Automotive",
+    "description": "Perspiciatis depopulo conduco admitto veritas antiquus.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b0869b6",
+      "682bcb73d25493b74b0869e8",
+      "682bcb74d25493b74b086a06",
+      "682bcb74d25493b74b086a7e",
+      "682bcb74d25493b74b086a8d",
+      "682bcb74d25493b74b086a92",
+      "682bcb74d25493b74b086abf",
+      "682bcb74d25493b74b086ac4",
+      "682bcb74d25493b74b086b05",
+      "682bcb74d25493b74b086b28",
+      "682bcb74d25493b74b086b5a"
+    ],
+    "created": "2025-05-20 00:23:15.839000",
+    "slug": "automotive",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086940",
+    "name": "Books",
+    "description": "Commodi depereo civitas tametsi amo.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b08696b",
+      "682bcb74d25493b74b086a1a",
+      "682bcb74d25493b74b086a24",
+      "682bcb74d25493b74b086a9c",
+      "682bcb74d25493b74b086aa1",
+      "682bcb74d25493b74b086af6",
+      "682bcb74d25493b74b086b00",
+      "682bcb74d25493b74b086b37"
+    ],
+    "created": "2025-05-20 00:23:15.843000",
+    "slug": "books",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086945",
+    "name": "Shoes",
+    "description": "Repudiandae incidunt canto absens cui suppono aut vindico.",
+    "isActive": true,
+    "products": [
+      "682bcb73d25493b74b0869a2",
+      "682bcb74d25493b74b0869ed",
+      "682bcb74d25493b74b086a0b",
+      "682bcb74d25493b74b086a2e",
+      "682bcb74d25493b74b086a3d",
+      "682bcb74d25493b74b086ac9",
+      "682bcb74d25493b74b086b0a",
+      "682bcb74d25493b74b086b4b"
+    ],
+    "created": "2025-05-20 00:23:15.848000",
+    "slug": "shoes",
+    "__v": 0
+  }
+]

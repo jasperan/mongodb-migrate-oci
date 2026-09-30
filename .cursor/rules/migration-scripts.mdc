@@ -1,0 +1,32 @@
+---
+description: This rule details the different migration scripts in the repo.
+globs: 
+alwaysApply: false
+---
+# Migration Scripts Guide
+
+## Core Migration Scripts
+
+### Simple Migration
+- [migrate_mongodump.py](mdc:mongo-migration/solutions/simple-migration/scripts/migrate_mongodump.py): Handles MongoDB data export using `mongodump`
+- [migrate_all_collections.py](mdc:mongo-migration/solutions/simple-migration/scripts/migrate_all_collections.py): Manages multi-collection migration
+
+### Complex Migration
+- [migrate_all_collections.py](mdc:mongo-migration/solutions/complex-migration/scripts/migrate_all_collections.py): Handles complex feature migration
+- [transform-rules.json](mdc:mongo-migration/solutions/complex-migration/config/transform-rules.json): Defines schema transformations
+
+### Python Migration Utilities
+Located in [mongodb2ora_migrationtools](mdc:mongo-migration/mongodb2ora_migrationtools):
+- [mongo2ora_singlecollection.py](mdc:mongo-migration/mongodb2ora_migrationtools/mongo2ora_singlecollection.py): Single collection migration
+- [mongo2ora_data.py](mdc:mongo-migration/mongodb2ora_migrationtools/mongo2ora_data.py): Core data migration logic
+
+## Configuration Files
+- [config.ini](mdc:mongo-migration/mongodb2ora_migrationtools/config/config.ini): Main configuration file
+- [atlas_dbcs.config.ini](mdc:mongo-migration/mongodb2ora_migrationtools/config/atlas_dbcs.config.ini): Atlas-specific configuration
+- [atpconfig.ini](mdc:mongo-migration/mongodb2ora_migrationtools/config/atpconfig.ini): ATP-specific configuration
+
+## Script Dependencies
+- All scripts require Python 3.9+
+- Required packages: cx_Oracle, PyMongo
+- Oracle Database 19c+ for target
+- MongoDB 4.4+ for source

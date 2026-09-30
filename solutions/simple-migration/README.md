@@ -21,11 +21,11 @@ The migration process involves:
 ```bash
 [User]
   |
-[React Chat UI] <--> [Express API] <--> [Oracle 23ai Vector Search]
+[React Chat UI] <--> [Express API] <--> [Oracle AI Database 26ai Vector Search]
                                                     |
                                                 [Ollama LLM API]
 ```
-- All product, review, and user data is initially stored in a `mongodb` database, while we provide easy migration steps to transition to Oracle Autonomous JSON Database 23ai. This way, users will benefit from all 23ai features, including self maintenance and integrated in-database LLMs.
+- All product, review, and user data is initially stored in a `mongodb` database, while we provide easy migration steps to transition to Oracle Autonomous AI Database 26ai. This way, users will benefit from all 26ai features, including self maintenance and integrated in-database LLMs.
 - Vector search is performed in-database with `vector_distance` and `text_embedding` functions.
 - The LLM chat endpoint retrieves relevant context from Oracle, then calls the Ollama API for a response.
 
@@ -33,7 +33,7 @@ The migration process involves:
 - `node.js` 18+ and `npm`
 - A `mongodb` database running
 - `mongodump` and `mongorestore` utilities installed where you're planning to run the migration from
-- Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled
+- Oracle Autonomous AI Database 26ai, with the MongoDB API plugin/tool enabled
 - Python environment with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
 
 1. Install requirements in a Python environment:
@@ -114,17 +114,20 @@ Let's set up the MERN application first, running against our local/containerized
 1. Similarly to the backend, we install `npm` dependencies:
 
   ```bash
-  cd mern-ecommerce/client
+  cd mern-ecommerce/web
   npm install
-  # if you still get any type of error, run the following command additionally
-  npm install npm-run-all --save-dev
   ```
 
-2. Create a `.env` file in the `client/` directory with the following content:
+2. Start the Vite dev server:
 
   ```bash
-  API_URL=http://localhost:3000/api
+  npm run dev
   ```
+
+  The dev server listens on `http://localhost:8080` and proxies `/api` to the Express
+  backend on port 3000 (override with `API_PROXY_TARGET`). Socket.io connects straight
+  to the API origin in development (`VITE_SOCKET_URL` overrides it); in a container
+  deployment `nginx.conf` proxies both `/api` and `/socket.io` to the `server` service.
 
 Now, we're ready to run the MERN app, with its backend running against MongoDB, which will be connected to the MongoDB API URI we specified in `./server/.env`.
 
@@ -160,7 +163,7 @@ This will create a `dump/mern_ecommerce` directory with your data.
 
 ### 2. Create Oracle DB Users/Schemas in Autonomous
 
-Run the following SQL as the `admin` user (see [`sql/1.sql`](../../sql/1.sql)). This will create the user which will host the JSON native collections in our Autonomous database:
+Run the following SQL as the `admin` user (see [`sql/26ai/01_schemas.sql`](../../sql/26ai/01_schemas.sql)). This will create the users which will host the JSON native collections and the duality views in our Autonomous database:
 
 ```sql
 -- as admin
@@ -184,7 +187,7 @@ For this migration process to work with Autonomous, we'll need to enable the `Mo
 
 ![tool configuration](../../img/tool_configuration.png)
 
-Enable the MongoDB API tool/plugin within your Autonomous 23ai instance. Then, once enabled, you will be given a MongoDB URI, which will enable clients and drivers to connect [directly to Autonomous Database](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/mongo-using-oracle-database-api-mongodb.html):
+Enable the MongoDB API tool/plugin within your Autonomous 26ai instance. Then, once enabled, you will be given a MongoDB URI, which will enable clients and drivers to connect [directly to Autonomous Database](https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/mongo-using-oracle-database-api-mongodb.html):
 
 ![mongodb api](../../img/mongodb_api.png)
 
@@ -241,7 +244,7 @@ With this data, we'll then set up a couple of views using dot notation, to keep 
 -- this query was created to automatically monitor those products
 -- that are over $50 and are active
 -- run as admin 
-CREATE OR REPLACE VIEW ECOMMERCE.active_products_over_50 AS
+CREATE OR REPLACE VIEW ECOMMERCEDV.active_products_over_50 AS
 SELECT
   jt.sku,
   jt.price,
@@ -271,7 +274,7 @@ FROM ECOMMERCEDV."products" p,
 WHERE jt.price > 50;
 
 -- also filter in taxable products
-CREATE OR REPLACE VIEW ECOMMERCE.active_nontaxable_products AS
+CREATE OR REPLACE VIEW ECOMMERCEDV.active_nontaxable_products AS
 SELECT
   jt.sku,
   jt.price,
@@ -301,7 +304,7 @@ FROM ECOMMERCEDV."products" p,
 WHERE jt.taxable = false;
 ```
 
-> **Note**: full script [here.](../../sql/simple_migration_views.sql)
+> **Note**: full script [here](../../sql/26ai/04_relational_views.sql) (the 23ai-era version of the same views is preserved in [`sql/23ai/simple_migration_views.sql`](../../sql/23ai/simple_migration_views.sql)).
 
 And now, we can set up a data stream to our Excel application to keep track of these products! By installing this plugin on Excel, we will have access to several features of Oracle Autonomous, directly in Excel:
 
@@ -324,7 +327,7 @@ Start the backend and frontend as usual:
   npm run dev
   ```
 
-Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all the simplest features of the app (all CRUD operations). Here are some of the operations that are officially supported by JSON native collections (which means, they will work after having performed this migration):
+Now, the application will be running against your Autonomous 26ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all the simplest features of the app (all CRUD operations). Here are some of the operations that are officially supported by JSON native collections (which means, they will work after having performed this migration):
 - Adding addresses
 - Adding brands
 - Adding items

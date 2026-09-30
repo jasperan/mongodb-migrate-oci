@@ -25,11 +25,11 @@ The migration process involves:
 ## Prerequisites
 
 - Docker or Podman to run containers
-- Oracle Database 23ai
+- Oracle AI Database 26ai
 - Python 3.10+ (for Python migration utility) with Anaconda or `venv` to run provided scripts (which will automate most of the troubles)
 - `node.js` 18+ and `npm`
 - A `mongodb` database running
-- Oracle Autonomous JSON Database 23ai, with the MongoDB API plugin/tool enabled, and users `ecommerce` and `ecommercedv` created with proper permissions
+- Oracle Autonomous AI Database 26ai, with the MongoDB API plugin/tool enabled, and users `ecommerce` and `ecommercedv` created with proper permissions
 
 This solution assumes you have previously completed the [simple migration process](../simple-migration/README.md), and have successfully imported all JSON native collections in the MERN app into your Autonomous db instance.
 If you haven't performed all the steps in this previous solution, then you will certainly run into errors here.
@@ -70,7 +70,7 @@ Knowing this, we will use the `ecommercedv` user for most of these things, as we
 
 ### Step 1: Generate JSON DVs and root tables
 
-With the script [`3.sql`](../../sql/3.sql), we will automate the generation of JSON DVs and their corresponding root tables (used for querying). With the function `dbms_json_duality.infer_and_generate_schema`,  we will automatically infer and generate the duality view schema for that specific table. We will repeat this process for all collections in the MERN app (more concretely, those tables that got migrated into Autonomous under user `ecommerce`), to facilitate the creation of all their JSON DVs.
+With the script [`05_generate_duality_ddl.sql`](../../sql/26ai/05_generate_duality_ddl.sql) (23ai-era version: [`3.sql`](../../sql/23ai/3.sql)), we will automate the generation of JSON DVs and their corresponding root tables (used for querying). With the function `dbms_json_duality.infer_and_generate_schema`,  we will automatically infer and generate the duality view schema for that specific table. We will repeat this process for all collections in the MERN app (more concretely, those tables that got migrated into Autonomous under the data schema, e.g. `MERN26`), to facilitate the creation of all their JSON DVs.
 
 Run the following script:
 
@@ -170,7 +170,7 @@ You can take a look at my edited file [here.](../../sql/my_script_fixed_normaliz
 
 Now that we have the root tables and JSON DVs created, we need to perform an import with the preset function `dbms_json_duality.import()`.
 
-For that, you can take [this script (`4.sql`)](../../sql/4.sql) as reference. In this script:
+For that, you can take [this script (`06_import_duality_views.sql`)](../../sql/26ai/06_import_duality_views.sql) as reference (23ai-era version: [`4.sql`](../../sql/23ai/4.sql)). In this script:
 
 ```sql
 begin
@@ -244,7 +244,7 @@ Finally, start the backend and frontend as usual:
   npm run dev
   ```
 
-Now, the application will be running against your Autonomous 23ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all features of the app (all CRUD operations + product searches!), and we've finished the migration process.
+Now, the application will be running against your Autonomous 26ai instance, through the MongoDB API plugin we enabled! Your app is ready to use with all features of the app (all CRUD operations + product searches!), and we've finished the migration process.
 
 
 ## MongoDB Aggregation Framework & OracleDB Compatibility

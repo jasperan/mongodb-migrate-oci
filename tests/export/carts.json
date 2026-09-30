@@ -1,0 +1,58 @@
+[
+  {
+    "_id": "682bcc6b9bf3c1c25b17ddc9",
+    "products": [
+      {
+        "product": "68252aa00200de17ccc48b73",
+        "quantity": 1,
+        "purchasePrice": 554,
+        "totalPrice": 554,
+        "priceWithTax": 0,
+        "totalTax": 0,
+        "status": "Not processed",
+        "_id": "682bcc6b9bf3c1c25b17ddca"
+      },
+      {
+        "product": "68252aa00200de17ccc48b75",
+        "quantity": 2,
+        "purchasePrice": 527,
+        "totalPrice": 1054,
+        "priceWithTax": 1106.7,
+        "totalTax": 52.7,
+        "status": "Not processed",
+        "_id": "682bcc6b9bf3c1c25b17ddcb"
+      },
+      {
+        "product": "682bcb74d25493b74b086b5a",
+        "quantity": 1,
+        "purchasePrice": 362,
+        "totalPrice": 362,
+        "priceWithTax": 0,
+        "totalTax": 0,
+        "status": "Not processed",
+        "_id": "682bcc6b9bf3c1c25b17ddcc"
+      }
+    ],
+    "user": "682bc8ff21a6cff846543af3",
+    "created": "2025-05-20 00:27:23.780000",
+    "__v": 0
+  },
+  {
+    "_id": "682bccc09bf3c1c25b17de39",
+    "products": [
+      {
+        "product": "682bcb74d25493b74b086b5a",
+        "quantity": 1,
+        "purchasePrice": 362,
+        "totalPrice": 362,
+        "priceWithTax": 0,
+        "totalTax": 0,
+        "status": "Not processed",
+        "_id": "682bccc09bf3c1c25b17de3a"
+      }
+    ],
+    "user": "682bc8ff21a6cff846543af3",
+    "created": "2025-05-20 00:28:48.026000",
+    "__v": 0
+  }
+]

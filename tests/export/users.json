@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "682bc8ff21a6cff846543af3",
+    "email": "admin@example.com",
+    "firstName": "admin",
+    "lastName": "admin",
+    "password": "$2a$10$00000000000000000000000000000000000000000000000000000",
+    "merchant": null,
+    "provider": "Email",
+    "role": "ROLE ADMIN",
+    "created": "2025-05-20 00:12:47.029000",
+    "__v": 0
+  },
+  {
+    "_id": "683e0f3d491d43c4652d6983",
+    "email": "member@example.com",
+    "firstName": "Nacho",
+    "lastName": "Martinez",
+    "password": "$2a$10$00000000000000000000000000000000000000000000000000000",
+    "merchant": null,
+    "provider": "Email",
+    "role": "ROLE MEMBER",
+    "created": "2025-06-02 20:53:17.433000",
+    "__v": 0
+  }
+]

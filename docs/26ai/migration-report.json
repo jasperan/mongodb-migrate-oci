@@ -1,0 +1,133 @@
+{
+  "generatedAt": "2026-09-30T00:22:14+00:00",
+  "sourceLabel": "mern_ecommerce",
+  "targetLabel": "mern26",
+  "sourceDocuments": 204,
+  "targetDocuments": 204,
+  "targetViews": [
+    "PRODUCTS_ENRICHED"
+  ],
+  "verified": true,
+  "collections": [
+    {
+      "name": "addresses",
+      "source": 4,
+      "target": 4,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "brands",
+      "source": 16,
+      "target": 16,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "cartitems",
+      "source": 15,
+      "target": 15,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "carts",
+      "source": 8,
+      "target": 8,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "categories",
+      "source": 13,
+      "target": 13,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "contacts",
+      "source": 4,
+      "target": 4,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "merchants",
+      "source": 4,
+      "target": 4,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "orders",
+      "source": 5,
+      "target": 5,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "products",
+      "source": 112,
+      "target": 112,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "reviews",
+      "source": 10,
+      "target": 10,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "users",
+      "source": 7,
+      "target": 7,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    },
+    {
+      "name": "wishlists",
+      "source": 6,
+      "target": 6,
+      "missing": 0,
+      "extra": 0,
+      "differing": 0,
+      "status": "match",
+      "sampleDiffs": []
+    }
+  ]
+}

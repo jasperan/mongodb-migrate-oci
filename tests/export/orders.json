@@ -1,0 +1,18 @@
+[
+  {
+    "_id": "682bcc6b9bf3c1c25b17ddd0",
+    "cart": "682bcc6b9bf3c1c25b17ddc9",
+    "user": "682bc8ff21a6cff846543af3",
+    "total": 1970,
+    "created": "2025-05-20 00:27:23.839000",
+    "__v": 0
+  },
+  {
+    "_id": "682bccc09bf3c1c25b17de3e",
+    "cart": "682bccc09bf3c1c25b17de39",
+    "user": "682bc8ff21a6cff846543af3",
+    "total": 362,
+    "created": "2025-05-20 00:28:48.038000",
+    "__v": 0
+  }
+]

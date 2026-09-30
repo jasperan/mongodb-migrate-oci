@@ -17,6 +17,7 @@ const orderRoutes = require('./order');
 const reviewRoutes = require('./review');
 const wishlistRoutes = require('./wishlist');
 const adminDbRouter = require('./adminDb');
+const aiRouter = require('./ai');
 
 // auth routes
 router.use('/auth', authRoutes);
@@ -60,12 +61,25 @@ router.use('/wishlist', wishlistRoutes);
 // Admin DB routes
 router.use('/admin-db', adminDbRouter);
 
-// POST /chat
+// AI routes (vector search, Select AI)
+router.use('/ai', aiRouter);
+
+// POST /chat — RAG over the migrated catalogue
 router.post('/chat', async (req, res) => {
   const { message } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: 'message is required' });
+  }
   try {
-    const ragResponse = await ragQuery(message);
-    return res.json({ response: ragResponse });
+    const result = await ragQuery(message);
+    if (!result.configured) {
+      return res.status(503).json({ response: null, error: result.error, retrieval: result.retrieval });
+    }
+    return res.json({
+      response: result.answer,
+      model: result.model,
+      retrieval: result.retrieval
+    });
   } catch (err) {
     return res.status(500).json({ error: 'RAG chat failed', details: err.message });
   }

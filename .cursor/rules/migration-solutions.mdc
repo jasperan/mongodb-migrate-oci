@@ -1,0 +1,35 @@
+---
+description: This rule details the collection of solutions around migrating from mongodb to Oracle DB
+globs: 
+alwaysApply: false
+---
+# MongoDB to Oracle Migration Solutions
+
+This project provides three distinct solutions for migrating MongoDB applications to Oracle Database:
+
+## 1. Simple Migration
+The basic migration solution is located in [solutions/simple-migration](mdc:mongo-migration/solutions/simple-migration/README.md). It provides:
+- Traditional migration using `mongodump` and `dbms_migrator`
+- Python-based direct migration utility
+- Basic data integrity verification
+
+## 2. Complex Migration
+The advanced migration solution is in [solutions/complex-migration](mdc:mongo-migration/solutions/complex-migration/README.md). It handles:
+- Complex MongoDB features (aggregations, geospatial queries)
+- Schema transformations
+- Performance optimization
+- Advanced verification
+
+## 3. AI/Analytics Enhancement
+The AI-enhanced solution is in [solutions/ai-analytics](mdc:mongo-migration/solutions/ai-analytics/README.md). It adds:
+- Excel-based analytics
+- Oracle Select AI integration
+- Vector processing capabilities
+- AI-enhanced application features
+
+## Common Components
+All solutions share:
+- MERN application setup using [docker-compose.yml](mdc:mongo-migration/solutions/simple-migration/docker/docker-compose.yml)
+- Python migration utilities in [mongodb2ora_migrationtools](mdc:mongo-migration/mongodb2ora_migrationtools)
+- Configuration files in respective `config/` directories
+- Logging in respective `log/` directories

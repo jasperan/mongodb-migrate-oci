@@ -33,3 +33,15 @@ Temporary Items
 .pem
 
 solutions/ai-analytics/config.yaml
+# Local tooling and scratch (portable MongoDB/SQLcl, temp scripts)
+.tools/
+_scratch/
+
+# Local MongoDB dumps and repo snapshots (not source)
+dump/
+mern-ecommerce/dump/
+*.rar
+mern-ecommerce.zip
+mongodb-migrate-oci.zip
+livelabs/*.zip
+__pycache__/

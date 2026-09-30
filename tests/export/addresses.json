@@ -1,0 +1,14 @@
+[
+  {
+    "_id": "682bcc4f9bf3c1c25b17dd9c",
+    "user": "682bc8ff21a6cff846543af3",
+    "address": "Calle Example ",
+    "city": "Madrid",
+    "state": "Madrid",
+    "country": "Spain",
+    "zipCode": "28045",
+    "isDefault": false,
+    "created": "2025-05-20 00:26:55.472000",
+    "__v": 0
+  }
+]

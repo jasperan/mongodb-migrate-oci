@@ -1,0 +1,102 @@
+[
+  {
+    "_id": "682bcb73d25493b74b08694b",
+    "name": "Feest - Sawayn",
+    "description": "Deficio ipsa repellendus.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.856000",
+    "slug": "feest-sawayn",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08694e",
+    "name": "Pacocha - Mayert",
+    "description": "Denique tactus nesciunt sumptus.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.858000",
+    "slug": "pacocha-mayert",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086951",
+    "name": "Kunde Inc",
+    "description": "Sopor vado vigor sollers temptatio saepe amet vae.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.861000",
+    "slug": "kunde-inc",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086954",
+    "name": "Huel, Macejkovic and Hills",
+    "description": "Usque incidunt tabernus.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.863000",
+    "slug": "huel-macejkovic-and-hills",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086957",
+    "name": "Schimmel, Franecki and Wilderman",
+    "description": "Asporto venia volutabrum caste correptius demergo sperno crudelis.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.865000",
+    "slug": "schimmel-franecki-and-wilderman",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08695a",
+    "name": "Marks, Gutmann and Carroll",
+    "description": "Tricesimus patior acies tempus consuasor patria optio.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.868000",
+    "slug": "marks-gutmann-and-carroll",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b08695d",
+    "name": "Ernser - Bayer",
+    "description": "Una comparo amplus tonsor crebro triumphus dolorem arbitro synagoga vae.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.870000",
+    "slug": "ernser-bayer",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086960",
+    "name": "Kiehn - Price",
+    "description": "Comparo socius universe causa minus at atavus arceo alias decimus.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.872000",
+    "slug": "kiehn-price",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086963",
+    "name": "Cronin, Blanda and Jacobson",
+    "description": "Repudiandae similique ascisco tergum usque coma.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.874000",
+    "slug": "cronin-blanda-and-jacobson",
+    "__v": 0
+  },
+  {
+    "_id": "682bcb73d25493b74b086966",
+    "name": "O'Keefe - Crooks",
+    "description": "Balbus stabilis vorago triumphus confero.",
+    "isActive": true,
+    "merchant": null,
+    "created": "2025-05-20 00:23:15.876000",
+    "slug": "o-keefe-crooks",
+    "__v": 0
+  }
+]

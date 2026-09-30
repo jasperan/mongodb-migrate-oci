@@ -185,7 +185,15 @@ exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
               as: 'isLiked'
             }*/
           
-      $sql: `select json_mergepatch(i.data, json_object('isLiked':w.is_liked returning json) ) from "` + alias + `" i left outer join wishlists_root w on i.data."_id" = w.product and w.ora$user = hextoraw('` + new Mongoose.Types.ObjectId(userId) + `')`
+      // Oracle branch: the wishlist collection is a JSON collection, so the
+      // reference is resolved against `data` (the previous 23ai revision joined a
+      // duality root table that no longer exists in the migrated schema).
+      $sql: `select json_mergepatch(i.data,
+                       json_object('isLiked' value nvl(json_value(w.data, '$.isLiked' returning boolean), false) returning json))
+                from "` + alias + `" i
+                left outer join wishlists w
+                  on i.data."_id".idOnly() = w.data.product.idOnly()
+                 and w.data."user".idOnly() = hextoraw('` + new Mongoose.Types.ObjectId(userId) + `')`
     }/*,
     {
       $addFields: {

@@ -1,0 +1,50 @@
+---
+description: This rule details the migration processes in the repository.
+globs: 
+alwaysApply: false
+---
+# Migration Process Guide
+
+## Setup Phase
+1. Clone and configure MERN application:
+   - Use [docker-compose.yml](mdc:mongo-migration/solutions/simple-migration/docker/docker-compose.yml)
+   - Configure environment variables
+   - Start application containers
+
+2. Configure migration environment:
+   - Set up Oracle Database connection
+   - Configure MongoDB access
+   - Install required Python packages
+
+## Migration Options
+
+### Option 1: Traditional Migration
+1. Export MongoDB data:
+   ```bash
+   python scripts/migrate_mongodump.py
+   ```
+2. Import to Oracle using `dbms_migrator`
+
+### Option 2: Python Direct Migration
+1. Configure [config.ini](mdc:mongo-migration/mongodb2ora_migrationtools/config/config.ini)
+2. Choose migration approach:
+   - Single collection: `mongo2ora_singlecollection.py`
+   - Multiple collections: `migrate_all_collections.py`
+
+## Verification Steps
+1. Check data integrity
+2. Verify application functionality
+3. Compare performance metrics
+4. Validate indexes and constraints
+
+## Logging and Monitoring
+- Migration logs in `log/` directories
+- Progress tracking in log files
+- Error handling and reporting
+- Performance metrics collection
+
+## Common Issues and Solutions
+- Connection issues: Check network and credentials
+- Data type mismatches: Review transformation rules
+- Performance problems: Adjust batch sizes and indexes
+- Error recovery: Use checkpointing and rollback

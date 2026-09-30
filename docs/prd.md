@@ -6,7 +6,7 @@
 - **Document Status:** Draft
 
 ## Executive Summary
-This project demonstrates the seamless migration of MongoDB workloads to Oracle Autonomous JSON Database (AJD) with additional AI capabilities. Using a MERN (MongoDB, Express, React, Node.js) Ecommerce application as our demonstration vehicle, we'll showcase three key solutions: simple migration, complex migration, and AI/analytics enhancement. The project aims to highlight Oracle's 23ai database capabilities, migration tools, and AI integration features for database administrators and developers.
+This project demonstrates the seamless migration of MongoDB workloads to Oracle Autonomous JSON Database (AJD) with additional AI capabilities. Using a MERN (MongoDB, Express, React, Node.js) Ecommerce application as our demonstration vehicle, we'll showcase three key solutions: simple migration, complex migration, and AI/analytics enhancement. The project aims to highlight Oracle's 26ai database capabilities, migration tools, and AI integration features for database administrators and developers.
 
 ## Project Objectives
 1. Demonstrate smooth migration from MongoDB to Oracle AJD without application changes
@@ -25,14 +25,14 @@ This project demonstrates the seamless migration of MongoDB workloads to Oracle 
 ### Solution 1: Simple App Migration Demonstration
 
 #### Overview
-Demonstrate a working MERN Ecommerce application, migrate its MongoDB data to Oracle 23ai Autonomous JSON Database (AJD), reconnect the application to Oracle, and verify functionality remains intact.
+Demonstrate a working MERN Ecommerce application, migrate its MongoDB data to Oracle AI Database 26ai (AJD), reconnect the application to Oracle, and verify functionality remains intact.
 
 #### Requirements
 
 1. **Environment Setup**
    - Configure MERN Ecommerce application in a container
    - Set up MongoDB instance in a container 
-   - Set up Oracle 23ai Autonomous JSON Database (AJD) in OCI
+   - Set up Oracle AI Database 26ai (AJD) in OCI
    - Configure network connectivity between all components
 
 2. **Baseline Demonstration**
@@ -61,7 +61,7 @@ Demonstrate a working MERN Ecommerce application, migrate its MongoDB data to Or
     Perhaps this exporting / importing will be done automatically by a shell script, pre-configured with the most widely-used tools (like `mongodump`) to achieve this process seamlessly for the user.
 
 4. **Application Reconfiguration**
-   - Update application connection string to use Oracle 23ai AJD
+   - Update application connection string to use Oracle AI Database 26ai AJD
    - Use MongoDB compatibility API syntax
    - No code changes beyond connection configuration
 
@@ -80,7 +80,7 @@ Demonstrate a working MERN Ecommerce application, migrate its MongoDB data to Or
 ### Solution 2: Complex App Migration
 
 #### Overview
-Demonstrate migration of the more complex aspects of the MERN Ecommerce application, focusing on advanced MongoDB features that are supported by Oracle 23ai AJD.
+Demonstrate migration of the more complex aspects of the MERN Ecommerce application, focusing on advanced MongoDB features that are supported by Oracle AI Database 26ai AJD.
 
 #### Requirements
 
@@ -207,7 +207,7 @@ Enhance the migrated application with analytics and AI capabilities not present 
 
 ### Infrastructure Requirements
 - MongoDB container (source)
-- Oracle 23ai Autonomous JSON Database (target)
+- Oracle AI Database 26ai (target)
 - OCI Object Storage for data transfer
 - Network connectivity between all components
 
@@ -235,7 +235,7 @@ Enhance the migrated application with analytics and AI capabilities not present 
 
 ### Phase 1: Environment Setup (Days 1-2)
 - Set up MERN Ecommerce application with MongoDB
-- Provision Oracle 23ai AJD instance
+- Provision Oracle AI Database 26ai AJD instance
 - Configure migration tools
 - Document baseline application functionality and performance
 
@@ -280,7 +280,7 @@ Enhance the migrated application with analytics and AI capabilities not present 
 
 ## Assumptions and Constraints
 - MERN Ecommerce application is available and can be containerized
-- Oracle 23ai AJD resources are provisioned and accessible
+- Oracle AI Database 26ai AJD resources are provisioned and accessible
 - Network connectivity exists between all components
 - Oracle Select AI feature is available and properly licensed
 
@@ -297,7 +297,7 @@ Enhance the migrated application with analytics and AI capabilities not present 
 ### Reference Architecture
 ```
 ┌───────────────┐     ┌──────────────┐     ┌────────────────┐
-│ MERN          │     │ Migration    │     │ Oracle 23ai    │
+│ MERN          │     │ Migration    │     │ Oracle AI Database 26ai    │
 │ Ecommerce App │────▶│ Tools        │────▶│ Autonomous JSON│
 │ (Source)      │     │              │     │ Database       │
 └───────────────┘     └──────────────┘     └────────────────┘
@@ -357,7 +357,7 @@ GROUP BY json_value(data, '$.productId');
 ```
 
 ### Required Resources
-- Oracle 23ai Autonomous JSON Database instance
+- Oracle AI Database 26ai instance
 - MongoDB source instance
 - Docker/Podman environment
 - OCI Object Storage bucket

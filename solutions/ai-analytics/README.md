@@ -10,8 +10,8 @@ The application has the following features:
 - **R**eact frontend components
 - **N**ode.js backend environment
 
-Building on the foundation of the [Simple Migration](../simple-migration/README.md) and [Complex Migration](../complex-migration/README.md) solutions—which guide you through migrating your MongoDB-based MERN app to Oracle Autonomous JSON Database 23ai and creating JSON Duality Views — this solution adds advanced features such as:
-- In-database vector search using Oracle 23ai's vector capabilities on native JSON collections
+Building on the foundation of the [Simple Migration](../simple-migration/README.md) and [Complex Migration](../complex-migration/README.md) solutions—which guide you through migrating your MongoDB-based MERN app to Oracle Autonomous AI Database 26ai and creating JSON Duality Views — this solution adds advanced features such as:
+- In-database vector search using Oracle AI Database 26ai's vector capabilities on native JSON collections
 - Retrieval-Augmented Generation (RAG) with a Large Language Model (LLM) via the `ollama` API
 - Seamless integration of LLM-powered chat and analytics into your MERN app, accessible through the familiar React frontend
 - **Database-focused approach**: Uses the existing `reviews` JSON collection via SODA (Simple Oracle Document Access) instead of creating separate relational tables
@@ -82,7 +82,7 @@ flowchart LR
 
 ### Prerequisites
 
-- Oracle 23ai Autonomous JSON Database instance
+- Oracle AI Database 26ai instance
 - **Completed [Simple Migration](../simple-migration/README.md)**: Successfully migrated MongoDB collections to Oracle using `mongorestore`
 - **Completed [Complex Migration](../complex-migration/README.md)**: Successfully created JSON Duality Views using the normalized script and imported data into the `ecommercedv` schema
 - Python 3.10+ to expose the LLM through FastAPI
