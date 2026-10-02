@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
@@ -20,8 +20,8 @@ import {
   Td,
   Th,
   Toolbar,
-  matches,
-  useClientPage
+  useFilteredPage,
+  useRowAction
 } from '../../components/manager'
 import {
   useCreateProductMutation,
@@ -34,6 +34,7 @@ import { useBrandOptionsQuery } from '../../features/catalog/catalogApi'
 import { toastShown } from '../../features/ui/uiSlice'
 import { apiErrorMessage } from '../../lib/apiError'
 import { currency } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const PER_PAGE = 12
 
@@ -56,6 +57,20 @@ const brandName = (brand) => {
   return typeof brand === 'object' ? brand.name || 'No brand' : String(brand)
 }
 
+const searchFields = (item) => [item.name, item.sku, item.slug, brandName(item.brand)]
+
+const formFrom = (product) => ({
+  sku: product.sku || '',
+  name: product.name || '',
+  slug: product.slug || '',
+  description: product.description || '',
+  price: product.price ?? '',
+  quantity: product.quantity ?? '',
+  taxable: Boolean(product.taxable),
+  isActive: product.isActive !== false,
+  brand: brandId(product.brand)
+})
+
 function ProductFormModal({ open, product, brands, onClose }) {
   const dispatch = useDispatch()
   const isEdit = Boolean(product)
@@ -69,21 +84,7 @@ function ProductFormModal({ open, product, brands, onClose }) {
     if (!open) return
     setError('')
     setImage(null)
-    setForm(
-      product
-        ? {
-            sku: product.sku || '',
-            name: product.name || '',
-            slug: product.slug || '',
-            description: product.description || '',
-            price: product.price ?? '',
-            quantity: product.quantity ?? '',
-            taxable: Boolean(product.taxable),
-            isActive: product.isActive !== false,
-            brand: brandId(product.brand)
-          }
-        : emptyForm
-    )
+    setForm(product ? formFrom(product) : emptyForm)
   }, [open, product])
 
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }))
@@ -93,7 +94,10 @@ function ProductFormModal({ open, product, brands, onClose }) {
     if (!form.name.trim()) return 'Name is required.'
     if (!form.description.trim()) return 'Description is required.'
     if (!(Number(form.price) > 0)) return 'Price must be a number greater than 0.'
-    if (!(Number(form.quantity) >= 1)) return 'Quantity must be at least 1.'
+    const quantity = Number(form.quantity)
+    if (form.quantity === '' || !Number.isInteger(quantity) || quantity < 0) {
+      return 'Quantity must be a whole number, 0 or more.'
+    }
     if (!form.brand) return 'Select a brand — products without one never appear in the store.'
     if (isEdit && !form.slug.trim()) return 'Slug is required.'
     return ''
@@ -118,7 +122,18 @@ function ProductFormModal({ open, product, brands, onClose }) {
     }
     try {
       if (isEdit) {
-        await updateProduct({ id: product._id, product: { ...fields, slug: form.slug.trim() } }).unwrap()
+        // Send only what changed: a full-object PUT from a stale list snapshot
+        // would overwrite stock that moved since the page loaded.
+        const original = formFrom(product)
+        const changes = {}
+        for (const [key, value] of Object.entries({ ...fields, slug: form.slug.trim() })) {
+          if (original[key] !== value) changes[key] = value
+        }
+        if (Object.keys(changes).length === 0) {
+          onClose()
+          return
+        }
+        await updateProduct({ id: product._id, product: changes }).unwrap()
         dispatch(toastShown({ type: 'success', message: `${fields.name} updated` }))
       } else {
         // multipart/form-data: only attach the file when one was actually chosen.
@@ -174,10 +189,10 @@ function ProductFormModal({ open, product, brands, onClose }) {
           placeholder="49.99"
         />
       </Field>
-      <Field label="Quantity in stock" required hint="The API rejects 0 — deactivate the product instead.">
+      <Field label="Quantity in stock" required hint="Whole number. 0 marks the product as sold out.">
         <Input
           type="number"
-          min="1"
+          min="0"
           step="1"
           value={form.quantity}
           onChange={(event) => set('quantity')(event.target.value)}
@@ -227,61 +242,37 @@ function ProductFormModal({ open, product, brands, onClose }) {
 }
 
 export default function Products() {
-  const dispatch = useDispatch()
+  useDocumentTitle('Products')
   const { data, isLoading, isError, error, refetch, isFetching } = useManagerProductsQuery()
   const { data: brandOptions } = useBrandOptionsQuery()
   const [setProductActive] = useSetProductActiveMutation()
   const [deleteProduct, deleteState] = useDeleteProductMutation()
+  const { pendingId, run } = useRowAction()
 
-  const [term, setTerm] = useState('')
   const [dialog, setDialog] = useState(null) // { product } | { product: null }
   const [confirming, setConfirming] = useState(null)
-  const [pendingId, setPendingId] = useState(null)
 
   const brands = brandOptions?.brands || []
   const products = data?.products || []
 
-  const filtered = useMemo(
-    () =>
-      products.filter((product) =>
-        matches(product, term, (item) => [item.name, item.sku, item.slug, brandName(item.brand)])
-      ),
-    [products, term]
-  )
+  const { term, setTerm, visible, page, totalPages, count, setPage } = useFilteredPage(products, searchFields, PER_PAGE)
 
-  const { visible, page, totalPages, count, setPage, reset } = useClientPage(filtered, PER_PAGE)
-
-  useEffect(() => {
-    reset()
-  }, [term, reset])
-
-  const toggleActive = async (product) => {
-    setPendingId(product._id)
-    try {
-      await setProductActive({ id: product._id, isActive: !product.isActive }).unwrap()
-      dispatch(
-        toastShown({
-          type: 'success',
-          message: `${product.name} is now ${product.isActive ? 'inactive' : 'active'}`
-        })
-      )
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not change the status.') }))
-    } finally {
-      setPendingId(null)
-    }
+  const toggleActive = (product) => {
+    const active = product.isActive !== false
+    return run(product._id, () => setProductActive({ id: product._id, isActive: !active }).unwrap(), {
+      success: `${product.name} is now ${active ? 'inactive' : 'active'}`,
+      failure: 'Could not change the status.'
+    })
   }
 
   const remove = async () => {
     const product = confirming
     if (!product) return
-    try {
-      await deleteProduct(product._id).unwrap()
-      dispatch(toastShown({ type: 'success', message: `${product.name} deleted` }))
-      setConfirming(null)
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not delete the product.') }))
-    }
+    const done = await run(product._id, () => deleteProduct(product._id).unwrap(), {
+      success: `${product.name} deleted`,
+      failure: 'Could not delete the product.'
+    })
+    if (done) setConfirming(null)
   }
 
   return (
@@ -303,7 +294,7 @@ export default function Products() {
         {isFetching && !isLoading && <p className="text-xs text-ink-500">Refreshing…</p>}
       </Toolbar>
 
-      <TableShell tableClassName="min-w-[62rem]">
+      <TableShell tableClassName="min-w-[54rem]">
         <thead>
           <tr>
             <Th>Product</Th>
@@ -313,7 +304,7 @@ export default function Products() {
             <Th className="text-right">Stock</Th>
             <Th>Taxable</Th>
             <Th>Status</Th>
-            <Th className="text-right">Actions</Th>
+            <Th sticky className="text-right">Actions</Th>
           </tr>
         </thead>
         <tbody>
@@ -387,11 +378,12 @@ export default function Products() {
                 <Td>
                   <ActiveToggle
                     active={product.isActive !== false}
+                    label={`Status of ${product.name}`}
                     loading={pendingId === product._id}
                     onChange={() => toggleActive(product)}
                   />
                 </Td>
-                <Td>
+                <Td sticky>
                   <div className="flex items-center justify-end gap-1">
                     <IconButton label={`Edit ${product.name}`} onClick={() => setDialog({ product })}>
                       <Pencil size={16} />

@@ -10,8 +10,10 @@ import { Field, Input } from '../../components/ui/Field'
 import { useResetPasswordMutation } from '../../features/auth/authApi'
 import { selectIsAuthenticated } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 export default function ResetPassword() {
+  useDocumentTitle('Reset password')
   const { token } = useParams()
   const dispatch = useDispatch()
   const navigate = useNavigate()

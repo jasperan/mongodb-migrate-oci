@@ -1,49 +1,39 @@
 import { api } from '../../app/api'
 
+// Database showcase panels share one cache entry per endpoint. The query argument
+// is a refresh counter: raising it re-requests the endpoint with `?fresh=1`, which
+// skips the server's 15 s cache (the point of the Refresh buttons after a live
+// write). The argument is left out of the cache key so `data` stays on screen
+// while the refresh is in flight.
+const databasePanel = (path) => ({
+  query: (refresh = 0) => ({ url: `/admin-db/${path}`, params: refresh ? { fresh: 1 } : undefined }),
+  serializeQueryArgs: ({ endpointName }) => endpointName,
+  forceRefetch: ({ currentArg, previousArg }) => currentArg !== previousArg,
+  providesTags: ['Database']
+})
+
 // Support surfaces: the RAG chat, the database showcase endpoints and the
 // socket-backed support chat (which is not an HTTP endpoint).
 export const supportApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    // RAG chat: POST /api/chat {message} -> {response}
+    // RAG chat: POST /api/chat { message, history? } -> { response, model, retrieval }
     chat: builder.mutation({
-      query: (message) => ({ url: '/chat', method: 'POST', body: { message } })
+      query: ({ message, history }) => ({ url: '/chat', method: 'POST', body: { message, history } })
+    }),
+    // Which AI capabilities the server has configured: { llm, embeddings, selectAi }
+    aiStatus: builder.query({
+      query: () => '/ai/status'
     }),
 
-    // Migration showcase: MongoDB API collections vs Oracle JSON collections
-    mongoCollections: builder.query({
-      query: () => '/admin-db/collections/mongo',
-      providesTags: ['Database']
-    }),
-    mongoCollectionCount: builder.query({
-      query: (name) => `/admin-db/collections/mongo/${name}/count`,
-      providesTags: ['Database']
-    }),
-    oracleCollections: builder.query({
-      query: () => '/admin-db/collections/oracle',
-      providesTags: ['Database']
-    }),
-    oracleCollectionCount: builder.query({
-      query: (name) => `/admin-db/collections/oracle/${name}/count`,
-      providesTags: ['Database']
-    }),
+    // Migration showcase: MongoDB API collections vs Oracle JSON collections,
+    // each with its document count, in one request
+    collections: builder.query(databasePanel('collections')),
 
     // 26ai surfaces: relational views, duality views, JSON validity
-    databaseViews: builder.query({
-      query: () => '/admin-db/views',
-      providesTags: ['Database']
-    }),
-    dualityViews: builder.query({
-      query: () => '/admin-db/duality-views',
-      providesTags: ['Database']
-    }),
-    validityReport: builder.query({
-      query: () => '/admin-db/validity',
-      providesTags: ['Database']
-    }),
-    migrationStatus: builder.query({
-      query: () => '/admin-db/migration-status',
-      providesTags: ['Database']
-    }),
+    databaseViews: builder.query(databasePanel('views')),
+    dualityViews: builder.query(databasePanel('duality-views')),
+    validityReport: builder.query(databasePanel('validity')),
+    migrationStatus: builder.query(databasePanel('migration-status')),
 
     // In-database AI: vector similarity over the migrated documents
     similarProducts: builder.mutation({
@@ -58,10 +48,8 @@ export const supportApi = api.injectEndpoints({
 
 export const {
   useChatMutation,
-  useMongoCollectionsQuery,
-  useMongoCollectionCountQuery,
-  useOracleCollectionsQuery,
-  useOracleCollectionCountQuery,
+  useAiStatusQuery,
+  useCollectionsQuery,
   useDatabaseViewsQuery,
   useDualityViewsQuery,
   useValidityReportQuery,

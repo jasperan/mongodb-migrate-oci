@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { Field, Input } from '../../components/ui/Field'
 import { useMerchantSignupMutation } from '../../features/manager/managerApi'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -18,6 +19,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * Completing it only sets the password — the merchant still has to sign in.
  */
 export default function MerchantSignup() {
+  useDocumentTitle('Merchant signup')
   const { token } = useParams()
   const [searchParams] = useSearchParams()
   const dispatch = useDispatch()

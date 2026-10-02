@@ -10,10 +10,12 @@ import { Field, Input } from '../../components/ui/Field'
 import { useLoginMutation } from '../../features/auth/authApi'
 import { selectIsAuthenticated } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function Login() {
+  useDocumentTitle('Sign in')
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const location = useLocation()
@@ -73,7 +75,7 @@ export default function Login() {
       footer={
         <>
           New to MERN Store?{' '}
-          <Link to="/register" className="font-medium text-brand-700 hover:text-brand-800">
+          <Link to="/register" state={location.state} className="font-medium text-brand-700 hover:text-brand-800">
             Create an account
           </Link>
         </>

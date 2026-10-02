@@ -1,5 +1,5 @@
-import clsx from 'clsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { cn } from '../../lib/cn'
 
 export function Pagination({ page = 1, totalPages = 1, onChange, className }) {
   if (totalPages <= 1) return null
@@ -16,9 +16,9 @@ export function Pagination({ page = 1, totalPages = 1, onChange, className }) {
     'grid size-10 place-items-center rounded-full border text-sm font-medium transition-colors disabled:opacity-40'
 
   return (
-    <nav className={clsx('flex items-center justify-center gap-2', className)} aria-label="Pagination">
+    <nav className={cn('flex flex-wrap items-center justify-center gap-2', className)} aria-label="Pagination">
       <button
-        className={clsx(buttonClass, 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50')}
+        className={cn(buttonClass, 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50')}
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
@@ -35,7 +35,7 @@ export function Pagination({ page = 1, totalPages = 1, onChange, className }) {
             key={p}
             onClick={() => onChange(p)}
             aria-current={p === page ? 'page' : undefined}
-            className={clsx(
+            className={cn(
               buttonClass,
               p === page ? 'border-brand-600 bg-brand-600 text-white' : 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50'
             )}
@@ -45,7 +45,7 @@ export function Pagination({ page = 1, totalPages = 1, onChange, className }) {
         )
       )}
       <button
-        className={clsx(buttonClass, 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50')}
+        className={cn(buttonClass, 'border-ink-200 bg-white text-ink-700 hover:bg-ink-50')}
         onClick={() => onChange(page + 1)}
         disabled={page >= totalPages}
         aria-label="Next page"

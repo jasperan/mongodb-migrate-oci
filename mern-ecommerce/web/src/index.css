@@ -6,8 +6,8 @@
    ramp (blue) is used by the migration/JSON showcase surfaces.
 --------------------------------------------------------------------------- */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
 
   --color-brand-50: #fff5f3;
   --color-brand-100: #ffe6e1;
@@ -24,8 +24,9 @@
   --color-ink-100: #ededeb;
   --color-ink-200: #dcdcd8;
   --color-ink-300: #b9b9b3;
-  --color-ink-400: #8d8d87;
-  --color-ink-500: #6d6d67;
+  /* ink-400/500 clear 4.5:1 on white and on ink-50 (small text) */
+  --color-ink-400: #70706a;
+  --color-ink-500: #62625c;
   --color-ink-600: #565651;
   --color-ink-700: #434340;
   --color-ink-800: #2a2a28;
@@ -52,7 +53,12 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
-    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   body {
@@ -63,7 +69,7 @@
   h1,
   h2,
   h3 {
-    @apply font-display tracking-tight text-ink-900;
+    @apply font-display tracking-tight;
   }
 
   ::selection {
@@ -97,12 +103,16 @@
 }
 
 @utility hover-lift {
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease;
+  @media (prefers-reduced-motion: no-preference) {
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
   &:hover {
-    transform: translateY(-2px);
     box-shadow: var(--shadow-lift);
+    @media (prefers-reduced-motion: no-preference) {
+      transform: translateY(-2px);
+    }
   }
 }
 
@@ -117,4 +127,15 @@
 /* Fallback product artwork: deterministic gradient per product id */
 @utility product-art {
   background-image: linear-gradient(135deg, var(--art-from, #c74634), var(--art-to, #16161a));
+}
+
+/* Decorative looping animations stop for users who asked for reduced motion;
+   spinners keep turning because they are the only sign that work is in flight. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

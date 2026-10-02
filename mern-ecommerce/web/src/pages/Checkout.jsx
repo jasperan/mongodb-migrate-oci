@@ -1,31 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { CheckCircle2, MapPin, PackageCheck, Plus, ShieldCheck, Truck } from 'lucide-react'
 import clsx from 'clsx'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui/Display'
 import { Button, ButtonLink } from '../components/ui/Button'
-import { Checkbox, Field, Input, Textarea } from '../components/ui/Field'
+import { AddressForm } from '../components/account/AddressForm'
+import { FormAlert } from '../components/account/FormAlert'
+import { BagNotices } from '../components/store/BagNotices'
 import { OrderItemsTable, TotalsPanel } from '../components/store/OrderSummary'
 import {
   cartCleared,
+  cartLinesSynced,
   selectCartCount,
   selectCartItems,
   selectCartSubtotal,
   selectCartTax,
-  selectCartTotal,
-  toCartPayload
+  selectCartTotal
 } from '../features/cart/cartSlice'
-import { useCreateCartMutation } from '../features/cart/cartApi'
-import { useCreateOrderMutation } from '../features/orders/orderApi'
+import { useRevalidateCart } from '../features/cart/useRevalidateCart'
+import { useCheckoutMutation } from '../features/orders/orderApi'
 import { useAddAddressMutation, useAddressesQuery } from '../features/address/addressApi'
 import { selectIsAuthenticated } from '../features/auth/authSlice'
 import { toastShown } from '../features/ui/uiSlice'
+import { apiErrorMessage } from '../lib/apiError'
 import { currency } from '../lib/format'
-
-const EMPTY_ADDRESS = { address: '', city: '', state: '', country: '', zipCode: '', isDefault: false }
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export default function Checkout() {
+  useDocumentTitle('Checkout')
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const authenticated = useSelector(selectIsAuthenticated)
@@ -36,19 +39,19 @@ export default function Checkout() {
   const tax = useSelector(selectCartTax)
   const total = useSelector(selectCartTotal)
 
+  const { notices, checking, dismiss } = useRevalidateCart()
   const { data, isLoading: loadingAddresses } = useAddressesQuery(undefined, { skip: !authenticated })
   const [addAddress, { isLoading: savingAddress }] = useAddAddressMutation()
-  const [createCart, { isLoading: creatingCart }] = useCreateCartMutation()
-  const [createOrder, { isLoading: creatingOrder }] = useCreateOrderMutation()
+  const [checkout, { isLoading: placing }] = useCheckoutMutation()
+  const inFlight = useRef(false)
 
   const [selected, setSelected] = useState(null)
+  const [placed, setPlaced] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(EMPTY_ADDRESS)
-  const [errors, setErrors] = useState({})
+  const [formError, setFormError] = useState(null)
   const [submitError, setSubmitError] = useState(null)
 
   const addresses = data?.addresses || []
-  const placing = creatingCart || creatingOrder
 
   useEffect(() => {
     if (selected || addresses.length === 0) return
@@ -62,9 +65,16 @@ export default function Checkout() {
     return <Navigate to="/login" state={{ from: '/checkout' }} replace />
   }
 
+  // Clearing the bag re-renders this page before the lazily loaded confirmation
+  // route has resolved; without this the shopper would see "Nothing to check out".
+  if (placed) return <LoadingBlock label="Order placed — opening your confirmation…" className="py-24" />
+
   if (items.length === 0) {
     return (
       <div className="container-page py-16">
+        <div className="mx-auto max-w-xl">
+          <BagNotices notices={notices} onDismiss={dismiss} />
+        </div>
         <EmptyState
           icon={PackageCheck}
           title="Nothing to check out"
@@ -76,59 +86,66 @@ export default function Checkout() {
     )
   }
 
-  const change = (field, value) => setForm((current) => ({ ...current, [field]: value }))
-
-  const saveAddress = async (event) => {
-    event.preventDefault()
-    const next = {}
-    if (!form.address.trim()) next.address = 'Street address is required.'
-    if (!form.city.trim()) next.city = 'City is required.'
-    if (!form.state.trim()) next.state = 'State is required.'
-    if (!form.country.trim()) next.country = 'Country is required.'
-    if (!form.zipCode.trim()) next.zipCode = 'Zip code is required.'
-    setErrors(next)
-    if (Object.keys(next).length) return
-
+  const saveAddress = async (values) => {
+    setFormError(null)
     try {
-      const response = await addAddress(form).unwrap()
+      const response = await addAddress(values).unwrap()
       dispatch(toastShown({ type: 'success', message: response?.message || 'Address saved' }))
       if (response?.address?._id) setSelected(response.address._id)
-      setForm(EMPTY_ADDRESS)
       setShowForm(false)
     } catch (error) {
-      const message = error?.data?.error || 'We could not save this address.'
-      setErrors({ form: message })
+      const message = apiErrorMessage(error, 'We could not save this address.')
+      setFormError(message)
       dispatch(toastShown({ type: 'error', message }))
     }
   }
 
+  // The server prices every line itself and reserves stock atomically, so the
+  // request carries only ids and quantities; a failure leaves nothing reserved.
   const placeOrder = async () => {
+    if (inFlight.current || checking || !selected) return
+    inFlight.current = true
     setSubmitError(null)
     try {
-      // Stock is decremented when the cart document is created, so the order is
-      // always created from a freshly minted server cart.
-      const cart = await createCart(toCartPayload(items)).unwrap()
-      const order = await createOrder(cart.cartId).unwrap()
+      const result = await checkout(items.map(({ product, quantity }) => ({ product, quantity }))).unwrap()
+      setPlaced(true)
       dispatch(cartCleared())
-      dispatch(
-        toastShown({ type: 'success', message: order?.message || 'Your order has been placed successfully!' })
-      )
-      navigate(`/order/success/${order.order._id}`, { replace: true })
+      dispatch(toastShown({ type: 'success', message: result?.message || 'Your order has been placed.' }))
+      navigate(`/order/success/${result.order._id}`, { replace: true })
     } catch (error) {
-      const message = error?.data?.error || 'We could not place your order. Please try again.'
+      const code = error?.data?.code
+      const productId = error?.data?.product
+      let message = apiErrorMessage(error, 'We could not place your order. Please try again.')
+      if (code === 'INSUFFICIENT_STOCK' && productId) {
+        const available = Number(error.data.available)
+        if (available > 0) {
+          dispatch(cartLinesSynced({ updates: [{ product: productId, stock: available }] }))
+          message += ' We lowered the quantity in your bag.'
+        } else {
+          const name = items.find((item) => item.product === productId)?.name
+          dispatch(cartLinesSynced({ removed: [productId] }))
+          message = `${name || 'An item'} is out of stock and was removed from your bag.`
+        }
+      } else if (code === 'PRODUCT_UNAVAILABLE' && productId) {
+        dispatch(cartLinesSynced({ removed: [productId] }))
+        message += ' It was removed from your bag.'
+      }
       setSubmitError(message)
       dispatch(toastShown({ type: 'error', message }))
+    } finally {
+      inFlight.current = false
     }
   }
 
   return (
     <div className="container-page py-10">
+      <BagNotices notices={notices} onDismiss={dismiss} />
       <header className="mb-8">
         <p className="eyebrow">Checkout</p>
         <h1 className="mt-1 font-display text-3xl">Delivery &amp; confirmation</h1>
         <p className="mt-2 max-w-2xl text-sm text-ink-500">
-          Pick a delivery address, review the bag, and place the order. The bag becomes a server cart in{' '}
-          <code className="text-ink-700">carts</code>, then an order document linked to it.
+          Pick a delivery address, review your bag and place the order. Prices and availability are checked again when
+          you place it.
         </p>
       </header>
 
@@ -186,41 +203,15 @@ export default function Checkout() {
             )}
 
             {showForm && (
-              <form onSubmit={saveAddress} className="mt-5 rounded-xl border border-ink-200 bg-ink-50/60 p-4">
-                <h3 className="font-display text-sm">Add a new address</h3>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <Field label="Street address" required error={errors.address} className="sm:col-span-2">
-                    <Textarea
-                      rows={2}
-                      value={form.address}
-                      onChange={(event) => change('address', event.target.value)}
-                      placeholder="1 Market Street"
-                    />
-                  </Field>
-                  <Field label="City" required error={errors.city}>
-                    <Input value={form.city} onChange={(event) => change('city', event.target.value)} />
-                  </Field>
-                  <Field label="State" required error={errors.state}>
-                    <Input value={form.state} onChange={(event) => change('state', event.target.value)} />
-                  </Field>
-                  <Field label="Country" required error={errors.country}>
-                    <Input value={form.country} onChange={(event) => change('country', event.target.value)} />
-                  </Field>
-                  <Field label="Zip code" required error={errors.zipCode}>
-                    <Input value={form.zipCode} onChange={(event) => change('zipCode', event.target.value)} />
-                  </Field>
-                </div>
-                <Checkbox
-                  className="mt-3"
-                  label="Use as my default address"
-                  checked={form.isDefault}
-                  onChange={(event) => change('isDefault', event.target.checked)}
+              <div className="mt-5 rounded-xl border border-ink-200 bg-ink-50/60 p-4">
+                <h3 className="mb-4 font-display text-sm">Add a new address</h3>
+                {formError && <FormAlert className="mb-4">{formError}</FormAlert>}
+                <AddressForm
+                  onSubmit={saveAddress}
+                  submitting={savingAddress}
+                  onCancel={() => setShowForm(false)}
                 />
-                {errors.form && <p className="mt-3 text-xs text-brand-700">{errors.form}</p>}
-                <Button type="submit" size="sm" className="mt-4" loading={savingAddress}>
-                  Save address
-                </Button>
-              </form>
+              </div>
             )}
           </section>
 
@@ -234,11 +225,11 @@ export default function Checkout() {
           <section className="grid gap-3 sm:grid-cols-2">
             <div className="card-surface flex gap-3 p-4 text-sm text-ink-600">
               <ShieldCheck size={16} className="mt-0.5 shrink-0 text-ink-400" />
-              Stock is reserved the moment the cart is created, and released again if the order is cancelled.
+              Your items are set aside as soon as you place the order, and go back on sale if you cancel it.
             </div>
             <div className="card-surface flex gap-3 p-4 text-sm text-ink-600">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ink-400" />
-              Payment is not collected in this demo — placing the order writes the order document and returns its id.
+              No payment is taken in this demo store, and the delivery address is not stored with the order.
             </div>
           </section>
         </div>
@@ -256,10 +247,14 @@ export default function Checkout() {
                     Choose or add a delivery address to place the order.
                   </p>
                 )}
-                {submitError && (
-                  <p className="rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-700">{submitError}</p>
-                )}
-                <Button size="lg" className="w-full" onClick={placeOrder} disabled={!selected} loading={placing}>
+                {submitError && <FormAlert>{submitError}</FormAlert>}
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={placeOrder}
+                  disabled={!selected || checking || placing}
+                  loading={placing}
+                >
                   Place order · {currency(total)}
                 </Button>
                 <ButtonLink to="/cart" variant="ghost" size="sm" className="w-full">
@@ -268,10 +263,6 @@ export default function Checkout() {
               </div>
             }
           />
-          <p className="text-xs text-ink-500">
-            The server recomputes tax and totals from the line items on every read, so the stored order and this summary
-            are derived from the same server-side calculation.
-          </p>
         </div>
       </div>
     </div>

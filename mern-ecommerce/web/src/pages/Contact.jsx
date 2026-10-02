@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { CheckCircle2, Clock, Mail, MapPin, MessageSquare, Phone, Send } from 'lucide-react'
+import { CheckCircle2, Clock, Mail, MapPin, Phone, Send } from 'lucide-react'
 import { Badge } from '../components/ui/Display'
 import { Button, ButtonLink } from '../components/ui/Button'
 import { Field, Input, Textarea } from '../components/ui/Field'
 import { useSendContactMessageMutation } from '../features/manager/managerApi'
 import { toastShown } from '../features/ui/uiSlice'
+import { apiErrorMessage } from '../lib/apiError'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const EMPTY = { name: '', email: '', message: '' }
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -18,6 +20,7 @@ const STORE_INFO = [
 ]
 
 export default function Contact() {
+  useDocumentTitle('Contact')
   const dispatch = useDispatch()
   const [sendContactMessage, { isLoading }] = useSendContactMessageMutation()
   const [form, setForm] = useState(EMPTY)
@@ -47,7 +50,7 @@ export default function Contact() {
       setForm(EMPTY)
       dispatch(toastShown({ type: 'success', message: 'Your message is on its way' }))
     } catch (error) {
-      const message = error?.data?.error || 'We could not send your message. Please try again.'
+      const message = apiErrorMessage(error, 'We could not send your message. Please try again.')
       setErrors({ form: message })
       dispatch(toastShown({ type: 'error', message }))
     }
@@ -59,8 +62,7 @@ export default function Contact() {
         <p className="eyebrow">Contact</p>
         <h1 className="mt-1 font-display text-3xl">Talk to the store team</h1>
         <p className="mt-2 text-sm text-ink-500">
-          Questions about an order, a product or selling with us? Send a message and it lands in the{' '}
-          <code className="text-ink-700">contacts</code> collection for a human to pick up.
+          Questions about an order, a product or selling with us? Send us a message and a member of the team will reply by email.
         </p>
       </header>
 
@@ -73,10 +75,7 @@ export default function Contact() {
               </span>
               <h2 className="font-display text-xl">Message received</h2>
               <p className="text-sm text-ink-600">{confirmation}</p>
-              <p className="text-xs text-ink-500">
-                Replies go to the email address you entered. Only one contact record is kept per address, so a second
-                message from the same address replaces nothing — it is rejected.
-              </p>
+              <p className="text-xs text-ink-500">Replies go to the email address you entered.</p>
               <Button variant="outline" size="sm" className="mt-2" onClick={() => setConfirmation(null)}>
                 Send another message
               </Button>
@@ -155,11 +154,6 @@ export default function Contact() {
                 Keep shopping
               </ButtonLink>
             </div>
-          </div>
-
-          <div className="card-surface flex gap-3 p-5 text-sm text-ink-600">
-            <MessageSquare size={16} className="mt-0.5 shrink-0 text-ink-400" />
-            Every submission also triggers the transactional contact email through the server's mail service.
           </div>
         </aside>
       </div>

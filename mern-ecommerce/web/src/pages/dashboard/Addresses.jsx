@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/account/PageHeader'
 import { AddressForm } from '../../components/account/AddressForm'
 import { FormAlert } from '../../components/account/FormAlert'
 import { apiErrorMessage } from '../../lib/apiError'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import { Badge, EmptyState, LoadingBlock } from '../../components/ui/Display'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
@@ -20,6 +21,7 @@ const formatAddress = (address) =>
   [address.address, address.city, address.state, address.country, address.zipCode].filter(Boolean).join(', ')
 
 export default function Addresses() {
+  useDocumentTitle('Addresses')
   const dispatch = useDispatch()
   const { data, isLoading, isError, error } = useAddressesQuery()
   const [addAddress, { isLoading: isAdding }] = useAddAddressMutation()

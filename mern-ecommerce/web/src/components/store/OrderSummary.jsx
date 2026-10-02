@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { Badge } from '../ui/Display'
 import { ProductArt } from '../catalog/ProductCard'
 import { currency, shortDate } from '../../lib/format'
+import { lineTotal } from '../../lib/orders'
 import { TAX_RATE } from '../../features/cart/cartSlice'
 
 const STATUS_TONES = {
@@ -29,6 +30,7 @@ function Row({ label, value, hint, strong = false }) {
 
 // Two totals surfaces: the client-side cart (subtotal + 5% tax on taxable lines)
 // and a server-shaped order (the API recomputes total/totalTax/totalWithTax on read).
+// Line totals are pre-tax; tax appears once, in the totals.
 export function TotalsPanel({ subtotal, tax, total, itemCount, shipping = 'Free', className, footer }) {
   return (
     <div className={clsx('card-surface p-5', className)}>
@@ -58,7 +60,7 @@ export function OrderTotals({ order, className }) {
         <Row label="Subtotal" value={currency(total)} />
         <Row label="Tax" value={currency(tax)} />
         <div className="border-t border-dashed border-ink-200 pt-3">
-          <Row label="Total paid" value={currency(withTax)} strong />
+          <Row label="Total" value={currency(withTax)} strong />
         </div>
       </dl>
       {order?.created && <p className="mt-4 text-xs text-ink-500">Placed {shortDate(order.created)}</p>}
@@ -83,7 +85,7 @@ export function OrderItemsTable({ items = [], className }) {
           (typeof populated?.brand === 'object' ? populated.brand?.name : populated?.brand) ||
           (typeof item.brand === 'string' ? item.brand : '')
         const unitPrice = item.purchasePrice || populated?.price || item.price || 0
-        const lineTotal = item.priceWithTax ?? item.totalPrice ?? unitPrice * (item.quantity || 1)
+        const amount = lineTotal(item, unitPrice)
 
         return (
           <li key={item._id || populated?._id || index} className="flex items-center gap-4 py-3">
@@ -102,7 +104,7 @@ export function OrderItemsTable({ items = [], className }) {
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="font-display text-sm">{currency(lineTotal)}</span>
+              <span className="font-display text-sm">{currency(amount)}</span>
               {item.status && <Badge tone={statusTone(item.status)}>{item.status}</Badge>}
             </div>
           </li>

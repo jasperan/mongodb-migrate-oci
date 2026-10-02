@@ -1,15 +1,18 @@
 import clsx from 'clsx'
 import { Select } from '../ui/Field'
 
-// The list endpoint takes a raw $sort object serialised as JSON.
+// The list endpoint takes a $sort object serialised as JSON (created, price, name or averageRating).
 const SORT_OPTIONS = [
   { key: 'newest', label: 'Newest', sortOrder: { created: -1 } },
   { key: 'price-desc', label: 'Price: high to low', sortOrder: { price: -1 } },
   { key: 'price-asc', label: 'Price: low to high', sortOrder: { price: 1 } },
+  { key: 'rating', label: 'Top rated', sortOrder: { averageRating: -1 } },
   { key: 'name', label: 'Name: A–Z', sortOrder: { name: 1 } }
 ]
 
 export const DEFAULT_SORT = SORT_OPTIONS[0].key
+
+export const isSortKey = (key) => SORT_OPTIONS.some((option) => option.key === key)
 
 export const sortOrderFor = (key) =>
   SORT_OPTIONS.find((option) => option.key === key)?.sortOrder || SORT_OPTIONS[0].sortOrder

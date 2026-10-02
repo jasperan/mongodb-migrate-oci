@@ -1,17 +1,29 @@
-import clsx from 'clsx'
+import { cn } from '../../lib/cn'
 import { Badge } from '../ui/Display'
 import { initials, roleLabel } from '../../lib/format'
 
 // Inline active/inactive switch used on products, categories, brands and merchants.
-// The label states the current server state, so the button reads as a fact you can flip.
-export function ActiveToggle({ active, onChange, loading = false, activeLabel = 'Active', inactiveLabel = 'Inactive', className }) {
+// The visible text states the current server state; `label` names what the switch
+// controls for assistive technology, which reads the state from aria-checked.
+export function ActiveToggle({
+  active,
+  onChange,
+  label = 'Status',
+  loading = false,
+  activeLabel = 'Active',
+  inactiveLabel = 'Inactive',
+  className
+}) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={active}
+      aria-label={label}
       disabled={loading}
       onClick={() => onChange(!active)}
       title={active ? `Disable — currently ${activeLabel.toLowerCase()}` : `Enable — currently ${inactiveLabel.toLowerCase()}`}
-      className={clsx(
+      className={cn(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-50',
         active
           ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -19,7 +31,7 @@ export function ActiveToggle({ active, onChange, loading = false, activeLabel = 
         className
       )}
     >
-      <span className={clsx('size-1.5 rounded-full', active ? 'bg-emerald-500' : 'bg-amber-500')} />
+      <span className={cn('size-1.5 rounded-full', active ? 'bg-emerald-500' : 'bg-amber-500')} />
       {active ? activeLabel : inactiveLabel}
     </button>
   )
@@ -56,7 +68,7 @@ export function Avatar({ name, className }) {
   return (
     <span
       aria-hidden
-      className={clsx(
+      className={cn(
         'grid size-10 shrink-0 place-items-center rounded-full bg-ink-100 font-display text-xs font-semibold text-ink-600',
         className
       )}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Star } from 'lucide-react'
 import clsx from 'clsx'
@@ -8,21 +8,47 @@ import { Badge } from '../ui/Display'
 import { selectIsAuthenticated } from '../../features/auth/authSlice'
 import { useAddReviewMutation } from '../../features/reviews/reviewApi'
 import { toastShown } from '../../features/ui/uiSlice'
+import { apiErrorMessage } from '../../lib/apiError'
 
 const EMPTY = { title: '', review: '', rating: 0, isRecommended: true }
 
+// Radiogroup with a roving tabindex: one tab stop, arrow keys move and select.
+// It sits in a fieldset instead of a <label>, otherwise clicking the caption
+// would activate the first star.
 function StarPicker({ value, onChange, error }) {
+  const stars = [1, 2, 3, 4, 5]
+  const buttons = useRef([])
+
+  const move = (event, star) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
+    if (!step) return
+    event.preventDefault()
+    const next = ((star - 1 + step + stars.length) % stars.length) + 1
+    onChange(next)
+    buttons.current[next - 1]?.focus()
+  }
+
+  const tabStop = value || 1
+
   return (
-    <div>
+    <fieldset>
+      <legend className="mb-1.5 flex items-center gap-1 text-xs font-semibold tracking-wide text-ink-600 uppercase">
+        Rating <span className="text-brand-600">*</span>
+      </legend>
       <div className="flex items-center gap-1" role="radiogroup" aria-label="Rating">
-        {[1, 2, 3, 4, 5].map((star) => (
+        {stars.map((star) => (
           <button
             key={star}
+            ref={(node) => {
+              buttons.current[star - 1] = node
+            }}
             type="button"
             role="radio"
             aria-checked={value === star}
             aria-label={`${star} star${star === 1 ? '' : 's'}`}
+            tabIndex={star === tabStop ? 0 : -1}
             onClick={() => onChange(star)}
+            onKeyDown={(event) => move(event, star)}
             className="rounded-full p-0.5 transition-transform hover:scale-110"
           >
             <Star
@@ -35,7 +61,7 @@ function StarPicker({ value, onChange, error }) {
         {value > 0 && <span className="ml-2 text-sm text-ink-500">{value} / 5</span>}
       </div>
       {error && <span className="mt-1 block text-xs font-medium text-brand-600">{error}</span>}
-    </div>
+    </fieldset>
   )
 }
 
@@ -109,7 +135,7 @@ export function ReviewForm({ productId, productName, className }) {
       dispatch(
         toastShown({
           type: 'error',
-          message: error?.data?.error || 'We could not save your review. Please try again.'
+          message: apiErrorMessage(error, 'We could not save your review. Please try again.')
         })
       )
     }
@@ -123,9 +149,7 @@ export function ReviewForm({ productId, productName, className }) {
       </p>
 
       <div className="mt-4 space-y-4">
-        <Field label="Rating" required error={errors.rating}>
-          <StarPicker value={form.rating} onChange={(value) => change('rating', value)} error={null} />
-        </Field>
+        <StarPicker value={form.rating} onChange={(value) => change('rating', value)} error={errors.rating} />
         <Field label="Title" required error={errors.title}>
           <Input
             value={form.title}

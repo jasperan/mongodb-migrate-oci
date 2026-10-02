@@ -9,8 +9,12 @@ export const wishlistApi = api.injectEndpoints({
     toggleWishlist: builder.mutation({
       query: ({ product, isLiked }) => ({ url: '/wishlist', method: 'POST', body: { product, isLiked } }),
       invalidatesTags: ['Wishlist']
+    }),
+    removeWishlistEntry: builder.mutation({
+      query: (entryId) => ({ url: `/wishlist/${entryId}`, method: 'DELETE' }),
+      invalidatesTags: ['Wishlist']
     })
   })
 })
 
-export const { useWishlistQuery, useToggleWishlistMutation } = wishlistApi
+export const { useWishlistQuery, useToggleWishlistMutation, useRemoveWishlistEntryMutation } = wishlistApi

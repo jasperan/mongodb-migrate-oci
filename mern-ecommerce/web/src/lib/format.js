@@ -72,3 +72,7 @@ export const describeProduct = (product) => {
   const scope = category && !/^seed/i.test(category) ? ` Part of our ${category.toLowerCase()} range.` : ''
   return `${headline}.${scope} Ships free on orders over $100, with 30-day returns.`
 }
+
+// plural(1, 'review') -> '1 review'; plural(2, 'review') -> '2 reviews'
+export const plural = (count, singular, pluralForm = `${singular}s`) =>
+  `${count} ${Number(count) === 1 ? singular : pluralForm}`

@@ -6,23 +6,30 @@ import { Button, ButtonLink } from '../components/ui/Button'
 import { ProductArt } from '../components/catalog/ProductCard'
 import { QuantityStepper } from '../components/store/QuantityStepper'
 import { TotalsPanel } from '../components/store/OrderSummary'
+import { BagNotices } from '../components/store/BagNotices'
 import {
   TAX_RATE,
   cartCleared,
   itemQuantityChanged,
   itemRemoved,
+  lineLimit,
   selectCartCount,
   selectCartItems,
   selectCartSubtotal,
   selectCartTax,
   selectCartTotal
 } from '../features/cart/cartSlice'
+import { useRevalidateCart } from '../features/cart/useRevalidateCart'
 import { selectIsAuthenticated } from '../features/auth/authSlice'
 import { toastShown } from '../features/ui/uiSlice'
-import { currency } from '../lib/format'
+import { currency, plural } from '../lib/format'
+import { lineTotal } from '../lib/orders'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export default function Cart() {
+  useDocumentTitle('Your bag')
   const dispatch = useDispatch()
+  const { notices, checking, dismiss } = useRevalidateCart()
   const items = useSelector(selectCartItems)
   const count = useSelector(selectCartCount)
   const subtotal = useSelector(selectCartSubtotal)
@@ -33,10 +40,13 @@ export default function Cart() {
   if (items.length === 0) {
     return (
       <div className="container-page py-16">
+        <div className="mx-auto max-w-xl">
+          <BagNotices notices={notices} onDismiss={dismiss} />
+        </div>
         <EmptyState
           icon={ShoppingBag}
           title="Your bag is empty"
-          description="Browse the catalogue and add products to your bag — prices and stock are always up to date."
+          description="Browse the shop and add products to your bag."
           action={<ButtonLink to="/shop">Browse products</ButtonLink>}
           className="mx-auto max-w-xl"
         />
@@ -51,14 +61,13 @@ export default function Cart() {
 
   return (
     <div className="container-page py-10">
+      <BagNotices notices={notices} onDismiss={dismiss} />
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Your bag</p>
-          <h1 className="mt-1 font-display text-3xl">
-            {count} item{count === 1 ? '' : 's'}
-          </h1>
+          <h1 className="mt-1 font-display text-3xl">{plural(count, 'item')}</h1>
           <p className="mt-2 text-sm text-ink-500">
-            The cart lives in your browser and is turned into a server cart the moment you place the order.
+            {checking ? 'Checking prices and availability…' : 'Prices and availability were just checked.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -107,11 +116,14 @@ export default function Cart() {
                     value={item.quantity}
                     onChange={(quantity) => dispatch(itemQuantityChanged({ product: item.product, quantity }))}
                     size="sm"
-                    max={99}
+                    max={lineLimit(item)}
                   />
+                  {item.stock != null && item.quantity >= item.stock && (
+                    <p className="mt-1 text-center text-[11px] text-ink-500">Only {item.stock} available</p>
+                  )}
                 </div>
 
-                <span className="font-display text-sm sm:text-right">{currency(item.priceWithTax)}</span>
+                <span className="font-display text-sm sm:text-right">{currency(lineTotal(item))}</span>
 
                 <button
                   type="button"
@@ -159,8 +171,7 @@ export default function Cart() {
           )}
           <div className="card-surface p-5 text-xs text-ink-500">
             <p>
-              Tax is estimated at {TAX_RATE}% on taxable items, matching server/config/tax.js (California rate applied the
-              same way as the order pipeline). The order record is recalculated server-side when it is read back.
+              Line totals are before tax. Tax is estimated at {TAX_RATE}% on taxable items and shown in the order summary.
             </p>
           </div>
         </div>

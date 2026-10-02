@@ -10,6 +10,8 @@ import { useCancelOrderMutation, useOrderByIdQuery } from '../features/orders/or
 import { selectIsAuthenticated, selectRole } from '../features/auth/authSlice'
 import { toastShown } from '../features/ui/uiSlice'
 import { currency, dateTime } from '../lib/format'
+import { canCancelOrder } from '../lib/orders'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export default function OrderDetail() {
   const { id } = useParams()
@@ -23,6 +25,7 @@ export default function OrderDetail() {
   const [cancelOrder, { isLoading: cancelling }] = useCancelOrderMutation()
 
   const order = data?.order
+  useDocumentTitle(order ? `Order ${order._id.slice(-6)}` : 'Order')
 
   if (!authenticated) {
     return (
@@ -71,6 +74,7 @@ export default function OrderDetail() {
 
   const items = order.products || []
   const allCancelled = items.length > 0 && items.every((item) => item.status === 'Cancelled')
+  const cancellable = !allCancelled && canCancelOrder(items)
 
   const cancel = async () => {
     try {
@@ -79,12 +83,23 @@ export default function OrderDetail() {
       setConfirmOpen(false)
       navigate('/dashboard/orders', { replace: true })
     } catch (cancelError) {
-      dispatch(
-        toastShown({
-          type: 'error',
-          message: cancelError?.data?.error || 'We could not cancel this order. Please try again.'
-        })
-      )
+      if (cancelError?.data?.code === 'ORDER_DISPATCHED') {
+        // The cancelOrder tags refetch the order, so the button disappears with the new statuses.
+        setConfirmOpen(false)
+        dispatch(
+          toastShown({
+            type: 'info',
+            message: 'This order has already been dispatched, so it can no longer be cancelled.'
+          })
+        )
+      } else {
+        dispatch(
+          toastShown({
+            type: 'error',
+            message: cancelError?.data?.error || 'We could not cancel this order. Please try again.'
+          })
+        )
+      }
     }
   }
 
@@ -108,7 +123,7 @@ export default function OrderDetail() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-display text-2xl">{currency(order.totalWithTax ?? order.total)}</span>
-          {!allCancelled && (
+          {cancellable && (
             <Button variant="danger" onClick={() => setConfirmOpen(true)}>
               <Ban size={15} /> Cancel order
             </Button>
@@ -120,10 +135,6 @@ export default function OrderDetail() {
         <div className="card-surface p-5">
           <h2 className="font-display text-lg">Items</h2>
           <OrderItemsTable items={items} className="mt-2" />
-          <p className="mt-4 text-xs text-ink-500">
-            Item ids are cart line ids — the status endpoint updates a single line by its{' '}
-            <code className="text-ink-700">products._id</code> and restores stock when a line is cancelled.
-          </p>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -131,8 +142,7 @@ export default function OrderDetail() {
           <OrderStatusTimeline order={order} items={items} />
           <div className="card-surface p-5 text-xs text-ink-500">
             <p>
-              Cart reference <span className="font-mono text-ink-700">{order.cartId || '—'}</span> — cancelling the
-              order deletes both the order and its cart, and returns every quantity to stock.
+              Cancelling the order removes it and returns every item to stock.
             </p>
           </div>
         </div>
@@ -155,8 +165,7 @@ export default function OrderDetail() {
         }
       >
         <p className="text-sm text-ink-600">
-          The whole order is cancelled, every line item's quantity goes back to the catalogue, and the order and cart
-          records are removed. This cannot be undone.
+          The whole order is cancelled and every item goes back on sale. This cannot be undone.
         </p>
       </Modal>
     </div>

@@ -30,15 +30,30 @@ const lineTotals = (item) => {
   return { totalPrice, totalTax, priceWithTax: Number((totalPrice + totalTax).toFixed(2)) }
 }
 
+// POST /order/checkout accepts 1..99 per line; `stock` (the product quantity when
+// the line was added or last revalidated) tightens that when it is known.
+const MAX_LINE_QUANTITY = 99
+
+const stockOf = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : null)
+
+export const lineLimit = (item) => {
+  const stock = stockOf(item.stock)
+  return stock === null ? MAX_LINE_QUANTITY : Math.max(1, Math.min(stock, MAX_LINE_QUANTITY))
+}
+
+const clampQuantity = (item, quantity) => Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), lineLimit(item))
+
 const cartSlice = createSlice({
   name: 'cart',
-  initialState: { items: readStored(), cartId: null },
+  initialState: { items: readStored() },
   reducers: {
     itemAdded(state, action) {
       const { product, quantity = 1 } = action.payload
+      const stock = stockOf(product.quantity)
       const existing = state.items.find((item) => item.product === product._id)
       if (existing) {
-        existing.quantity += quantity
+        if (stock !== null) existing.stock = stock
+        existing.quantity = clampQuantity(existing, existing.quantity + quantity)
         Object.assign(existing, lineTotals(existing))
       } else {
         const item = {
@@ -47,12 +62,13 @@ const cartSlice = createSlice({
           slug: product.slug,
           imageUrl: product.imageUrl || null,
           brand: product.brand?.name || product.brand || null,
-          quantity,
+          quantity: 1,
           price: product.price,
           taxable: Boolean(product.taxable),
-          ...lineTotals({ price: product.price, quantity, taxable: product.taxable })
+          stock
         }
-        state.items.push(item)
+        item.quantity = clampQuantity(item, quantity)
+        state.items.push({ ...item, ...lineTotals(item) })
       }
       persist(state.items)
     },
@@ -60,7 +76,7 @@ const cartSlice = createSlice({
       const { product, quantity } = action.payload
       const existing = state.items.find((item) => item.product === product)
       if (!existing) return
-      existing.quantity = Math.max(1, quantity)
+      existing.quantity = clampQuantity(existing, quantity)
       Object.assign(existing, lineTotals(existing))
       persist(state.items)
     },
@@ -70,16 +86,28 @@ const cartSlice = createSlice({
     },
     cartCleared(state) {
       state.items = []
-      state.cartId = null
       persist(state.items)
     },
-    cartIdReceived(state, action) {
-      state.cartId = action.payload
+    // Applies what the server said about the lines: fresh price/stock/tax flag per
+    // product id, and the ids that can no longer be bought.
+    cartLinesSynced(state, action) {
+      const { updates = [], removed = [] } = action.payload
+      state.items = state.items.filter((item) => !removed.includes(item.product))
+      updates.forEach((update) => {
+        const line = state.items.find((item) => item.product === update.product)
+        if (!line) return
+        if (update.price !== undefined) line.price = update.price
+        if (update.taxable !== undefined) line.taxable = Boolean(update.taxable)
+        if (update.stock !== undefined) line.stock = stockOf(update.stock)
+        line.quantity = clampQuantity(line, line.quantity)
+        Object.assign(line, lineTotals(line))
+      })
+      persist(state.items)
     }
   }
 })
 
-export const { itemAdded, itemQuantityChanged, itemRemoved, cartCleared, cartIdReceived } = cartSlice.actions
+export const { itemAdded, itemQuantityChanged, itemRemoved, cartCleared, cartLinesSynced } = cartSlice.actions
 
 export const selectCartItems = (state) => state.cart.items
 export const selectCartCount = (state) => state.cart.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -88,17 +116,5 @@ export const selectCartSubtotal = (state) =>
 export const selectCartTax = (state) =>
   Number(state.cart.items.reduce((sum, item) => sum + item.totalTax, 0).toFixed(2))
 export const selectCartTotal = (state) => Number((selectCartSubtotal(state) + selectCartTax(state)).toFixed(2))
-
-// payload shape expected by POST /api/cart/add and POST /api/cart/add/:cartId
-export const toCartPayload = (items) =>
-  items.map((item) => ({
-    product: item.product,
-    quantity: item.quantity,
-    price: item.price,
-    taxable: item.taxable,
-    totalPrice: item.totalPrice,
-    totalTax: item.totalTax,
-    priceWithTax: item.priceWithTax
-  }))
 
 export default cartSlice.reducer

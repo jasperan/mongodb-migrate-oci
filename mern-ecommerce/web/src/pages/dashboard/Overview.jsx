@@ -14,6 +14,7 @@ import { useWishlistQuery } from '../../features/wishlist/wishlistApi'
 import { useAddressesQuery } from '../../features/address/addressApi'
 import { toastShown } from '../../features/ui/uiSlice'
 import { initials, roleLabel } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const ROLE_TONES = { 'ROLE ADMIN': 'brand', 'ROLE MERCHANT': 'dark', 'ROLE MEMBER': 'neutral' }
 
@@ -32,6 +33,7 @@ function StatTile({ to, icon: Icon, value, label }) {
 }
 
 export default function Overview() {
+  useDocumentTitle('Account')
   const dispatch = useDispatch()
   const { data: profileData, isLoading, isError, error, refetch } = useProfileQuery()
   const profile = profileData?.user

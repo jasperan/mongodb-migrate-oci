@@ -5,11 +5,13 @@ import { Button, ButtonLink } from '../components/ui/Button'
 import { OrderItemsTable, OrderTotals } from '../components/store/OrderSummary'
 import { useOrderByIdQuery } from '../features/orders/orderApi'
 import { dateTime } from '../lib/format'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export default function OrderSuccess() {
   const { id } = useParams()
   const { data, isLoading, isError, error, refetch } = useOrderByIdQuery(id, { skip: !id })
   const order = data?.order
+  useDocumentTitle(order ? 'Order placed' : 'Your order')
 
   if (isLoading) return <LoadingBlock label="Fetching your order…" className="py-24" />
 
@@ -47,8 +49,7 @@ export default function OrderSuccess() {
         </span>
         <h1 className="mt-4 font-display text-3xl">Thank you for your order</h1>
         <p className="mt-2 text-sm text-ink-600">
-          A confirmation email will be sent to you shortly. Your order is stored in the{' '}
-          <code className="text-ink-700">orders</code> collection and linked to the cart it was created from.
+          Your order is confirmed and the items are reserved for you. You can follow its progress from your orders.
         </p>
 
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">

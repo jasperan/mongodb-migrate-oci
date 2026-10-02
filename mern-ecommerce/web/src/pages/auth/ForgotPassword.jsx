@@ -9,10 +9,12 @@ import { Button } from '../../components/ui/Button'
 import { Field, Input } from '../../components/ui/Field'
 import { useForgotPasswordMutation } from '../../features/auth/authApi'
 import { selectIsAuthenticated } from '../../features/auth/authSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default function ForgotPassword() {
+  useDocumentTitle('Forgot password')
   const authenticated = useSelector(selectIsAuthenticated)
   const [forgotPassword, { isLoading }] = useForgotPasswordMutation()
 

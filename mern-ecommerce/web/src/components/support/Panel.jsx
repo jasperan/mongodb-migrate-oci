@@ -2,35 +2,7 @@ import clsx from 'clsx'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Badge } from '../ui/Display'
 import { Button } from '../ui/Button'
-
-/**
- * Turns an RTK Query error object (or a plain string) into something printable.
- * Express 404/500 pages come back as HTML, which we must never dump verbatim.
- */
-export function describeApiError(error) {
-  if (!error) return { status: null, message: 'Unknown error' }
-  if (typeof error === 'string') return { status: null, message: error }
-
-  const status = error.status ?? null
-  let message = ''
-
-  const data = error.data
-  if (typeof data === 'string') {
-    message = /<\s*(!doctype|html|pre|body)/i.test(data) ? '' : data.trim()
-  } else if (data && typeof data === 'object') {
-    const parts = []
-    const base = data.error || data.message
-    if (typeof base === 'string' && base) parts.push(base)
-    if (typeof data.details === 'string' && data.details) parts.push(data.details)
-    if (typeof data.hint === 'string' && data.hint) parts.push(data.hint)
-    message = parts.join(' ')
-  }
-  if (!message && typeof error.message === 'string') message = error.message
-  if (!message && typeof error.error === 'string') message = error.error
-  if (!message) message = status ? `Request failed with status ${status}` : 'Request failed'
-
-  return { status, message }
-}
+import { describeApiError } from '../../lib/apiError'
 
 /** Inline error card; renders a retry affordance when `onRetry` is given. */
 export function ErrorNotice({ error, title = 'Request failed', onRetry, action, className }) {
@@ -54,7 +26,7 @@ export function ErrorNotice({ error, title = 'Request failed', onRetry, action, 
         <div className="min-w-0 flex-1">
           <p className={clsx('text-sm font-semibold', isConfig ? 'text-amber-700' : 'text-brand-700')}>
             {title}
-            {status ? (
+            {typeof status === 'number' ? (
               <span className={clsx('ml-2 font-mono text-xs font-normal', isConfig ? 'text-amber-700/80' : 'text-brand-600')}>
                 HTTP {status}
               </span>

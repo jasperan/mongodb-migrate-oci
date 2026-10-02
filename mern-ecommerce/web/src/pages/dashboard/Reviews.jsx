@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useDispatch } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { CircleCheck, CircleX, MessageSquareQuote, Trash2 } from 'lucide-react'
 import { Rating } from '../../components/ui/Display'
@@ -19,7 +18,8 @@ import {
   Td,
   Th,
   Toolbar,
-  useClientPage
+  useClampPage,
+  useRowAction
 } from '../../components/manager'
 import {
   useApproveReviewMutation,
@@ -27,61 +27,51 @@ import {
   useRejectReviewMutation,
   useReviewsQuery
 } from '../../features/reviews/reviewApi'
-import { toastShown } from '../../features/ui/uiSlice'
 import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const PER_PAGE = 12
 const PENDING = 'Waiting Approval'
 
-export default function Reviews() {
-  const dispatch = useDispatch()
-  const [tab, setTab] = useState('all')
-  const [page, setPage] = useState(1)
-  const [confirming, setConfirming] = useState(null) // { review, type }
-  const [pendingId, setPendingId] = useState(null)
+const OUTCOMES = {
+  approve: { success: 'Review approved', failure: 'The action failed.' },
+  reject: { success: 'Review rejected', failure: 'The action failed.' },
+  delete: { success: 'Review deleted', failure: 'The action failed.' }
+}
 
-  // "All" is paginated by the server; the pending queue asks for a large window and
-  // filters in the browser because the API has no status filter. Both stay mounted so
-  // the tab counters are accurate before you switch to them.
-  const all = useReviewsQuery({ page, limit: PER_PAGE })
-  const queue = useReviewsQuery({ page: 1, limit: 100 })
+export default function Reviews() {
+  useDocumentTitle('Reviews')
+  const [tab, setTab] = useState('all')
+  const [allPage, setAllPage] = useState(1)
+  const [queuePage, setQueuePage] = useState(1)
+  const [confirming, setConfirming] = useState(null) // { review, type }
+  const { pendingId, run } = useRowAction()
+
+  // Both tabs stay mounted so their counters are accurate before you switch; the
+  // moderation queue is filtered by the API, so it never misses older reviews.
+  const all = useReviewsQuery({ page: allPage, limit: PER_PAGE })
+  const queue = useReviewsQuery({ page: queuePage, limit: PER_PAGE, status: PENDING })
+  useClampPage(allPage, all.data?.totalPages, setAllPage)
+  useClampPage(queuePage, queue.data?.totalPages, setQueuePage)
 
   const [approveReview, approveState] = useApproveReviewMutation()
   const [rejectReview, rejectState] = useRejectReviewMutation()
   const [deleteReview, deleteState] = useDeleteReviewMutation()
 
-  const pendingRows = (queue.data?.reviews || []).filter((review) => review.status === PENDING)
-  const local = useClientPage(pendingRows, PER_PAGE)
-
   const browsingAll = tab === 'all'
   const active = browsingAll ? all : queue
-  const rows = browsingAll ? all.data?.reviews || [] : local.visible
+  const rows = active.data?.reviews || []
   const { isLoading, isError, error, refetch } = active
 
-  const count = browsingAll ? all.data?.count || 0 : local.count
-  const totalPages = browsingAll ? all.data?.totalPages || 1 : local.totalPages
-  const currentPage = browsingAll ? all.data?.currentPage || page : local.page
+  const count = active.data?.count || 0
+  const totalPages = active.data?.totalPages || 1
+  const currentPage = Math.min(browsingAll ? allPage : queuePage, totalPages)
 
-  const run = async (review, type) => {
-    setPendingId(review._id)
-    try {
-      if (type === 'approve') {
-        await approveReview(review._id).unwrap()
-        dispatch(toastShown({ type: 'success', message: 'Review approved' }))
-      } else if (type === 'reject') {
-        await rejectReview(review._id).unwrap()
-        dispatch(toastShown({ type: 'success', message: 'Review rejected' }))
-      } else {
-        await deleteReview(review._id).unwrap()
-        dispatch(toastShown({ type: 'success', message: 'Review deleted' }))
-      }
-      setConfirming(null)
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'The action failed.') }))
-    } finally {
-      setPendingId(null)
-    }
+  const moderate = async (review, type) => {
+    const call = { approve: approveReview, reject: rejectReview, delete: deleteReview }[type]
+    const done = await run(review._id, () => call(review._id).unwrap(), OUTCOMES[type])
+    if (done) setConfirming(null)
   }
 
   const confirmCopy = {
@@ -116,21 +106,18 @@ export default function Reviews() {
 
       <Toolbar className="justify-between">
         <SegmentedTabs
+          label="Review filter"
           value={tab}
-          onChange={(value) => {
-            setTab(value)
-            setPage(1)
-            local.reset()
-          }}
+          onChange={setTab}
           options={[
             { value: 'all', label: 'All reviews', count: all.data?.count },
-            { value: 'pending', label: 'Pending', count: pendingRows.length }
+            { value: 'pending', label: 'Pending', count: queue.data?.count }
           ]}
         />
         <p className="text-xs text-ink-500">Product, reviewer, rating and status come from the review queue endpoint.</p>
       </Toolbar>
 
-      <TableShell tableClassName="min-w-[62rem]">
+      <TableShell tableClassName="min-w-[54rem]">
         <thead>
           <tr>
             <Th>Product</Th>
@@ -139,7 +126,7 @@ export default function Reviews() {
             <Th>Review</Th>
             <Th>Added</Th>
             <Th>Status</Th>
-            <Th className="text-right">Actions</Th>
+            <Th sticky className="text-right">Actions</Th>
           </tr>
         </thead>
         <tbody>
@@ -172,7 +159,7 @@ export default function Reviews() {
             !isError &&
             rows.map((review) => (
               <tr key={review._id} className="transition-colors hover:bg-ink-50/70">
-                <Td>
+                <Td className="max-w-52">
                   <div className="flex items-center gap-3">
                     <ProductArt product={review.product} className="size-10 shrink-0 rounded-lg" />
                     <div className="min-w-0">
@@ -207,7 +194,7 @@ export default function Reviews() {
                 <Td>
                   <StatusBadge status={review.status} />
                 </Td>
-                <Td>
+                <Td sticky>
                   <div className="flex items-center justify-end gap-1">
                     {review.status !== 'Approved' && (
                       <IconButton
@@ -250,7 +237,7 @@ export default function Reviews() {
           totalPages={totalPages}
           count={count}
           limit={PER_PAGE}
-          onPage={browsingAll ? setPage : local.setPage}
+          onPage={browsingAll ? setAllPage : setQueuePage}
           unit={count === 1 ? 'review' : 'reviews'}
         />
       )}
@@ -258,7 +245,7 @@ export default function Reviews() {
       <ConfirmDialog
         open={Boolean(confirming)}
         onClose={() => setConfirming(null)}
-        onConfirm={() => run(confirming.review, confirming.type)}
+        onConfirm={() => moderate(confirming.review, confirming.type)}
         loading={approveState.isLoading || rejectState.isLoading || deleteState.isLoading}
         title={confirmCopy.title}
         confirmLabel={confirmCopy.confirmLabel}

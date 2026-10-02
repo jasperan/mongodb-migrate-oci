@@ -9,10 +9,12 @@ import { EmptyState, LoadingBlock } from '../../components/ui/Display'
 import { Button, ButtonLink } from '../../components/ui/Button'
 import { ProductArt } from '../../components/catalog/ProductCard'
 import { useProductBySlugQuery } from '../../features/catalog/catalogApi'
-import { itemAdded } from '../../features/cart/cartSlice'
+import { isSoldOut, useAddToBag } from '../../features/cart/useAddToBag'
 import { cartToggled, toastShown } from '../../features/ui/uiSlice'
-import { useToggleWishlistMutation, useWishlistQuery } from '../../features/wishlist/wishlistApi'
+import { useRemoveWishlistEntryMutation, useWishlistQuery } from '../../features/wishlist/wishlistApi'
 import { currency, shortDate } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
+import { useRowAction } from '../../components/manager'
 
 /**
  * The wishlist projection only carries `{name, slug, price, imageUrl}`, so
@@ -23,6 +25,8 @@ function WishlistRow({ entry, onRemove, removing }) {
   const dispatch = useDispatch()
   const product = entry.product
   const [adding, setAdding] = useState(false)
+  const [soldOut, setSoldOut] = useState(false)
+  const addToBag = useAddToBag()
   const { data, isFetching, isError, error } = useProductBySlugQuery(product?.slug, {
     skip: !adding || !product?.slug
   })
@@ -35,12 +39,12 @@ function WishlistRow({ entry, onRemove, removing }) {
       return
     }
     if (data?.product) {
-      dispatch(itemAdded({ product: data.product, quantity: 1 }))
-      dispatch(toastShown({ type: 'success', message: `${data.product.name} added to your bag` }))
-      dispatch(cartToggled(true))
+      // The projection has no stock, so a sold-out product is only discovered here.
+      if (isSoldOut(data.product)) setSoldOut(true)
+      if (addToBag(data.product, 1) > 0) dispatch(cartToggled(true))
       setAdding(false)
     }
-  }, [adding, data, isError, error, dispatch])
+  }, [adding, data, isError, error, dispatch, addToBag])
 
   if (!product) {
     return (
@@ -74,8 +78,8 @@ function WishlistRow({ entry, onRemove, removing }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button size="sm" loading={adding || isFetching} onClick={() => setAdding(true)}>
-          <ShoppingBag size={14} /> Add to bag
+        <Button size="sm" loading={adding || isFetching} disabled={soldOut} onClick={() => setAdding(true)}>
+          <ShoppingBag size={14} /> {soldOut ? 'Sold out' : 'Add to bag'}
         </Button>
         <Button size="sm" variant="ghost" loading={removing} onClick={() => onRemove(entry)}>
           <Trash2 size={14} /> Remove
@@ -86,22 +90,20 @@ function WishlistRow({ entry, onRemove, removing }) {
 }
 
 export default function Wishlist() {
-  const dispatch = useDispatch()
+  useDocumentTitle('Wishlist')
   const { data, isLoading, isError, error } = useWishlistQuery()
-  const [toggleWishlist, { isLoading: isToggling }] = useToggleWishlistMutation()
+  const [removeEntry] = useRemoveWishlistEntryMutation()
+  const { pendingId, run } = useRowAction()
 
   const wishlist = data?.wishlist || []
 
-  const remove = async (entry) => {
-    const productId = entry.product?._id
-    if (!productId) return
-    try {
-      await toggleWishlist({ product: productId, isLiked: false }).unwrap()
-      dispatch(toastShown({ type: 'success', message: 'Removed from your wishlist' }))
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not update your wishlist.') }))
-    }
-  }
+  // Removal goes by the entry's own id, so rows whose product was deleted
+  // (nothing left to toggle by product id) can be dropped too.
+  const remove = (entry) =>
+    run(entry._id, () => removeEntry(entry._id).unwrap(), {
+      success: 'Removed from your wishlist',
+      failure: 'Could not update your wishlist.'
+    })
 
   return (
     <>
@@ -146,7 +148,7 @@ export default function Wishlist() {
                 key={entry._id}
                 entry={entry}
                 onRemove={remove}
-                removing={isToggling}
+                removing={pendingId === entry._id}
               />
             ))}
           </ul>

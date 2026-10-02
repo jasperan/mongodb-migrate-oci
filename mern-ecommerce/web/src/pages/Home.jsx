@@ -1,18 +1,27 @@
 import { Link } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import {
   ArrowRight,
   BadgeCheck,
   Boxes,
   Headphones,
+  Heart,
+  MapPin,
+  Package,
   RotateCcw,
+  ShoppingBag,
   Sparkles,
   Truck
 } from 'lucide-react'
-import { LoadingBlock, EmptyState } from '../components/ui/Display'
-import { ButtonLink } from '../components/ui/Button'
+import { LoadingBlock, EmptyState, Rating, Skeleton } from '../components/ui/Display'
+import { Button, ButtonLink } from '../components/ui/Button'
 import { ProductArt, ProductCard } from '../components/catalog/ProductCard'
 import { useProductsQuery, useStoreBrandsQuery, useStoreCategoriesQuery } from '../features/catalog/catalogApi'
-import { categoryImage, HERO_IMAGES } from '../lib/productImages'
+import { useAddToBag, isSoldOut } from '../features/cart/useAddToBag'
+import { selectAuth } from '../features/auth/authSlice'
+import { categoryImage, HERO_IMAGES, thumbUrl } from '../lib/productImages'
+import { currency, plural } from '../lib/format'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const heroImage = (name) => HERO_IMAGES.find((src) => src.endsWith(name)) || HERO_IMAGES[0]
 const HERO = heroImage('hero-2-1.jpg')
@@ -22,19 +31,117 @@ const PROMO_DELIVERY = heroImage('hero-3-1.jpg')
 const SERVICES = [
   { icon: Truck, title: 'Free delivery', body: 'On every order over $100, to your door in 2–4 days.' },
   { icon: RotateCcw, title: '30-day returns', body: 'Changed your mind? Send it back, no questions asked.' },
-  { icon: BadgeCheck, title: 'Secure checkout', body: 'Encrypted payments and buyer protection on every order.' },
+  { icon: BadgeCheck, title: 'One-step checkout', body: 'Pick an address, place the order and follow it from your account.' },
   { icon: Headphones, title: 'Support 24/7', body: 'Live chat with a real person, any time of day.' }
 ]
 
 const isRealCategory = (category) => !/^seed/i.test(category?.name || '')
 
+// Top-rated product that can actually be bought right now.
+function Spotlight({ product, loading }) {
+  const addToBag = useAddToBag()
+
+  if (loading) return <Skeleton className="h-full min-h-96 w-full rounded-3xl bg-white/10" />
+  if (!product) return null
+
+  const brandName = typeof product.brand === 'object' ? product.brand?.name : product.brand
+
+  return (
+    <article className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
+      <Link to={`/product/${product.slug}`} className="block">
+        <ProductArt product={product} className="aspect-4/3 w-full" alt={product.name} eager />
+      </Link>
+      <div className="p-6">
+        <p className="eyebrow text-white/60">{Number(product.averageRating) > 0 ? 'Top rated right now' : 'Featured'}</p>
+        <Link to={`/product/${product.slug}`} className="mt-1 block font-display text-xl text-white hover:text-brand-300">
+          {product.name}
+        </Link>
+        {brandName && <p className="mt-0.5 text-sm text-ink-300">{brandName}</p>}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-display text-2xl text-white">{currency(product.price)}</span>
+            <Rating value={product.averageRating} count={product.totalReviews} size={14} className="text-white/70" />
+          </div>
+          <Button size="sm" onClick={() => addToBag(product, 1)} disabled={isSoldOut(product)}>
+            <ShoppingBag size={15} /> {isSoldOut(product) ? 'Sold out' : 'Add to bag'}
+          </Button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function MembersCard() {
+  const { token, user } = useSelector(selectAuth)
+
+  if (!token) {
+    return (
+      <div className="card-surface flex flex-col gap-5 p-6 lg:self-start">
+        <div>
+          <span className="eyebrow">Members</span>
+          <h2 className="mt-1 font-display text-lg">Save more with an account</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-500">
+            Track orders, keep a wishlist, review what you bought and check out in one tap next time.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <ButtonLink to="/register">Create an account</ButtonLink>
+          <ButtonLink to="/shop" variant="outline">
+            Keep browsing
+          </ButtonLink>
+        </div>
+      </div>
+    )
+  }
+
+  const links = [
+    { to: '/dashboard/orders', icon: Package, label: 'Your orders' },
+    { to: '/dashboard/wishlist', icon: Heart, label: 'Your wishlist' },
+    { to: '/dashboard/address', icon: MapPin, label: 'Your addresses' }
+  ]
+
+  return (
+    <div className="card-surface flex flex-col gap-4 p-6 lg:self-start">
+      <div>
+        <span className="eyebrow">Members</span>
+        <h2 className="mt-1 font-display text-lg">Welcome back{user?.firstName ? `, ${user.firstName}` : ''}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-500">Pick up where you left off.</p>
+      </div>
+      <ul className="grid gap-2">
+        {links.map(({ to, icon: Icon, label }) => (
+          <li key={to}>
+            <Link
+              to={to}
+              className="flex items-center gap-3 rounded-xl border border-ink-200 px-3 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-700"
+            >
+              <Icon size={16} className="text-ink-400" />
+              <span className="flex-1">{label}</span>
+              <ArrowRight size={14} className="text-ink-400" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function Home() {
-  const { data: featured, isLoading } = useProductsQuery({ limit: 8, sortOrder: { created: -1 } })
-  const { data: premium } = useProductsQuery({ limit: 4, sortOrder: { price: -1 } })
+  useDocumentTitle('Home')
+  // rating: 0 keeps products without approved reviews in both rails.
+  const { data: featured, isLoading } = useProductsQuery({ limit: 8, rating: 0, sortOrder: { created: -1 } })
+  const { data: premium } = useProductsQuery({ limit: 4, rating: 0, sortOrder: { price: -1 } })
+  const { data: rated, isLoading: loadingRated } = useProductsQuery({
+    limit: 8,
+    rating: 0,
+    sortOrder: { averageRating: -1 }
+  })
   const { data: categories } = useStoreCategoriesQuery()
   const { data: brands } = useStoreBrandsQuery()
 
   const shopCategories = (categories?.categories || []).filter(isRealCategory).slice(0, 6)
+  const spotlight = (rated?.products || []).find((product) => Number(product.quantity) > 0)
+  const productCount = featured?.count
+  const brandCount = (brands?.brands || []).length
 
   return (
     <div>
@@ -59,8 +166,10 @@ export default function Home() {
               delivered <span className="text-brand-400">fast</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-ink-200">
-              Shop thousands of products across electronics, home, fashion, beauty, food and more — with free delivery
-              over $100, 30-day returns and live support around the clock.
+              {productCount
+                ? `Shop ${productCount} products from ${brandCount ? plural(brandCount, 'brand') : 'trusted brands'}`
+                : 'Shop our full range'}{' '}
+              — with free delivery over $100, 30-day returns and live support when you need it.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <ButtonLink to="/shop" size="lg">
@@ -73,11 +182,11 @@ export default function Home() {
             <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-white/10 pt-6 text-sm">
               <div>
                 <dt className="text-ink-400">Products</dt>
-                <dd className="mt-1 font-display text-xl text-white">100+</dd>
+                <dd className="mt-1 font-display text-xl text-white">{productCount ?? '—'}</dd>
               </div>
               <div>
                 <dt className="text-ink-400">Brands</dt>
-                <dd className="mt-1 font-display text-xl text-white">{(brands?.brands || []).length || 16}</dd>
+                <dd className="mt-1 font-display text-xl text-white">{brandCount || '—'}</dd>
               </div>
               <div>
                 <dt className="text-ink-400">Delivery</dt>
@@ -86,24 +195,8 @@ export default function Home() {
             </dl>
           </div>
 
-          <div className="relative hidden lg:block">
-            <div className="absolute inset-0 rounded-3xl border border-white/10 bg-white/5" aria-hidden />
-            <div className="relative grid h-full content-center gap-4 p-8">
-              <p className="eyebrow text-white/60">Why shoppers stay</p>
-              <ul className="grid gap-4">
-                {SERVICES.slice(0, 3).map(({ icon: Icon, title, body }) => (
-                  <li key={title} className="flex items-start gap-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10">
-                      <Icon size={18} className="text-brand-300" />
-                    </span>
-                    <span>
-                      <span className="block text-sm font-medium text-white">{title}</span>
-                      <span className="block text-sm text-ink-300">{body}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div className="hidden lg:block">
+            <Spotlight product={spotlight} loading={loadingRated} />
           </div>
         </div>
       </section>
@@ -141,7 +234,7 @@ export default function Home() {
                 className="group relative overflow-hidden rounded-2xl border border-ink-200 bg-ink-900"
               >
                 <img
-                  src={categoryImage(category.name)}
+                  src={thumbUrl(categoryImage(category.name, category.slug))}
                   alt=""
                   loading="lazy"
                   className="h-40 w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-105"
@@ -150,7 +243,7 @@ export default function Home() {
                 <div className="absolute inset-x-0 bottom-0 flex items-center justify-between p-4 text-white">
                   <div>
                     <p className="font-display text-lg">{category.name}</p>
-                    <p className="text-xs text-white/70">{category.products?.length ?? 0} products</p>
+                    <p className="text-xs text-white/70">{plural(category.products?.length ?? 0, 'product')}</p>
                   </div>
                   <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
                 </div>
@@ -226,7 +319,7 @@ export default function Home() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{product.name}</span>
                     <span className="block text-xs text-ink-500">
-                      ${product.price} · {product.totalReviews || 0} reviews
+                      {currency(product.price)} · {plural(product.totalReviews || 0, 'review')}
                     </span>
                   </span>
                   <ArrowRight size={15} className="text-ink-400" />
@@ -250,21 +343,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="card-surface flex flex-col justify-between gap-6 p-6">
-          <div>
-            <span className="eyebrow">Members</span>
-            <h2 className="mt-1 font-display text-lg">Save more with an account</h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-500">
-              Track orders, keep a wishlist, review what you bought and check out in one tap next time.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <ButtonLink to="/register">Create an account</ButtonLink>
-            <ButtonLink to="/shop" variant="outline">
-              Keep browsing
-            </ButtonLink>
-          </div>
-        </div>
+        <MembersCard />
       </section>
     </div>
   )

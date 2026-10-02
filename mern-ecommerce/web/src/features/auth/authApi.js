@@ -1,5 +1,5 @@
 import { api } from '../../app/api'
-import { credentialsReceived } from './authSlice'
+import { credentialsReceived, profileReceived } from './authSlice'
 
 export const authApi = api.injectEndpoints({
   endpoints: (builder) => ({
@@ -40,6 +40,16 @@ export const authApi = api.injectEndpoints({
     }),
     profile: builder.query({
       query: () => '/user/me',
+      // The stored user only knows what the login response carried; whenever the
+      // server's view arrives (app start, dashboard) it replaces role/merchant data.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled
+          if (data?.user) dispatch(profileReceived(data.user))
+        } catch {
+          /* a 401 is handled by the base query; other errors keep the stored user */
+        }
+      },
       providesTags: ['User']
     }),
     updateProfile: builder.mutation({

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useDispatch } from 'react-redux'
 import { CircleCheck, CircleX, Phone, RotateCcw, Store, Trash2 } from 'lucide-react'
 import { Badge } from '../../components/ui/Display'
 import { Button, IconButton } from '../../components/ui/Button'
@@ -17,7 +16,9 @@ import {
   TableShell,
   Td,
   Th,
-  Toolbar
+  Toolbar,
+  useClampPage,
+  useRowAction
 } from '../../components/manager'
 import {
   useApproveMerchantMutation,
@@ -27,11 +28,18 @@ import {
   useSearchMerchantsQuery,
   useSetMerchantActiveMutation
 } from '../../features/manager/managerApi'
-import { toastShown } from '../../features/ui/uiSlice'
 import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const LIMIT = 20
+
+const OUTCOMES = {
+  approve: (merchant) =>
+    `${merchant.name} approved — the signup invite is sent when mail is configured; the brand appears once they finish signing up`,
+  reject: (merchant) => `${merchant.name} rejected`,
+  delete: (merchant) => `${merchant.name} deleted`
+}
 
 // The legacy merchant list was a per-status state machine; the same rules drive the
 // available actions here: Approved → enable/disable + delete, Rejected → re-approve +
@@ -44,20 +52,21 @@ function actionsFor(merchant) {
 }
 
 export default function Merchants() {
-  const dispatch = useDispatch()
+  useDocumentTitle('Merchants')
   const [term, setTerm] = useState('')
   const searching = term.trim().length >= 2
   const [page, setPage] = useState(1)
 
   const list = useMerchantsQuery({ page, limit: LIMIT }, { skip: searching })
   const search = useSearchMerchantsQuery(term, { skip: !searching })
+  useClampPage(page, list.data?.totalPages, setPage)
 
   const [approveMerchant, approveState] = useApproveMerchantMutation()
   const [rejectMerchant, rejectState] = useRejectMerchantMutation()
   const [setMerchantActive] = useSetMerchantActiveMutation()
   const [deleteMerchant, deleteState] = useDeleteMerchantMutation()
+  const { pendingId, run } = useRowAction()
 
-  const [pendingId, setPendingId] = useState(null)
   const [confirming, setConfirming] = useState(null) // { merchant, type }
 
   const active = searching ? search : list
@@ -66,7 +75,7 @@ export default function Merchants() {
 
   const count = searching ? merchants.length : list.data?.count ?? merchants.length
   const totalPages = searching ? 1 : list.data?.totalPages || 1
-  const currentPage = searching ? 1 : list.data?.currentPage || page
+  const currentPage = searching ? 1 : Math.min(page, totalPages)
 
   const onSearch = (value) => {
     setTerm(value)
@@ -74,48 +83,20 @@ export default function Merchants() {
   }
 
   const runAction = async (merchant, type) => {
-    setPendingId(merchant._id)
-    try {
-      if (type === 'approve') {
-        await approveMerchant(merchant._id).unwrap()
-        dispatch(
-          toastShown({
-            type: 'success',
-            message: `${merchant.name} approved — the merchant account and brand were created`
-          })
-        )
-      } else if (type === 'reject') {
-        await rejectMerchant(merchant._id).unwrap()
-        dispatch(toastShown({ type: 'success', message: `${merchant.name} rejected` }))
-      } else {
-        await deleteMerchant(merchant._id).unwrap()
-        dispatch(toastShown({ type: 'success', message: `${merchant.name} deleted` }))
-      }
-      setConfirming(null)
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'The action failed.') }))
-    } finally {
-      setPendingId(null)
-    }
+    const call = { approve: approveMerchant, reject: rejectMerchant, delete: deleteMerchant }[type]
+    const done = await run(merchant._id, () => call(merchant._id).unwrap(), {
+      success: OUTCOMES[type](merchant),
+      failure: 'The action failed.'
+    })
+    if (done) setConfirming(null)
   }
 
-  const toggleActive = async (merchant) => {
-    setPendingId(merchant._id)
-    try {
-      await setMerchantActive({ id: merchant._id, isActive: !merchant.isActive }).unwrap()
-      dispatch(
-        toastShown({
-          type: 'success',
-          message: merchant.isActive
-            ? `${merchant.name} disabled — brand and access revoked`
-            : `${merchant.name} enabled`
-        })
-      )
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not change the status.') }))
-    } finally {
-      setPendingId(null)
-    }
+  const toggleActive = (merchant) => {
+    const enabled = merchant.isActive !== false
+    return run(merchant._id, () => setMerchantActive({ id: merchant._id, isActive: !enabled }).unwrap(), {
+      success: enabled ? `${merchant.name} disabled — brand and access revoked` : `${merchant.name} enabled`,
+      failure: 'Could not change the status.'
+    })
   }
 
   const confirmCopy = {
@@ -123,7 +104,7 @@ export default function Merchants() {
       title: 'Approve merchant',
       confirmLabel: 'Approve',
       tone: 'primary',
-      body: 'Approving creates the merchant account and a brand, sets the account active and emails an invite link so the merchant can set a password.'
+      body: "Approving marks the application approved and creates the merchant's account with a signup link, which is emailed when mail is configured (delivery is best-effort). The brand is created when the merchant completes signup, or straight away if they already have an account."
     },
     reject: {
       title: 'Reject merchant',
@@ -145,7 +126,7 @@ export default function Merchants() {
         eyebrow="People"
         title="Merchants"
         meta={<ResultMeta count={count} label={count === 1 ? 'merchant' : 'merchants'} />}
-        description="Applications and active suppliers. Approving an application creates the login and the brand it sells under."
+        description="Applications and active suppliers. Approving an application opens the merchant's account; their brand appears once they finish signing up."
       />
 
       <Toolbar className="justify-between">
@@ -157,7 +138,7 @@ export default function Merchants() {
         {searching && <p className="text-xs text-ink-500">Server search — results are not paginated.</p>}
       </Toolbar>
 
-      <TableShell tableClassName="min-w-[64rem]">
+      <TableShell tableClassName="min-w-[54rem]">
         <thead>
           <tr>
             <Th>Merchant</Th>
@@ -165,7 +146,7 @@ export default function Merchants() {
             <Th>Brand</Th>
             <Th>Status</Th>
             <Th>Requested</Th>
-            <Th className="text-right">Actions</Th>
+            <Th sticky className="text-right">Actions</Th>
           </tr>
         </thead>
         <tbody>
@@ -200,7 +181,7 @@ export default function Merchants() {
               const actions = actionsFor(merchant)
               return (
                 <tr key={merchant._id} className="transition-colors hover:bg-ink-50/70">
-                  <Td>
+                  <Td className="max-w-64">
                     <div className="flex items-center gap-3">
                       <Avatar name={merchant.name} />
                       <div className="min-w-0">
@@ -234,6 +215,7 @@ export default function Merchants() {
                       {merchant.status === 'Approved' && (
                         <ActiveToggle
                           active={merchant.isActive !== false}
+                          label={`Access of ${merchant.name}`}
                           loading={pendingId === merchant._id}
                           onChange={() => toggleActive(merchant)}
                         />
@@ -244,7 +226,7 @@ export default function Merchants() {
                     </div>
                   </Td>
                   <Td className="text-sm whitespace-nowrap text-ink-500">{shortDate(merchant.created)}</Td>
-                  <Td>
+                  <Td sticky>
                     <div className="flex items-center justify-end gap-1">
                       {actions.includes('approve') && (
                         <IconButton

@@ -1,24 +1,56 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PackageSearch, ServerCrash, SlidersHorizontal, X } from 'lucide-react'
-import { EmptyState, LoadingBlock } from '../components/ui/Display'
-import { Button } from '../components/ui/Button'
+import { EmptyState, Skeleton } from '../components/ui/Display'
+import { Button, ButtonLink } from '../components/ui/Button'
 import { Pagination } from '../components/ui/Pagination'
 import { ProductCard } from '../components/catalog/ProductCard'
-import { Filters, PRICE_BOUNDS } from '../components/store/Filters'
-import { SortSelect, DEFAULT_SORT, sortOrderFor } from '../components/store/SortSelect'
+import { Filters, categoryLabels } from '../components/store/Filters'
+import { FilterSheet } from '../components/store/FilterSheet'
+import { SortSelect, DEFAULT_SORT, isSortKey, sortOrderFor } from '../components/store/SortSelect'
 import { useProductsQuery, useStoreBrandsQuery, useStoreCategoriesQuery } from '../features/catalog/catalogApi'
+import { currency, plural } from '../lib/format'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const PAGE_SIZE = 12
+
+const numberParam = (value) => {
+  if (value === null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+}
+
+const priceLabel = (min, max) => {
+  if (min !== undefined && max !== undefined) return `${currency(min)} – ${currency(max)}`
+  if (min !== undefined) return `${currency(min)} and up`
+  return `Up to ${currency(max)}`
+}
 
 function ActiveChip({ label, onClear }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-700">
       {label}
-      <button type="button" onClick={onClear} aria-label={`Clear ${label}`} className="text-ink-400 hover:text-brand-600">
+      <button type="button" onClick={onClear} aria-label={`Clear ${label}`} className="text-ink-500 hover:text-brand-600">
         <X size={13} />
       </button>
     </span>
+  )
+}
+
+function CardSkeleton() {
+  return (
+    <div className="card-surface overflow-hidden" aria-hidden>
+      <Skeleton className="aspect-4/3 w-full rounded-none" />
+      <div className="space-y-2.5 p-4">
+        <Skeleton className="h-3 w-1/3" />
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-3 w-1/2" />
+        <div className="flex items-center justify-between pt-2">
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-9 w-24 rounded-full" />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -26,157 +58,195 @@ export default function Shop() {
   const [params, setParams] = useSearchParams()
   const category = params.get('category') || ''
   const brand = params.get('brand') || ''
-  const term = params.get('q') || ''
-  const page = Math.max(1, Number(params.get('page')) || 1)
+  const term = (params.get('q') || '').trim()
+  const min = numberParam(params.get('min'))
+  const max = numberParam(params.get('max'))
+  const rating = Math.min(5, Math.floor(numberParam(params.get('rating')) || 0))
+  const sort = isSortKey(params.get('sort')) ? params.get('sort') : DEFAULT_SORT
+  const page = Math.max(1, Math.floor(Number(params.get('page'))) || 1)
 
-  const [price, setPrice] = useState(PRICE_BOUNDS)
-  const [rating, setRating] = useState(0)
-  const [sort, setSort] = useState(DEFAULT_SORT)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const headingRef = useRef(null)
+  const previousPage = useRef(page)
 
-  const { data: categoriesData } = useStoreCategoriesQuery()
-  const { data: brandsData } = useStoreBrandsQuery()
-
-  // min/max are always sent: the aggregation drops the price window (and can
-  // return nothing) when the bounds are missing.
-  const { data, isLoading, isFetching, isError, refetch } = useProductsQuery({
-    min: price.min,
-    max: price.max,
-    rating,
-    category: category || undefined,
-    brand: brand || undefined,
-    page,
-    limit: PAGE_SIZE,
-    sortOrder: sortOrderFor(sort)
-  })
-
-  const products = data?.products || []
-  const totalPages = data?.totalPages || 1
-  const count = data?.count ?? products.length
-
-  // The list endpoint has no name filter, so a ?q= term narrows the current page.
-  const visible = useMemo(() => {
-    if (!term) return products
-    const needle = term.trim().toLowerCase()
-    if (!needle) return products
-    return products.filter((product) => product.name?.toLowerCase().includes(needle))
-  }, [products, term])
-
-  const setParam = (patch) => {
-    const next = new URLSearchParams(params)
-    Object.entries(patch).forEach(([key, value]) => {
-      if (value === undefined || value === null || value === '') next.delete(key)
-      else next.set(key, String(value))
-    })
-    setParams(next)
-  }
-
+  const { data: categoriesData, isSuccess: categoriesLoaded } = useStoreCategoriesQuery()
+  const { data: brandsData, isSuccess: brandsLoaded } = useStoreBrandsQuery()
   const categories = categoriesData?.categories || []
   const brands = brandsData?.brands || []
   const activeCategory = categories.find((item) => item.slug === category)
   const activeBrand = brands.find((item) => item.slug === brand)
+  const unknownSlug = (category && categoriesLoaded && !activeCategory) || (brand && brandsLoaded && !activeBrand)
 
-  const hasFilters =
-    Boolean(category || brand || term) || rating !== 0 || price.min !== PRICE_BOUNDS.min || price.max !== PRICE_BOUNDS.max
+  const { data, isLoading, isFetching, isError, refetch } = useProductsQuery(
+    {
+      name: term || undefined,
+      min,
+      max,
+      rating,
+      category: category || undefined,
+      brand: brand || undefined,
+      page,
+      limit: PAGE_SIZE,
+      sortOrder: sortOrderFor(sort)
+    },
+    { skip: Boolean(unknownSlug) }
+  )
+
+  const products = data?.products || []
+  const totalPages = data?.totalPages || 1
+  const count = data?.count ?? products.length
+  // While a new page is loading `data` still belongs to the previous one.
+  const serverPage = isFetching ? undefined : data?.currentPage
+  const currentPage = serverPage ?? page
+
+  // Every change except paging itself starts again from the first page.
+  const setParam = (patch) => {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (!('page' in patch)) next.delete('page')
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') next.delete(key)
+        else next.set(key, String(value))
+      })
+      return next
+    })
+  }
+
+  const categoryName = activeCategory ? categoryLabels(categories).get(activeCategory.slug) : ''
+  const heading = categoryName || activeBrand?.name || (term ? `Results for “${term}”` : 'All products')
+  useDocumentTitle(unknownSlug ? 'Not found' : heading)
+
+  const hasPrice = min !== undefined || max !== undefined
+  const filterCount = [category, brand, hasPrice, rating > 0].filter(Boolean).length
+  const hasFilters = filterCount > 0 || Boolean(term)
 
   const resetAll = () => {
-    setPrice(PRICE_BOUNDS)
-    setRating(0)
-    setSort(DEFAULT_SORT)
+    setSheetOpen(false)
     setParams(new URLSearchParams())
   }
 
-  const rangeStart = count === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const rangeEnd = Math.min(page * PAGE_SIZE, count)
+  useEffect(() => {
+    if (previousPage.current === page) return
+    previousPage.current = page
+    headingRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }, [page])
+
+  // The server clamps an out-of-range page (stale bookmark, shrunken catalogue) to the
+  // last one; make the address bar say so instead of paging from a page that is not there.
+  useEffect(() => {
+    if (isFetching || !serverPage || serverPage === page) return
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (serverPage === 1) next.delete('page')
+        else next.set('page', String(serverPage))
+        return next
+      },
+      { replace: true }
+    )
+  }, [isFetching, serverPage, page, setParams])
+
+  if (unknownSlug) {
+    return (
+      <div className="container-page py-16">
+        <EmptyState
+          icon={PackageSearch}
+          title={category && !activeCategory ? 'Category not found' : 'Brand not found'}
+          description="We could not find what you were looking for. It may have been removed or the link may be out of date."
+          action={<ButtonLink to="/shop">Browse all products</ButtonLink>}
+          className="mx-auto max-w-xl"
+        />
+      </div>
+    )
+  }
+
+  const rangeStart = count === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, count)
+
+  const filterProps = {
+    min,
+    max,
+    rating,
+    category,
+    brand,
+    categories,
+    brands,
+    onPriceChange: (nextMin, nextMax) => setParam({ min: nextMin, max: nextMax }),
+    onRatingChange: (value) => setParam({ rating: value || '' }),
+    onCategoryChange: (value) => setParam({ category: value }),
+    onBrandChange: (value) => setParam({ brand: value })
+  }
 
   return (
-    <div className="container-page py-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Catalogue</p>
-          <h1 className="mt-1 font-display text-3xl">
-            {activeCategory ? activeCategory.name : activeBrand ? activeBrand.name : 'All products'}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-ink-500">
-            {isLoading
-              ? 'Loading products…'
-              : `${rangeStart}–${rangeEnd} of ${count} products`}
-            {term ? ` · filtered by name on this page` : ''}
-          </p>
-        </div>
-        <SortSelect value={sort} onChange={(value) => { setSort(value); setParam({ page: '' }) }} />
+    <div className="container-page py-8 lg:py-10">
+      <header className="mb-5">
+        <p className="eyebrow">Shop</p>
+        <h1 ref={headingRef} className="mt-1 scroll-mt-28 font-display text-3xl">
+          {heading}
+        </h1>
+        <p className="mt-2 text-sm text-ink-500" aria-live="polite">
+          {isLoading ? 'Loading products…' : `${rangeStart}–${rangeEnd} of ${plural(count, 'product')}`}
+        </p>
       </header>
 
-      {(category || brand || term) && (
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setSheetOpen(true)}>
+          <SlidersHorizontal size={14} /> Filters{filterCount ? ` (${filterCount})` : ''}
+        </Button>
+        <SortSelect value={sort} onChange={(value) => setParam({ sort: value === DEFAULT_SORT ? '' : value })} className="ml-auto" />
+      </div>
+
+      {hasFilters && (
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs text-ink-500">
-            <SlidersHorizontal size={13} /> Active
-          </span>
-          {activeCategory && <ActiveChip label={`Category: ${activeCategory.name}`} onClear={() => setParam({ category: '', page: '' })} />}
-          {activeBrand && <ActiveChip label={`Brand: ${activeBrand.name}`} onClear={() => setParam({ brand: '', page: '' })} />}
-          {term && <ActiveChip label={`Search: “${term}”`} onClear={() => setParam({ q: '', page: '' })} />}
+          {activeCategory && <ActiveChip label={`Category: ${categoryName}`} onClear={() => setParam({ category: '' })} />}
+          {activeBrand && <ActiveChip label={`Brand: ${activeBrand.name}`} onClear={() => setParam({ brand: '' })} />}
+          {hasPrice && <ActiveChip label={`Price: ${priceLabel(min, max)}`} onClear={() => setParam({ min: '', max: '' })} />}
+          {rating > 0 && <ActiveChip label={`Rating: ${rating}★ and up`} onClear={() => setParam({ rating: '' })} />}
+          {term && <ActiveChip label={`Search: “${term}”`} onClear={() => setParam({ q: '' })} />}
+          <button type="button" onClick={resetAll} className="px-1 text-xs font-medium text-brand-700 hover:text-brand-800">
+            Clear all
+          </button>
         </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[17rem_1fr]">
-        <Filters
-          className="h-fit lg:sticky lg:top-28"
-          min={price.min}
-          max={price.max}
-          rating={rating}
-          category={category}
-          brand={brand}
-          categories={categories}
-          brands={brands}
-          onPriceChange={(min, max) => { setPrice({ min, max }); setParam({ page: '' }) }}
-          onRatingChange={(value) => { setRating(value); setParam({ page: '' }) }}
-          onCategoryChange={(value) => setParam({ category: value, page: '' })}
-          onBrandChange={(value) => setParam({ brand: value, page: '' })}
-          onReset={resetAll}
-        />
+        <Filters {...filterProps} onReset={resetAll} className="hidden h-fit lg:sticky lg:top-28 lg:block" />
 
         <div>
           {isLoading ? (
-            <LoadingBlock label="Loading products…" />
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading products">
+              {Array.from({ length: PAGE_SIZE }, (_, index) => (
+                <CardSkeleton key={index} />
+              ))}
+            </div>
           ) : isError ? (
             <EmptyState
               icon={ServerCrash}
-              title="The catalogue did not load"
-              description="The product aggregation could not be read. Check the API connection and try again."
+              title="The products did not load"
+              description="Check your connection and try again."
               action={<Button onClick={() => refetch()}>Retry</Button>}
             />
-          ) : visible.length === 0 ? (
+          ) : products.length === 0 ? (
             <EmptyState
               icon={PackageSearch}
               title="No products match"
               description={
                 term
-                  ? `No product on this page matches “${term}”. Try another page or clear the search.`
+                  ? `Nothing in the shop matches “${term}” with these filters. Try another word or clear the filters.`
                   : 'Nothing matched this combination of category, brand, price and rating filters.'
               }
-              action={
-                hasFilters ? (
-                  <Button onClick={resetAll}>Reset filters</Button>
-                ) : (
-                  <Button onClick={() => refetch()}>Refresh</Button>
-                )
-              }
+              action={hasFilters ? <Button onClick={resetAll}>Clear all filters</Button> : <Button onClick={() => refetch()}>Refresh</Button>}
             />
           ) : (
             <>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {visible.map((product) => (
+                {products.map((product) => (
                   <ProductCard key={product._id} product={product} />
                 ))}
               </div>
 
-              {visible.length !== products.length && (
-                <p className="mt-6 text-center text-xs text-ink-500">
-                  Showing {visible.length} of the {products.length} products on page {page}.
-                </p>
-              )}
-
               <Pagination
-                page={page}
+                page={currentPage}
                 totalPages={totalPages}
                 onChange={(next) => setParam({ page: next === 1 ? '' : next })}
                 className={isFetching ? 'mt-8 opacity-60' : 'mt-8'}
@@ -184,16 +254,20 @@ export default function Shop() {
             </>
           )}
 
-          {term && (
-            <p className="mt-8 text-center text-xs text-ink-400">
-              Looking for more?{' '}
+          {term && !isLoading && (
+            <p className="mt-8 text-center text-xs text-ink-500">
+              Looking for something else?{' '}
               <Link to="/shop" className="font-medium text-brand-700 hover:text-brand-800">
-                Browse the full catalogue
+                Browse the full shop
               </Link>
             </p>
           )}
         </div>
       </div>
+
+      <FilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onReset={resetAll} resultCount={count}>
+        <Filters {...filterProps} bare onReset={resetAll} />
+      </FilterSheet>
     </div>
   )
 }

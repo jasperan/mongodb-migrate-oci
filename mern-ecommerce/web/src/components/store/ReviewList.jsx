@@ -18,8 +18,8 @@ export function ReviewSummary({ reviews = [], className }) {
   const { totalReviews, average, distribution } = reviewStats(reviews)
 
   return (
-    <div className={clsx('card-surface p-5', className)}>
-      <h3 className="font-display text-base">Customer reviews</h3>
+    <div className={className}>
+      <h2 className="font-display text-lg">Customer reviews</h2>
       {totalReviews === 0 ? (
         <p className="mt-2 text-sm text-ink-500">No approved reviews yet — be the first to add one.</p>
       ) : (

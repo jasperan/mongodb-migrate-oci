@@ -269,17 +269,25 @@ export function productImage(product) {
   return pick(BY_NOUN[nounOf(product)], seed) || pick(BY_CATEGORY[categoryOf(product)], seed) || pick(GENERIC, seed)
 }
 
-// Every picture available for a product (product detail gallery).
+// Every picture available for a product (product detail gallery). The list is
+// rotated so the first entry is always `productImage(product)`: the card and the
+// product page open on the same photo.
 export function productGallery(product) {
   const own = BY_NOUN[nounOf(product)]
-  if (own?.length) return own.map(url)
-  const byCategory = BY_CATEGORY[categoryOf(product)]
-  if (byCategory?.length) return byCategory.map(url)
-  return GENERIC.slice(0, 3).map(url)
+  const files = own?.length ? own : BY_CATEGORY[categoryOf(product)]?.length ? BY_CATEGORY[categoryOf(product)] : GENERIC.slice(0, 3)
+  const gallery = files.map(url)
+  const start = gallery.indexOf(productImage(product))
+  return start > 0 ? [...gallery.slice(start), ...gallery.slice(0, start)] : gallery
 }
 
-// Category tile imagery (home page).
-export function categoryImage(name) {
+// 640px WebP rendition of a /products/x.jpg (see scripts/build-thumbnails.mjs);
+// anything else is returned unchanged.
+export const thumbUrl = (src) => (src ? src.replace(/\/products\/([^/]+)\.jpg$/i, '/products/thumbs/$1.webp') : src)
+
+// Category tile imagery (home page). The photo list is chosen by the category
+// name; `seed` (the category slug) picks within it, so two categories with the
+// same name still get different pictures.
+export function categoryImage(name, seed = slugify(name)) {
   const slug = slugify(name)
-  return pick(BY_CATEGORY[slug], slug) || pick(GENERIC, slug)
+  return pick(BY_CATEGORY[slug], seed) || pick(GENERIC, seed)
 }

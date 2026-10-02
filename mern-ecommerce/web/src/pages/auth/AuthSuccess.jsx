@@ -8,6 +8,7 @@ import { ButtonLink } from '../../components/ui/Button'
 import { LoadingBlock } from '../../components/ui/Display'
 import { credentialsReceived } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 /**
  * Landing page for the OAuth callback. The server redirects here with
@@ -15,6 +16,7 @@ import { toastShown } from '../../features/ui/uiSlice'
  * (the legacy client split on the first `=` and only replaced one space).
  */
 export default function AuthSuccess() {
+  useDocumentTitle('Signing you in')
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()

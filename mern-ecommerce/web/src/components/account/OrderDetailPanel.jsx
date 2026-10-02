@@ -8,6 +8,7 @@ import { Button } from '../ui/Button'
 import { LoadingBlock } from '../ui/Display'
 import { currency, shortDate } from '../../lib/format'
 import { useOrderByIdQuery } from '../../features/orders/orderApi'
+import { canCancelOrder, lineTotal } from '../../lib/orders'
 
 /**
  * Expanded order view. The list endpoint already carries line items and tax
@@ -27,7 +28,7 @@ export function OrderDetailPanel({ orderId, fallback, onCancel, cancelling }) {
   const subtotal = Number(order.total ?? fallback?.total ?? 0)
   const tax = Number(order.totalTax ?? fallback?.totalTax ?? 0)
   const total = Number(order.totalWithTax ?? fallback?.totalWithTax ?? subtotal + tax)
-  const canCancel = items.length > 0 && items.every((item) => item.status !== 'Delivered')
+  const canCancel = canCancelOrder(items)
 
   return (
     <div className="mt-4 space-y-5 border-t border-ink-200 pt-5">
@@ -37,7 +38,7 @@ export function OrderDetailPanel({ orderId, fallback, onCancel, cancelling }) {
           <ul className="space-y-3">
             {items.map((item) => {
               const product = item.product || {}
-              const lineTotal = Number(item.priceWithTax ?? item.totalPrice ?? 0)
+              const amount = lineTotal(item, item.purchasePrice ?? product.price ?? item.price ?? 0)
               return (
                 <li
                   key={item._id || product._id}
@@ -69,7 +70,7 @@ export function OrderDetailPanel({ orderId, fallback, onCancel, cancelling }) {
 
                   <StatusBadge status={item.status} />
 
-                  <span className="ml-auto font-display text-sm">{currency(lineTotal)}</span>
+                  <span className="ml-auto font-display text-sm">{currency(amount)}</span>
                 </li>
               )
             })}

@@ -39,7 +39,8 @@ const authSlice = createSlice({
       persist(state)
     },
     profileReceived(state, action) {
-      state.user = { ...state.user, ...action.payload }
+      // `merchant` is absent for non-merchants, so a stale one must not survive the merge.
+      state.user = { ...state.user, ...action.payload, merchant: action.payload.merchant ?? null }
       persist(state)
     },
     authFailed(state, action) {

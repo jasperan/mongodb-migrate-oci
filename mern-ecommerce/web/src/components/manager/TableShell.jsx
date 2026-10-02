@@ -2,9 +2,13 @@ import clsx from 'clsx'
 import { Inbox } from 'lucide-react'
 
 const HEAD_CELL =
-  'border-b border-ink-200 bg-ink-50/70 px-4 py-3 text-left text-[0.6875rem] font-semibold tracking-wider text-ink-500 uppercase whitespace-nowrap'
+  'border-b border-ink-200 bg-ink-50/70 px-3 py-3 text-left text-[0.6875rem] font-semibold tracking-wider text-ink-500 uppercase whitespace-nowrap'
 
-const BODY_CELL = 'border-b border-ink-100 px-4 py-3 align-middle text-ink-700'
+const BODY_CELL = 'border-b border-ink-100 px-3 py-3 align-middle text-ink-700'
+
+// The Actions column stays pinned to the right edge: on narrower content areas
+// the table scrolls sideways and the row buttons would otherwise be off-screen.
+const STICKY_END = 'sticky right-0 z-[1] border-l border-l-ink-100'
 
 export function TableShell({ children, tableClassName, className }) {
   return (
@@ -16,17 +20,17 @@ export function TableShell({ children, tableClassName, className }) {
   )
 }
 
-export function Th({ children, className, ...props }) {
+export function Th({ children, className, sticky = false, ...props }) {
   return (
-    <th scope="col" className={clsx(HEAD_CELL, className)} {...props}>
+    <th scope="col" className={clsx(HEAD_CELL, sticky && `${STICKY_END} bg-ink-50`, className)} {...props}>
       {children}
     </th>
   )
 }
 
-export function Td({ children, className, ...props }) {
+export function Td({ children, className, sticky = false, ...props }) {
   return (
-    <td className={clsx(BODY_CELL, className)} {...props}>
+    <td className={clsx(BODY_CELL, sticky && `${STICKY_END} bg-white`, className)} {...props}>
       {children}
     </td>
   )

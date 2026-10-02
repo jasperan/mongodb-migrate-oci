@@ -99,11 +99,13 @@ export function ResultMeta({ count, label, className }) {
   )
 }
 
-// Segmented control used for the review queue tabs and status filters.
-export function SegmentedTabs({ value, onChange, options, className }) {
+// Segmented filter: a group of toggle buttons (no tabpanel is involved, so the
+// tabs pattern would promise keyboard behaviour that does not exist).
+export function SegmentedTabs({ value, onChange, options, label, className }) {
   return (
     <div
-      role="tablist"
+      role="group"
+      aria-label={label}
       className={clsx('inline-flex items-center gap-1 rounded-full border border-ink-200 bg-white p-1', className)}
     >
       {options.map((option) => {
@@ -111,9 +113,8 @@ export function SegmentedTabs({ value, onChange, options, className }) {
         return (
           <button
             key={option.value}
-            role="tab"
             type="button"
-            aria-selected={selected}
+            aria-pressed={selected}
             onClick={() => onChange(option.value)}
             className={clsx(
               'inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',

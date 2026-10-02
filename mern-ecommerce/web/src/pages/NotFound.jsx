@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Compass } from 'lucide-react'
 import { ButtonLink } from '../components/ui/Button'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export default function NotFound() {
+  useDocumentTitle('Page not found')
   return (
     <div className="container-page flex flex-col items-center gap-4 py-24 text-center">
       <span className="grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-700">
@@ -10,7 +12,7 @@ export default function NotFound() {
       </span>
       <h1 className="font-display text-3xl">Page not found</h1>
       <p className="max-w-md text-sm text-ink-500">
-        The page you were looking for does not exist or has been moved. The catalogue is still where you left it.
+        The page you were looking for does not exist or has been moved. The shop is still where you left it.
       </p>
       <div className="flex gap-3">
         <ButtonLink to="/">Back to the store</ButtonLink>

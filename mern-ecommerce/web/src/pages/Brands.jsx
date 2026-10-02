@@ -2,21 +2,12 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Building2, ServerCrash, Store } from 'lucide-react'
 import { Badge, EmptyState, LoadingBlock } from '../components/ui/Display'
 import { Button, ButtonLink } from '../components/ui/Button'
-import { useProductsQuery, useStoreBrandsQuery } from '../features/catalog/catalogApi'
-import { artStyle, initials } from '../lib/format'
+import { useStoreBrandsQuery } from '../features/catalog/catalogApi'
+import { artStyle, initials, plural } from '../lib/format'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-// Brand documents carry no product count, so each card asks the list endpoint for
-// one row of its own brand and reads the aggregation's filtered `count`.
 function BrandCard({ brand }) {
-  const { data, isLoading } = useProductsQuery({
-    brand: brand.slug,
-    min: 1,
-    max: 5000,
-    rating: 0,
-    limit: 1,
-    page: 1
-  })
-  const count = data?.count
+  const count = brand.productCount ?? 0
 
   return (
     <article className="card-surface hover-lift group flex flex-col overflow-hidden">
@@ -36,9 +27,7 @@ function BrandCard({ brand }) {
           <Link to={`/shop?brand=${brand.slug}`} className="font-display text-base leading-snug hover:text-brand-700">
             {brand.name}
           </Link>
-          <Badge tone={count > 0 ? 'duality' : 'neutral'}>
-            {isLoading ? '…' : `${count ?? 0} product${count === 1 ? '' : 's'}`}
-          </Badge>
+          <Badge tone={count > 0 ? 'duality' : 'neutral'}>{plural(count, 'product')}</Badge>
         </div>
         <p className="line-clamp-2 text-sm text-ink-500">{brand.description}</p>
         <Link
@@ -53,6 +42,7 @@ function BrandCard({ brand }) {
 }
 
 export default function Brands() {
+  useDocumentTitle('Brands')
   const { data, isLoading, isError, refetch } = useStoreBrandsQuery()
   const brands = data?.brands || []
 
@@ -62,8 +52,7 @@ export default function Brands() {
         <p className="eyebrow">Shop by brand</p>
         <h1 className="mt-1 font-display text-3xl">Brands on the store</h1>
         <p className="mt-2 max-w-2xl text-sm text-ink-500">
-          Every active brand in the catalogue with its live product count, read straight from the store
-          collections. Only brands with active products can be shopped.
+          Every brand we carry, with the number of products available right now.
         </p>
       </header>
 
@@ -73,21 +62,21 @@ export default function Brands() {
         <EmptyState
           icon={ServerCrash}
           title="Brands did not load"
-          description="The brand collection could not be read from the API."
+          description="We could not load the brands. Please try again."
           action={<Button onClick={() => refetch()}>Retry</Button>}
         />
       ) : brands.length === 0 ? (
         <EmptyState
           icon={Building2}
           title="No brands yet"
-          description="No active brand is registered in the catalogue."
+          description="There are no brands to show yet."
           action={<ButtonLink to="/shop">Browse all products</ButtonLink>}
         />
       ) : (
         <>
           <div className="mb-6 flex items-center gap-3 text-sm text-ink-500">
             <Store size={15} className="text-ink-400" />
-            {brands.length} active brand{brands.length === 1 ? '' : 's'}
+            {plural(brands.length, 'brand')}
           </div>
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {brands.map((brand) => (

@@ -2,9 +2,10 @@ import { api } from '../../app/api'
 
 export const orderApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    createOrder: builder.mutation({
-      query: (cartId) => ({ url: '/order/add', method: 'POST', body: { cartId } }),
-      invalidatesTags: ['Order', 'Product']
+    // One call reserves stock, prices every line on the server and creates the order.
+    checkout: builder.mutation({
+      query: (products) => ({ url: '/order/checkout', method: 'POST', body: { products } }),
+      invalidatesTags: ['Order', 'Product', 'Cart']
     }),
     myOrders: builder.query({
       query: ({ page = 1, limit = 10 } = {}) => ({ url: '/order/me', params: { page, limit } }),
@@ -24,22 +25,26 @@ export const orderApi = api.injectEndpoints({
     }),
     cancelOrder: builder.mutation({
       query: (orderId) => ({ url: `/order/cancel/${orderId}`, method: 'DELETE' }),
-      invalidatesTags: ['Order', 'Product']
+      // A 409 ORDER_DISPATCHED means the cached order is stale (a line has shipped), so refetch it too.
+      invalidatesTags: (_result, error) =>
+        !error || error.data?.code === 'ORDER_DISPATCHED' ? ['Order', 'Product'] : []
     }),
+    // The server derives the order and cart from the item; cancelling the last
+    // line deletes the order and answers `orderCancelled: true`.
     updateOrderItemStatus: builder.mutation({
-      // the route reads orderId, cartId and status; cartId drives the all-items-cancelled auto-cancel
-      query: ({ itemId, orderId, cartId, status }) => ({
+      query: ({ itemId, status }) => ({
         url: `/order/status/item/${itemId}`,
         method: 'PUT',
-        body: { orderId, cartId, status }
+        body: { status }
       }),
-      invalidatesTags: ['Order', 'Cart', 'Product']
+      // a 409 means the cached lines are stale (e.g. the line was already cancelled)
+      invalidatesTags: (_result, error) => (!error || error.status === 409 ? ['Order', 'Cart', 'Product'] : [])
     })
   })
 })
 
 export const {
-  useCreateOrderMutation,
+  useCheckoutMutation,
   useMyOrdersQuery,
   useSearchOrdersQuery,
   useOrdersQuery,

@@ -10,6 +10,9 @@ const uiSlice = createSlice({
   reducers: {
     toastShown: {
       reducer(state, action) {
+        // The same message may be raised twice for one event (the 401 handler and the
+        // failing caller both report "session expired"); show it once.
+        if (state.toasts.some((toast) => toast.message === action.payload.message)) return
         state.toasts.push(action.payload)
       },
       prepare({ type = 'info', message, ttl = 4000 }) {

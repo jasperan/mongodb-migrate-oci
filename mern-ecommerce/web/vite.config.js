@@ -23,15 +23,15 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 8080,
-    strictPort: false,
-    proxy: apiProxy
+    strictPort: true,
+    proxy: { ...apiProxy, ...socketProxy }
   },
   // `npm run preview` serves the production bundle with the same single-origin
   // contract as the dev server (and as nginx in a container deployment), so a
   // built app can be smoke-tested without Docker.
   preview: {
     port: 8080,
-    strictPort: false,
+    strictPort: true,
     proxy: { ...apiProxy, ...socketProxy }
   },
   build: {

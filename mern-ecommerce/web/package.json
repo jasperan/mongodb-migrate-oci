@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "images:thumbs": "node scripts/build-thumbnails.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
     "@reduxjs/toolkit": "^2.13.0",
     "@tailwindcss/vite": "^4.3.3",
     "clsx": "^2.1.1",
@@ -19,6 +22,7 @@
     "react-redux": "^9.3.0",
     "react-router-dom": "^7.18.4",
     "socket.io-client": "^4.8.4",
+    "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
@@ -26,6 +30,7 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "sharp": "^0.35.5",
     "vite": "^8.3.0"
   }
 }

@@ -20,11 +20,11 @@ export function AuthShell({ eyebrow = 'Your account', title, subtitle, children,
             <div className="pointer-events-none absolute -bottom-24 -left-10 size-56 rounded-full bg-duality-600/30 blur-3xl" />
             <div className="relative">
               <span className="eyebrow text-white/60">{eyebrow}</span>
-              <h2 className="mt-3 font-display text-2xl leading-tight">
+              <h2 className="mt-3 font-display text-2xl leading-tight text-white">
                 Shop smarter with MERN Store
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-white/70">
-                Millions of products, honest prices and fast delivery — save your favourites and track every order.
+                Honest prices and fast delivery — save your favourites, check out in one step and track every order.
               </p>
               <ul className="mt-7 space-y-4">
                 {POINTS.map(({ Icon, text }) => (

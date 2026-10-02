@@ -17,7 +17,10 @@ export const reviewApi = api.injectEndpoints({
       invalidatesTags: ['Review', 'Product']
     }),
     reviews: builder.query({
-      query: ({ page = 1, limit = 10 } = {}) => ({ url: '/review', params: { page, limit } }),
+      query: ({ page = 1, limit = 10, status } = {}) => ({
+        url: '/review',
+        params: { page, limit, ...(status ? { status } : {}) }
+      }),
       providesTags: ['Review']
     }),
     approveReview: builder.mutation({

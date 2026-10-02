@@ -10,10 +10,12 @@ import { Field, Input } from '../../components/ui/Field'
 import { useChangePasswordMutation, useProfileQuery } from '../../features/auth/authApi'
 import { loggedOut } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const EMPTY = { current: '', next: '', confirm: '' }
 
 export default function Security() {
+  useDocumentTitle('Security')
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { data: profileData } = useProfileQuery()
@@ -128,8 +130,8 @@ export default function Security() {
                 </Button>
               </div>
               <p className="text-xs text-ink-500">
-                Changing your password signs you out of every session so you can sign in again with the
-                new one.
+                You are signed out on this device after the change so you can sign in with the new password. Sessions
+                already open on other devices are not revoked; they stay signed in until their login expires.
               </p>
             </form>
           )}

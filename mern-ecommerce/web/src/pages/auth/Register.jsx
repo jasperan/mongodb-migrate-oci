@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { AuthShell } from '../../components/account/AuthShell'
 import { FormAlert } from '../../components/account/FormAlert'
@@ -10,6 +10,7 @@ import { Checkbox, Field, Input } from '../../components/ui/Field'
 import { useRegisterMutation } from '../../features/auth/authApi'
 import { selectIsAuthenticated } from '../../features/auth/authSlice'
 import { toastShown } from '../../features/ui/uiSlice'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -22,8 +23,10 @@ const EMPTY_FORM = {
 }
 
 export default function Register() {
+  useDocumentTitle('Create account')
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const authenticated = useSelector(selectIsAuthenticated)
   const [register, { isLoading }] = useRegisterMutation()
 
@@ -32,7 +35,10 @@ export default function Register() {
   const [errors, setErrors] = useState({})
   const [apiError, setApiError] = useState('')
 
-  if (authenticated) return <Navigate to="/dashboard" replace />
+  // RequireAuth / Login hand over the page the visitor was heading to.
+  const from = location.state?.from || '/'
+
+  if (authenticated) return <Navigate to={from} replace />
 
   const change = (name) => (event) => {
     const { value } = event.target
@@ -68,7 +74,7 @@ export default function Register() {
         isSubscribed
       }).unwrap()
       dispatch(toastShown({ type: 'success', message: 'Your account has been created. Welcome aboard!' }))
-      navigate('/', { replace: true })
+      navigate(from, { replace: true })
     } catch (error) {
       setApiError(apiErrorMessage(error, 'Please try to signup again!'))
     }
@@ -82,7 +88,7 @@ export default function Register() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-brand-700 hover:text-brand-800">
+          <Link to="/login" state={location.state} className="font-medium text-brand-700 hover:text-brand-800">
             Back to login
           </Link>
         </>

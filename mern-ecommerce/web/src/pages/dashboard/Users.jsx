@@ -14,11 +14,13 @@ import {
   TableShell,
   Td,
   Th,
-  Toolbar
+  Toolbar,
+  useClampPage
 } from '../../components/manager'
 import { useSearchUsersQuery, useUsersQuery } from '../../features/manager/managerApi'
 import { apiErrorMessage } from '../../lib/apiError'
 import { shortDate } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
 const LIMIT = 20
 
@@ -56,12 +58,14 @@ function UserRow({ user }) {
 }
 
 export default function Users() {
+  useDocumentTitle('Users')
   const [term, setTerm] = useState('')
   const searching = term.trim().length >= 2
   const [page, setPage] = useState(1)
 
   const list = useUsersQuery({ page, limit: LIMIT }, { skip: searching })
   const search = useSearchUsersQuery(term, { skip: !searching })
+  useClampPage(page, list.data?.totalPages, setPage)
 
   const active = searching ? search : list
   const users = searching ? search.data?.users || [] : list.data?.users || []
@@ -69,7 +73,7 @@ export default function Users() {
 
   const count = searching ? users.length : list.data?.count ?? users.length
   const totalPages = searching ? 1 : list.data?.totalPages || 1
-  const currentPage = searching ? 1 : list.data?.currentPage || page
+  const currentPage = searching ? 1 : Math.min(page, totalPages)
 
   const onSearch = (value) => {
     setTerm(value)

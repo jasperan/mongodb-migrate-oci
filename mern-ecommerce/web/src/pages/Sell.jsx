@@ -7,31 +7,24 @@ import { Button, ButtonLink } from '../components/ui/Button'
 import { Field, Input, Textarea } from '../components/ui/Field'
 import { useApplyMerchantMutation } from '../features/manager/managerApi'
 import { toastShown } from '../features/ui/uiSlice'
+import { apiErrorMessage } from '../lib/apiError'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-const EMPTY = {
-  name: '',
-  email: '',
-  phoneNumber: '',
-  brandName: '',
-  brandDescription: '',
-  business: '',
-  address: '',
-  city: '',
-  country: '',
-  zipCode: '',
-  description: ''
-}
+const EMPTY = { name: '', email: '', phoneNumber: '', brandName: '', business: '' }
 
-const PHONE_PATTERN = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/
+// International numbers: digits with optional +, spaces, dots, dashes and brackets.
+const PHONE_PATTERN = /^\+?[\d\s().-]+$/
+const phoneDigits = (value) => value.replace(/\D/g, '').length
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const PERKS = [
-  { icon: Store, title: 'Your own brand', body: 'Approval provisions a brand document linked to your merchant account.' },
-  { icon: Truck, title: 'List products', body: 'Publish products with SKU, pricing, taxability and stock straight into the catalogue.' },
+  { icon: Store, title: 'Your own brand', body: 'Once approved, your brand gets its own page on the store.' },
+  { icon: Truck, title: 'List products', body: 'Publish products with pricing, tax settings and stock levels straight to the shop.' },
   { icon: BadgeCheck, title: 'Managed onboarding', body: 'An admin reviews your application, then you receive a signup link by email.' }
 ]
 
 export default function Sell() {
+  useDocumentTitle('Sell with us')
   const dispatch = useDispatch()
   const [applyMerchant, { isLoading }] = useApplyMerchantMutation()
   const [form, setForm] = useState(EMPTY)
@@ -46,8 +39,9 @@ export default function Sell() {
     if (!form.email.trim()) next.email = 'Email is required.'
     else if (!EMAIL_PATTERN.test(form.email.trim())) next.email = 'Email format is invalid.'
     if (!form.phoneNumber.trim()) next.phoneNumber = 'Phone number is required.'
-    else if (!PHONE_PATTERN.test(form.phoneNumber.trim())) next.phoneNumber = 'Phone number format is invalid.'
-    if (!form.brandName.trim()) next.brandName = 'Brand is required.'
+    else if (!PHONE_PATTERN.test(form.phoneNumber.trim()) || phoneDigits(form.phoneNumber) < 7 || phoneDigits(form.phoneNumber) > 15) {
+      next.phoneNumber = 'Enter a phone number with 7 to 15 digits.'
+    }
     if (!form.business.trim()) next.business = 'Business is required.'
     else if (form.business.trim().length < 10) next.business = 'Business must be at least 10 characters.'
     return next
@@ -62,7 +56,13 @@ export default function Sell() {
       return
     }
     try {
-      const response = await applyMerchant(form).unwrap()
+      const response = await applyMerchant({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phoneNumber: form.phoneNumber.trim(),
+        ...(form.brandName.trim() ? { brandName: form.brandName.trim() } : {}),
+        business: form.business.trim()
+      }).unwrap()
       setResult(response)
       setForm(EMPTY)
       dispatch(toastShown({ type: 'success', message: response?.message || 'Application received' }))
@@ -70,7 +70,7 @@ export default function Sell() {
       dispatch(
         toastShown({
           type: 'error',
-          message: error?.data?.error || 'We could not submit your application. Please try again.'
+          message: apiErrorMessage(error, 'We could not submit your application. Please try again.')
         })
       )
     }
@@ -89,7 +89,7 @@ export default function Sell() {
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm text-ink-500">
             <Badge tone="warning">Waiting Approval</Badge>
-            <span>An admin reviews applications in the merchant dashboard.</span>
+            <span>A store admin will review your application.</span>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <ButtonLink to="/shop">Continue shopping</ButtonLink>
@@ -108,9 +108,8 @@ export default function Sell() {
         <p className="eyebrow">Sell with us</p>
         <h1 className="mt-1 font-display text-3xl">Become a MERN Store seller</h1>
         <p className="mt-2 text-sm text-ink-500">
-          Apply for a merchant account. Your application is stored in the <code className="text-ink-700">merchants</code>{' '}
-          collection with the status <strong className="font-medium text-ink-700">Waiting Approval</strong>; once an
-          admin approves it, a brand is created and you are invited to set a password.
+          Apply for a merchant account. Once a store admin approves your application, your brand is created and you are
+          invited by email to set a password.
         </p>
       </header>
 
@@ -137,7 +136,7 @@ export default function Sell() {
                 autoComplete="email"
               />
             </Field>
-            <Field label="Phone number" required error={errors.phoneNumber} hint="US format, e.g. 415-555-0132">
+            <Field label="Phone number" required error={errors.phoneNumber} hint="Include the country code if outside the US">
               <Input
                 value={form.phoneNumber}
                 onChange={(event) => change('phoneNumber', event.target.value)}
@@ -145,51 +144,25 @@ export default function Sell() {
                 autoComplete="tel"
               />
             </Field>
-            <Field label="Brand name" required error={errors.brandName}>
+            <Field label="Brand name" error={errors.brandName} hint="Optional">
               <Input
                 value={form.brandName}
                 onChange={(event) => change('brandName', event.target.value)}
                 placeholder="Your storefront brand"
               />
             </Field>
-            <Field label="Brand description" className="sm:col-span-2" hint="Becomes the brand description once approved.">
-              <Input
-                value={form.brandDescription}
-                onChange={(event) => change('brandDescription', event.target.value)}
-                placeholder="A one-line pitch for your brand"
-              />
-            </Field>
-            <Field label="Business description" required error={errors.business} className="sm:col-span-2">
+            <Field
+              label="Business description"
+              required
+              error={errors.business}
+              className="sm:col-span-2"
+              hint="Also shown as your brand description once approved."
+            >
               <Textarea
                 value={form.business}
                 onChange={(event) => change('business', event.target.value)}
                 rows={4}
                 placeholder="What do you sell, and who do you sell it to?"
-              />
-            </Field>
-            <Field label="Address" className="sm:col-span-2">
-              <Input
-                value={form.address}
-                onChange={(event) => change('address', event.target.value)}
-                placeholder="Street address"
-                autoComplete="street-address"
-              />
-            </Field>
-            <Field label="City">
-              <Input value={form.city} onChange={(event) => change('city', event.target.value)} />
-            </Field>
-            <Field label="Country">
-              <Input value={form.country} onChange={(event) => change('country', event.target.value)} />
-            </Field>
-            <Field label="Zip code">
-              <Input value={form.zipCode} onChange={(event) => change('zipCode', event.target.value)} />
-            </Field>
-            <Field label="Anything else?" className="sm:col-span-2">
-              <Textarea
-                value={form.description}
-                onChange={(event) => change('description', event.target.value)}
-                rows={3}
-                placeholder="Catalogue size, warehouses, links…"
               />
             </Field>
           </div>
@@ -215,8 +188,8 @@ export default function Sell() {
             <Sparkles size={20} className="text-brand-400" />
             <h2 className="mt-3 font-display text-lg text-white">Why sell on MERN Store?</h2>
             <p className="mt-2 text-sm text-ink-300">
-              The catalogue is served by a document API that stores JSON documents
-              and relational views over the same data.
+              Reach shoppers across the store with your own brand page, product listings and a dashboard to manage
+              stock and orders.
             </p>
           </div>
           {PERKS.map((perk) => (

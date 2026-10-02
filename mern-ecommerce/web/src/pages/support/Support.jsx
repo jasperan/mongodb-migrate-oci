@@ -10,8 +10,17 @@ import { ErrorNotice } from '../../components/support/Panel'
 import { SOCKET_URL, useSupportSocket } from '../../components/support/useSupportSocket'
 import { selectAuth } from '../../features/auth/authSlice'
 import { initials, roleLabel } from '../../lib/format'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 
-const SELECTED_KEY = 'mern26.support.selectedUser'
+// Scoped per account so a second sign-in on the same browser does not reopen
+// someone else's conversation.
+const selectedKey = (userId) => `mern26.support.selectedUser.${userId}`
+
+// The API rejects longer messages.
+const MAX_MESSAGE_LENGTH = 2000
+
+// How long a sent message may go without its echo before it counts as undelivered.
+const DELIVERY_TIMEOUT_MS = 4000
 
 const formatClock = (value) => {
   if (!value) return ''
@@ -86,24 +95,28 @@ function UserRow({ user, me, selected, unread, onSelect }) {
 }
 
 export default function Support() {
+  useDocumentTitle('Support chat')
   const { token, user: me } = useSelector(selectAuth)
   const { status, error, users, messages, sendMessage, retry } = useSupportSocket(token)
 
-  const [selectedId, setSelectedId] = useState(() => localStorage.getItem(SELECTED_KEY) || null)
+  const storageKey = selectedKey(me?.id)
+  const [selectedId, setSelectedId] = useState(() => localStorage.getItem(storageKey) || null)
   const [draft, setDraft] = useState('')
+  const [sent, setSent] = useState(null)
+  const [notice, setNotice] = useState(null)
   const [seen, setSeen] = useState({})
   const endRef = useRef(null)
 
   const others = useMemo(() => users.filter((user) => user.id !== me?.id), [users, me?.id])
 
-  // Drop a stale persisted selection that is no longer connected.
+  // Drop a stale persisted selection that is no longer a contact.
   useEffect(() => {
     if (!selectedId) return
     if (others.length > 0 && !others.some((user) => user.id === selectedId)) {
       setSelectedId(null)
-      localStorage.removeItem(SELECTED_KEY)
+      localStorage.removeItem(storageKey)
     }
-  }, [others, selectedId])
+  }, [others, selectedId, storageKey])
 
   const selected = others.find((user) => user.id === selectedId) || null
 
@@ -130,21 +143,56 @@ export default function Support() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [conversation.length, selectedId])
 
-  const selectUser = (user) => {
-    setSelectedId(user.id)
-    localStorage.setItem(SELECTED_KEY, user.id)
+  // Everything that arrives while a conversation is open is read on screen, so it
+  // must not come back as unread after switching to another contact.
+  useEffect(() => {
+    if (!selectedId) return
     setSeen((previous) => {
-      const next = { ...previous }
-      for (const message of messages) if (message.to === user.id || message.from === user.id) next[message.id] = true
+      let next = previous
+      for (const message of messages) {
+        if (message.from !== selectedId || previous[message.id]) continue
+        if (next === previous) next = { ...previous }
+        next[message.id] = true
+      }
       return next
     })
+  }, [messages, selectedId])
+
+  const selectUser = (user) => {
+    setSelectedId(user.id)
+    setNotice(null)
+    localStorage.setItem(storageKey, user.id)
   }
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    if (!selected || !draft.trim()) return
-    if (sendMessage(draft, selected.id)) setDraft('')
+    if (!selected || !draft.trim() || sent) return
+    setNotice(null)
+    // The draft stays in the box until the server echoes the message back.
+    if (sendMessage(draft, selected.id)) {
+      setSent({ to: selected.id, name: selected.name, text: draft.trim(), before: new Set(messages.map((m) => m.id)) })
+    }
   }
+
+  // The server silently drops a message for a contact it has already forgotten, and
+  // only a stored message is echoed back: no echo means the text went nowhere.
+  useEffect(() => {
+    if (!sent) return undefined
+    const echoed = messages.some(
+      (message) =>
+        !sent.before.has(message.id) && message.from === me?.id && message.to === sent.to && message.value === sent.text
+    )
+    if (echoed) {
+      setDraft((current) => (current.trim() === sent.text ? '' : current))
+      setSent(null)
+      return undefined
+    }
+    const timer = setTimeout(() => {
+      setSent(null)
+      setNotice(`Your message to ${sent.name || 'this contact'} was not delivered; they may have left. Your text was kept.`)
+    }, DELIVERY_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [sent, messages, me?.id])
 
   const connectionError = status === 'error'
 
@@ -181,6 +229,12 @@ export default function Support() {
             will reconnect automatically.
           </p>
         </div>
+      )}
+
+      {notice && (
+        <p role="alert" className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {notice}
+        </p>
       )}
 
       {!token ? (
@@ -285,8 +339,9 @@ export default function Support() {
                     autoComplete="off"
                     disabled={status !== 'connected'}
                     aria-label="Message"
+                    maxLength={MAX_MESSAGE_LENGTH}
                   />
-                  <Button type="submit" disabled={!draft.trim() || status !== 'connected'} className="shrink-0">
+                  <Button type="submit" disabled={!draft.trim() || status !== 'connected' || Boolean(sent)} className="shrink-0">
                     <Send size={15} />
                     <span className="hidden sm:inline">Send</span>
                   </Button>

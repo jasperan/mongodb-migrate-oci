@@ -38,7 +38,8 @@ export const managerApi = api.injectEndpoints({
     }),
     setMerchantActive: builder.mutation({
       query: ({ id, isActive }) => ({ url: `/merchant/${id}/active`, method: 'PUT', body: { merchant: { isActive } } }),
-      invalidatesTags: ['Merchant']
+      // The server deactivates the merchant's brand with the merchant.
+      invalidatesTags: ['Merchant', 'Brand']
     }),
     deleteMerchant: builder.mutation({
       query: (id) => ({ url: `/merchant/delete/${id}`, method: 'DELETE' }),
@@ -53,8 +54,13 @@ export const managerApi = api.injectEndpoints({
       query: () => '/brand',
       providesTags: ['Brand']
     }),
+    // POST /brand/add reads flat fields; update and active expect the `{ brand }` envelope.
     addBrand: builder.mutation({
-      query: (brand) => ({ url: '/brand/add', method: 'POST', body: { brand } }),
+      query: ({ name, description, isActive }) => ({
+        url: '/brand/add',
+        method: 'POST',
+        body: { name, description, isActive }
+      }),
       invalidatesTags: ['Brand']
     }),
     updateBrand: builder.mutation({
@@ -67,7 +73,8 @@ export const managerApi = api.injectEndpoints({
     }),
     deleteBrand: builder.mutation({
       query: (id) => ({ url: `/brand/delete/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Brand']
+      // Deleting a brand resets the merchant that owned it to Waiting Approval.
+      invalidatesTags: ['Brand', 'Merchant']
     }),
 
     // ---- categories --------------------------------------------------------
@@ -93,10 +100,6 @@ export const managerApi = api.injectEndpoints({
       query: () => '/product',
       providesTags: ['Product']
     }),
-    managerProduct: builder.query({
-      query: (id) => `/product/${id}`,
-      providesTags: (_r, _e, id) => [{ type: 'Product', id }]
-    }),
     createProduct: builder.mutation({
       // multipart/form-data: the route expects an optional `image` file plus the fields
       query: ({ image, ...fields }) => {
@@ -119,7 +122,7 @@ export const managerApi = api.injectEndpoints({
     }),
     deleteProduct: builder.mutation({
       query: (id) => ({ url: `/product/delete/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Product']
+      invalidatesTags: ['Product', 'Wishlist']
     }),
 
     // ---- customer messages -------------------------------------------------
@@ -155,7 +158,6 @@ export const {
   useSetCategoryActiveMutation,
   useDeleteCategoryMutation,
   useManagerProductsQuery,
-  useManagerProductQuery,
   useCreateProductMutation,
   useUpdateProductMutation,
   useSetProductActiveMutation,

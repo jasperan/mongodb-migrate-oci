@@ -21,7 +21,8 @@ import {
   Th,
   Toolbar,
   matches,
-  useClientPage
+  useFilteredPage,
+  useRowAction
 } from '../../components/manager'
 import {
   useAddCategoryMutation,
@@ -32,10 +33,13 @@ import {
 import { useAllCategoriesQuery, useProductOptionsQuery } from '../../features/catalog/catalogApi'
 import { toastShown } from '../../features/ui/uiSlice'
 import { apiErrorMessage } from '../../lib/apiError'
+import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import clsx from 'clsx'
 
 const PER_PAGE = 12
 const DESCRIPTION_LIMIT = 200
+
+const searchFields = (item) => [item.name, item.slug, item.description]
 
 const emptyForm = { name: '', slug: '', description: '', isActive: true, products: [] }
 
@@ -170,12 +174,13 @@ function CategoryFormModal({ open, category, products, productsLoading = false, 
     }
     try {
       if (isEdit) {
-        // The status endpoint is the only one that cascades a deactivation to the
-        // category's products, so a changed switch goes through it explicitly.
+        // Save the fields first so a rejected update leaves nothing half-applied;
+        // the status endpoint is the only one that cascades a deactivation to the
+        // category's products, so a changed switch goes through it afterwards.
+        await updateCategory({ id: category._id, category: { ...fields, slug: form.slug.trim() } }).unwrap()
         if (form.isActive !== (category.isActive !== false)) {
           await setCategoryActive({ id: category._id, isActive: form.isActive }).unwrap()
         }
-        await updateCategory({ id: category._id, category: { ...fields, slug: form.slug.trim() } }).unwrap()
         dispatch(toastShown({ type: 'success', message: `${fields.name} updated` }))
       } else {
         await addCategory({ ...fields, isActive: form.isActive }).unwrap()
@@ -205,7 +210,7 @@ function CategoryFormModal({ open, category, products, productsLoading = false, 
       <Field label="Name" required>
         <Input value={form.name} onChange={(event) => set('name')(event.target.value)} placeholder="e.g. Outdoor" />
       </Field>
-      <Field label="Slug" required={isEdit} hint={isEdit ? 'Storefront address: /shop/category/slug' : 'Generated automatically'} >
+      <Field label="Slug" required={isEdit} hint={isEdit ? 'Storefront address: /shop?category=slug' : 'Generated automatically'}>
         <Input
           value={form.slug}
           disabled={!isEdit}
@@ -230,6 +235,12 @@ function CategoryFormModal({ open, category, products, productsLoading = false, 
           checked={form.isActive}
           onChange={(event) => set('isActive')(event.target.checked)}
         />
+        {isEdit && category.isActive !== false && !form.isActive && (
+          <p className="mt-2 text-xs text-amber-700">
+            Saving will deactivate every product in this category. Re-activating the category later does not bring them
+            back.
+          </p>
+        )}
       </FormRow>
       <FormRow>
         <ProductPicker
@@ -244,58 +255,54 @@ function CategoryFormModal({ open, category, products, productsLoading = false, 
 }
 
 export default function Categories() {
-  const dispatch = useDispatch()
+  useDocumentTitle('Categories')
   const { data, isLoading, isError, error, refetch } = useAllCategoriesQuery()
   const { data: productOptions, isLoading: productsLoading } = useProductOptionsQuery()
   const [setCategoryActive] = useSetCategoryActiveMutation()
   const [deleteCategory, deleteState] = useDeleteCategoryMutation()
+  const { pendingId, run } = useRowAction()
 
-  const [term, setTerm] = useState('')
   const [dialog, setDialog] = useState(null)
   const [confirming, setConfirming] = useState(null)
-  const [pendingId, setPendingId] = useState(null)
+  const [deactivating, setDeactivating] = useState(null)
 
   const products = productOptions?.products || []
   const categories = data?.categories || []
 
-  const filtered = useMemo(
-    () => categories.filter((category) => matches(category, term, (item) => [item.name, item.slug, item.description])),
-    [categories, term]
+  const { term, setTerm, visible, page, totalPages, count, setPage } = useFilteredPage(
+    categories,
+    searchFields,
+    PER_PAGE
   )
 
-  const { visible, page, totalPages, count, setPage, reset } = useClientPage(filtered, PER_PAGE)
+  const setActive = (category, isActive) =>
+    run(category._id, () => setCategoryActive({ id: category._id, isActive }).unwrap(), {
+      success: isActive
+        ? `${category.name} is now active — its products stay inactive until you re-enable them`
+        : `${category.name} disabled — its products were deactivated too`,
+      failure: 'Could not change the status.'
+    })
 
-  useEffect(() => {
-    reset()
-  }, [term, reset])
+  // Deactivating cascades to every product in the category, so it is confirmed first.
+  const toggleActive = (category) => {
+    if (category.isActive === false) setActive(category, true)
+    else setDeactivating(category)
+  }
 
-  const toggleActive = async (category) => {
-    setPendingId(category._id)
-    try {
-      await setCategoryActive({ id: category._id, isActive: !category.isActive }).unwrap()
-      dispatch(
-        toastShown({
-          type: 'success',
-          message: `${category.name} is now ${category.isActive ? 'inactive' : 'active'}`
-        })
-      )
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not change the status.') }))
-    } finally {
-      setPendingId(null)
-    }
+  const confirmDeactivate = async () => {
+    const category = deactivating
+    if (!category) return
+    if (await setActive(category, false)) setDeactivating(null)
   }
 
   const remove = async () => {
     const category = confirming
     if (!category) return
-    try {
-      await deleteCategory(category._id).unwrap()
-      dispatch(toastShown({ type: 'success', message: `${category.name} deleted` }))
-      setConfirming(null)
-    } catch (requestError) {
-      dispatch(toastShown({ type: 'error', message: apiErrorMessage(requestError, 'Could not delete the category.') }))
-    }
+    const done = await run(category._id, () => deleteCategory(category._id).unwrap(), {
+      success: `${category.name} deleted`,
+      failure: 'Could not delete the category.'
+    })
+    if (done) setConfirming(null)
   }
 
   return (
@@ -316,14 +323,14 @@ export default function Categories() {
         <FilterInput value={term} onChange={setTerm} placeholder="Filter by name or slug…" />
       </Toolbar>
 
-      <TableShell tableClassName="min-w-[56rem]">
+      <TableShell tableClassName="min-w-[48rem]">
         <thead>
           <tr>
             <Th>Category</Th>
             <Th>Description</Th>
             <Th className="text-right">Products</Th>
             <Th>Status</Th>
-            <Th className="text-right">Actions</Th>
+            <Th sticky className="text-right">Actions</Th>
           </tr>
         </thead>
         <tbody>
@@ -365,7 +372,7 @@ export default function Categories() {
               <tr key={category._id} className="transition-colors hover:bg-ink-50/70">
                 <Td>
                   <Link
-                    to={`/shop/category/${category.slug}`}
+                    to={`/shop?category=${encodeURIComponent(category.slug)}`}
                     className="font-medium text-ink-900 hover:text-brand-700"
                   >
                     {category.name}
@@ -379,11 +386,12 @@ export default function Categories() {
                 <Td>
                   <ActiveToggle
                     active={category.isActive !== false}
+                    label={`Status of ${category.name}`}
                     loading={pendingId === category._id}
                     onChange={() => toggleActive(category)}
                   />
                 </Td>
-                <Td>
+                <Td sticky>
                   <div className="flex items-center justify-end gap-1">
                     <IconButton label={`Edit ${category.name}`} onClick={() => setDialog({ category })}>
                       <Pencil size={16} />
@@ -419,6 +427,28 @@ export default function Categories() {
         products={products}
         productsLoading={productsLoading}
         onClose={() => setDialog(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deactivating)}
+        onClose={() => setDeactivating(null)}
+        onConfirm={confirmDeactivate}
+        loading={Boolean(deactivating) && pendingId === deactivating._id}
+        tone="secondary"
+        title="Deactivate category"
+        confirmLabel="Deactivate category"
+        description={
+          <>
+            <p>
+              <span className="font-medium text-ink-900">{deactivating?.name}</span> will disappear from the storefront
+              filters.
+            </p>
+            <p className="text-xs text-ink-500">
+              Every product in this category is deactivated as well. Activating the category again does not re-activate
+              those products — you re-enable them on the Products page.
+            </p>
+          </>
+        }
       />
 
       <ConfirmDialog

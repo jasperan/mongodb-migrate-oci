@@ -1,7 +1,6 @@
 // Barrel: importing this module registers every endpoint slice on the shared api.
 import './auth/authApi'
 import './catalog/catalogApi'
-import './cart/cartApi'
 import './orders/orderApi'
 import './wishlist/wishlistApi'
 import './reviews/reviewApi'

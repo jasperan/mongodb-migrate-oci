@@ -2,18 +2,19 @@ import { api } from '../../app/api'
 
 export const catalogApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    // Storefront catalogue. The API needs an explicit price window: the
-    // aggregation matches on {min,max} and returns no rows when they are absent.
+    // Storefront catalogue. `rating: 0` keeps unreviewed products in the list; `min`/`max`
+    // are only sent when set, and `name` is a case-insensitive match over the whole catalogue.
     products: builder.query({
-      query: ({ min = 1, max = 5000, rating = 1, category, brand, page = 1, limit = 9, sortOrder = { created: -1 } }) => ({
+      query: ({ name, min, max, rating = 0, category, brand, page = 1, limit = 9, sortOrder = { created: -1 } }) => ({
         url: '/product/list',
         params: {
-          min,
-          max,
           rating,
           page,
           limit,
           sortOrder: JSON.stringify(sortOrder),
+          ...(name ? { name } : {}),
+          ...(min !== undefined && min !== null ? { min } : {}),
+          ...(max !== undefined && max !== null ? { max } : {}),
           ...(category ? { category } : {}),
           ...(brand ? { brand } : {})
         }
@@ -36,10 +37,6 @@ export const catalogApi = api.injectEndpoints({
       query: () => '/brand/list',
       providesTags: ['Brand']
     }),
-    brandById: builder.query({
-      query: (id) => `/brand/${id}`,
-      providesTags: ['Brand']
-    }),
     brandOptions: builder.query({
       query: () => '/brand/list/select',
       providesTags: ['Brand']
@@ -51,10 +48,6 @@ export const catalogApi = api.injectEndpoints({
     allCategories: builder.query({
       query: () => '/category',
       providesTags: ['Category']
-    }),
-    categoryById: builder.query({
-      query: (id) => `/category/${id}`,
-      providesTags: ['Category']
     })
   })
 })
@@ -65,9 +58,7 @@ export const {
   useSearchProductsQuery,
   useProductOptionsQuery,
   useStoreBrandsQuery,
-  useBrandByIdQuery,
   useBrandOptionsQuery,
   useStoreCategoriesQuery,
-  useAllCategoriesQuery,
-  useCategoryByIdQuery
+  useAllCategoriesQuery
 } = catalogApi

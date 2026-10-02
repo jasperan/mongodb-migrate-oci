@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Heart, PackageSearch, ServerCrash, ShieldCheck, ShoppingBag, Truck } from 'lucide-react'
 import clsx from 'clsx'
@@ -12,11 +12,13 @@ import { ReviewForm } from '../components/store/ReviewForm'
 import { useProductBySlugQuery, useProductsQuery } from '../features/catalog/catalogApi'
 import { useProductReviewsQuery } from '../features/reviews/reviewApi'
 import { useToggleWishlistMutation, useWishlistQuery } from '../features/wishlist/wishlistApi'
-import { TAX_RATE, itemAdded, selectCartItems } from '../features/cart/cartSlice'
+import { TAX_RATE, selectCartItems } from '../features/cart/cartSlice'
+import { useAddToBag } from '../features/cart/useAddToBag'
 import { selectIsAuthenticated } from '../features/auth/authSlice'
 import { cartToggled, toastShown } from '../features/ui/uiSlice'
 import { currency, describeProduct } from '../lib/format'
 import { productGallery } from '../lib/productImages'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 // Inline placeholder shown only if a photo fails to load.
 const FALLBACK_IMAGE =
@@ -25,9 +27,16 @@ const FALLBACK_IMAGE =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="#e7e5e4"/><circle cx="2" cy="1.5" r="0.45" fill="#a8a29e"/></svg>'
   )
 
-export default function Product() {
+// Keyed by slug so quantity and the selected picture start over for every product.
+export default function ProductPage() {
   const { slug } = useParams()
+  return <Product key={slug} slug={slug} />
+}
+
+function Product({ slug }) {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
+  const location = useLocation()
   const authenticated = useSelector(selectIsAuthenticated)
   const cartItems = useSelector(selectCartItems)
 
@@ -38,6 +47,7 @@ export default function Product() {
   const { data: reviewData } = useProductReviewsQuery(slug, { skip: !slug })
   const { data: wishlist } = useWishlistQuery(undefined, { skip: !authenticated })
   const [toggleWishlist] = useToggleWishlistMutation()
+  const addProduct = useAddToBag()
 
   const product = data?.product
   const brandSlug = typeof product?.brand === 'object' ? product?.brand?.slug : undefined
@@ -46,6 +56,8 @@ export default function Product() {
     { brand: brandSlug, min: 1, max: 5000, rating: 0, limit: 4, sortOrder: { created: -1 } },
     { skip: !brandSlug }
   )
+
+  useDocumentTitle(product?.name)
 
   const reviews = reviewData?.reviews || []
   const stats = useMemo(() => reviewStats(reviews), [reviews])
@@ -79,18 +91,17 @@ export default function Product() {
 
   const inStock = Number(product.quantity) > 0
   const maxQuantity = inStock ? Number(product.quantity) : 1
+  const selectedQuantity = Math.min(quantity, maxQuantity)
   const inCart = cartItems.find((item) => item.product === product._id)
   const liked = Boolean(wishlist?.wishlist?.some((entry) => entry.product?._id === product._id))
   const brandName = typeof product.brand === 'object' ? product.brand?.name : undefined
 
-  const addToBag = () => {
-    dispatch(itemAdded({ product, quantity }))
-    dispatch(toastShown({ type: 'success', message: `${quantity} × ${product.name} added to your bag` }))
-  }
+  const addToBag = () => addProduct(product, selectedQuantity)
 
   const like = async () => {
     if (!authenticated) {
       dispatch(toastShown({ type: 'info', message: 'Sign in to save products to your wishlist' }))
+      navigate('/login', { state: { from: `${location.pathname}${location.search}` } })
       return
     }
     try {
@@ -188,7 +199,7 @@ export default function Product() {
               <div>
                 <p className="eyebrow mb-1.5">Quantity</p>
                 <QuantityStepper
-                  value={quantity}
+                  value={selectedQuantity}
                   onChange={setQuantity}
                   max={maxQuantity}
                   disabled={!inStock}
@@ -240,16 +251,10 @@ export default function Product() {
 
       <section className="mt-12 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="flex flex-col gap-6">
-          <ReviewSummary reviews={reviews} />
-          {reviews.length > 0 ? (
-            <div className="card-surface px-5 py-2">
-              <ReviewList reviews={reviews} />
-            </div>
-          ) : (
-            <div className="card-surface px-5 py-6 text-sm text-ink-500">
-              Approved reviews will appear here. Only reviews with the status <strong className="font-medium text-ink-700">Approved</strong> are published.
-            </div>
-          )}
+          <div className="card-surface p-5">
+            <ReviewSummary reviews={reviews} />
+            {reviews.length > 0 && <ReviewList reviews={reviews} className="mt-4 border-t border-ink-100" />}
+          </div>
         </div>
         <ReviewForm productId={product._id} productName={product.name} className="h-fit lg:sticky lg:top-28" />
       </section>

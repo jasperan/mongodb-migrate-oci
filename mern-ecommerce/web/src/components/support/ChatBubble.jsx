@@ -24,8 +24,11 @@ const toneFor = (seed = '') => {
  * avatar, name and timestamp header.
  *
  * tone: 'plain' | 'duality' (assistant) | 'error'
+ * rich: the children are already structured (paragraphs, lists), so line breaks in
+ *       the source text are not preserved.
+ * footer: content under the bubble, inside the same column (source chips).
  */
-export function ChatBubble({ mine = false, name, timestamp, avatar, showAvatar = true, tone = 'plain', className, children }) {
+export function ChatBubble({ mine = false, name, timestamp, avatar, showAvatar = true, tone = 'plain', rich = false, footer, className, children }) {
   const mineAvatar = typeof avatar === 'string' ? avatar : initials(name)
 
   return (
@@ -34,7 +37,8 @@ export function ChatBubble({ mine = false, name, timestamp, avatar, showAvatar =
         <span
           className={clsx(
             'grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold',
-            toneFor(name || '?')
+            // The assistant keeps the tint of its typing bubble.
+            tone === 'duality' ? 'bg-duality-100 text-duality-700' : toneFor(name || '?')
           )}
           aria-hidden
         >
@@ -52,7 +56,8 @@ export function ChatBubble({ mine = false, name, timestamp, avatar, showAvatar =
 
         <div
           className={clsx(
-            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap',
+            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words',
+            rich ? 'whitespace-normal' : 'whitespace-pre-wrap',
             mine && 'rounded-br-md bg-brand-600 text-white',
             !mine && tone === 'plain' && 'rounded-bl-md border border-ink-200 bg-white text-ink-800 shadow-sm',
             !mine && tone === 'duality' && 'rounded-bl-md border border-duality-100 bg-duality-50 text-ink-800',
@@ -61,6 +66,8 @@ export function ChatBubble({ mine = false, name, timestamp, avatar, showAvatar =
         >
           {children}
         </div>
+
+        {footer}
 
         {mine && timestamp && <span className="px-1 text-[11px] text-ink-400">{timestamp}</span>}
       </div>

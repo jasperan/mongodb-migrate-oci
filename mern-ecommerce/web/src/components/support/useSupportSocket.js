@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 
-// The Vite dev server only proxies /api (HTML/JSON); the socket.io transport is
-// served by Express itself, so in dev we talk to the API origin directly. In a
-// production deployment both are behind the same reverse proxy.
-export const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3000' : window.location.origin)
+// The socket always talks to the page's own origin: in dev Vite proxies
+// /socket.io next to /api (same target, so REST and chat reach the same API and
+// database), in production the reverse proxy does. VITE_SOCKET_URL overrides it
+// for a deployment that serves the socket from elsewhere.
+export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin
 
 const mergeMessages = (previous, incoming) => {
   if (!Array.isArray(incoming) || incoming.length === 0) return previous
@@ -30,6 +29,16 @@ const upsertUser = (list, user) => {
   return next
 }
 
+// A departing user only flips an already-known contact to offline; it must never
+// add someone this account was not allowed to see in the first place.
+const markOffline = (list, user) => {
+  const index = list.findIndex((entry) => entry.id === user?.id)
+  if (index === -1) return list
+  const next = [...list]
+  next[index] = { ...next[index], online: false }
+  return next
+}
+
 /**
  * Owns the support-chat socket lifecycle.
  *
@@ -37,7 +46,9 @@ const upsertUser = (list, user) => {
  *   auth is read from handshake.auth.token and MUST be the full "Bearer <jwt>".
  *   C→S: connectUser, getUsers, getMessages, message {text,to}, (disconnect)
  *   S→C: connectUser(user), getUsers(user[]), getMessages(message[]),
- *        message({id,value,time,user,from,to}), disconnectUser(user)
+ *        message({id,value,time,from,to,user}), disconnectUser(user)
+ *   user    = { id, name, role, isAdmin, online }
+ *   message.user = { id, name, role, isAdmin }
  *   connect_error(Error) on auth failure.
  *
  * State is process-local and in-memory: a reload loses history.
@@ -80,6 +91,12 @@ export function useSupportSocket(token) {
     }
     const onUsers = (list) => setUsers(Array.isArray(list) ? list : [])
     const onUser = (user) => setUsers((previous) => upsertUser(previous, user))
+    // The server forgets a departed user that has no messages, so after flipping the
+    // contact offline ask for the authoritative list rather than keep a ghost.
+    const onUserLeft = (user) => {
+      setUsers((previous) => markOffline(previous, user))
+      socket.emit('getUsers')
+    }
     const onMessages = (list) => setMessages((previous) => mergeMessages(previous, list))
     const onMessage = (message) => setMessages((previous) => mergeMessages(previous, [message]))
 
@@ -88,7 +105,7 @@ export function useSupportSocket(token) {
     socket.on('connect_error', onConnectError)
     socket.on('getUsers', onUsers)
     socket.on('connectUser', onUser)
-    socket.on('disconnectUser', onUser)
+    socket.on('disconnectUser', onUserLeft)
     socket.on('getMessages', onMessages)
     socket.on('message', onMessage)
 
@@ -98,7 +115,7 @@ export function useSupportSocket(token) {
       socket.off('connect_error', onConnectError)
       socket.off('getUsers', onUsers)
       socket.off('connectUser', onUser)
-      socket.off('disconnectUser', onUser)
+      socket.off('disconnectUser', onUserLeft)
       socket.off('getMessages', onMessages)
       socket.off('message', onMessage)
       socket.disconnect()

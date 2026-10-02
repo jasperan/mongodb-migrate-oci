@@ -4,6 +4,7 @@ import { Layout } from './components/layout/Layout'
 import { RequireAuth } from './components/auth/RequireAuth'
 import { LoadingBlock } from './components/ui/Display'
 import Home from './pages/Home'
+import RouteError from './pages/RouteError'
 
 const Shop = lazy(() => import('./pages/Shop'))
 const Product = lazy(() => import('./pages/Product'))
@@ -45,6 +46,7 @@ const withSuspense = (element) => <Suspense fallback={<LoadingBlock />}>{element
 export const router = createBrowserRouter([
   {
     element: <Layout />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Home /> },
       { path: 'shop', element: withSuspense(<Shop />) },
@@ -88,7 +90,7 @@ export const router = createBrowserRouter([
                 children: [{ index: true, element: withSuspense(<Users />) }] },
               { path: 'merchant', element: withSuspense(<RequireAuth roles={['ROLE ADMIN']} />),
                 children: [{ index: true, element: withSuspense(<Merchants />) }] },
-              { path: 'review', element: withSuspense(<RequireAuth roles={['ROLE ADMIN', 'ROLE MERCHANT']} />),
+              { path: 'review', element: withSuspense(<RequireAuth roles={['ROLE ADMIN']} />),
                 children: [{ index: true, element: withSuspense(<Reviews />) }] }
             ]
           }

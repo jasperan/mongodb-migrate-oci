@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useId, useRef, useState } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { ChevronDown, LayoutDashboard, LogOut, Menu, Search, ShoppingBag, Truck, User, X } from 'lucide-react'
-import clsx from 'clsx'
 import { Button, IconButton, ButtonLink } from '../ui/Button'
 import { selectAuth, loggedOut } from '../../features/auth/authSlice'
-import { selectCartCount, selectCartTotal } from '../../features/cart/cartSlice'
+import { selectCartCount, selectCartSubtotal } from '../../features/cart/cartSlice'
 import { cartToggled, toastShown } from '../../features/ui/uiSlice'
 import { useStoreCategoriesQuery, useSearchProductsQuery } from '../../features/catalog/catalogApi'
-import { currency } from '../../lib/format'
+import { cn } from '../../lib/cn'
+import { currency, plural } from '../../lib/format'
+import { useDismiss } from '../../lib/useDismiss'
 
 const NAV_LINKS = [
   { to: '/shop', label: 'Shop' },
@@ -18,34 +19,40 @@ const NAV_LINKS = [
   { to: '/contact', label: 'Contact' }
 ]
 
-function SearchBox({ className }) {
+// The demo catalogue has two categories named "Toys". The strip is a shortcut
+// list, so each name appears once (the larger category); the Shop filter still
+// lists both with their product counts.
+function stripCategories(categories = []) {
+  const byName = new Map()
+  for (const category of categories) {
+    const key = String(category.name).trim().toLowerCase()
+    const current = byName.get(key)
+    if (!current || (category.products?.length ?? 0) > (current.products?.length ?? 0)) byName.set(key, category)
+  }
+  return [...byName.values()].slice(0, 8)
+}
+
+function SearchBox({ className, onNavigate }) {
   const [term, setTerm] = useState('')
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const containerRef = useRef(null)
   const { data, isFetching } = useSearchProductsQuery(term, { skip: term.trim().length < 2 })
 
-  useEffect(() => {
-    const onClick = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
+  useDismiss([containerRef], open, () => setOpen(false))
 
   const submit = (event) => {
     event.preventDefault()
     if (!term.trim()) return
-    // /shop only supports name filtering through the search endpoint's slugs,
-    // so the search box navigates to the shop filtered by the typed term.
     navigate(`/shop?q=${encodeURIComponent(term.trim())}`)
     setOpen(false)
+    onNavigate?.()
   }
 
   return (
-    <div ref={containerRef} className={clsx('relative', className)}>
+    <div ref={containerRef} className={cn('relative', className)}>
       <form onSubmit={submit} className="flex items-center">
-        <Search size={16} className="pointer-events-none absolute left-3.5 text-ink-400" />
+        <Search size={16} className="pointer-events-none absolute left-3.5 text-ink-500" aria-hidden />
         <input
           value={term}
           onChange={(event) => {
@@ -54,7 +61,7 @@ function SearchBox({ className }) {
           }}
           onFocus={() => setOpen(true)}
           placeholder="Search products"
-          className="h-10 w-full rounded-full border border-ink-200 bg-ink-50 pl-9 pr-4 text-sm placeholder:text-ink-400 focus:border-brand-400 focus:bg-white focus:outline-none"
+          className="h-10 w-full rounded-full border border-ink-200 bg-ink-50 pl-9 pr-4 text-sm placeholder:text-ink-400 focus:border-brand-400 focus:bg-white"
           aria-label="Search products"
         />
       </form>
@@ -65,7 +72,10 @@ function SearchBox({ className }) {
             <Link
               key={item.slug}
               to={`/product/${item.slug}`}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false)
+                onNavigate?.()
+              }}
               className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-ink-50"
             >
               <span className="truncate">{item.name}</span>
@@ -85,14 +95,39 @@ export function Header() {
   const navigate = useNavigate()
   const { token, user } = useSelector(selectAuth)
   const cartCount = useSelector(selectCartCount)
-  const cartTotal = useSelector(selectCartTotal)
+  const cartSubtotal = useSelector(selectCartSubtotal)
   const { data: categories } = useStoreCategoriesQuery()
+  const { pathname } = useLocation()
+  const menuId = useId()
+  const accountId = useId()
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [seenPath, setSeenPath] = useState(pathname)
+  const menuButtonRef = useRef(null)
+  const menuRef = useRef(null)
+  const accountRef = useRef(null)
+  const accountButtonRef = useRef(null)
+
+  // Menus never outlive the page they were opened on.
+  if (seenPath !== pathname) {
+    setSeenPath(pathname)
+    setAccountOpen(false)
+    setMenuOpen(false)
+  }
+
+  useDismiss([accountRef], accountOpen, (escaped) => {
+    setAccountOpen(false)
+    if (escaped) accountButtonRef.current?.focus()
+  })
+  useDismiss([menuButtonRef, menuRef], menuOpen, (escaped) => {
+    setMenuOpen(false)
+    if (escaped) menuButtonRef.current?.focus()
+  })
 
   const signOut = () => {
     dispatch(loggedOut())
     setAccountOpen(false)
+    setMenuOpen(false)
     dispatch(toastShown({ type: 'info', message: 'Signed out' }))
     navigate('/')
   }
@@ -110,7 +145,14 @@ export function Header() {
       </div>
 
       <div className="container-page flex h-16 items-center gap-4">
-        <IconButton label="Menu" className="lg:hidden" onClick={() => setMenuOpen((open) => !open)}>
+        <IconButton
+          ref={menuButtonRef}
+          label="Menu"
+          className="lg:hidden"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </IconButton>
 
@@ -129,7 +171,7 @@ export function Header() {
               key={link.to}
               to={link.to}
               className={({ isActive }) =>
-                clsx(
+                cn(
                   'rounded-full px-3 py-2 text-sm font-medium transition-colors',
                   isActive ? 'bg-ink-100 text-ink-900' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900'
                 )
@@ -141,12 +183,18 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
-          <div className="relative">
-            <IconButton label="Account" onClick={() => setAccountOpen((open) => !open)}>
+          <div className="relative" ref={accountRef}>
+            <IconButton
+              ref={accountButtonRef}
+              label="Account"
+              aria-expanded={accountOpen}
+              aria-controls={accountId}
+              onClick={() => setAccountOpen((open) => !open)}
+            >
               <User size={19} />
             </IconButton>
             {accountOpen && (
-              <div className="card-surface absolute right-0 z-40 mt-2 w-56 p-2 text-sm">
+              <div id={accountId} className="card-surface absolute right-0 z-40 mt-2 w-56 p-2 text-sm">
                 {token ? (
                   <>
                     <p className="px-3 py-2 text-xs text-ink-500">
@@ -175,12 +223,13 @@ export function Header() {
 
           <button
             onClick={() => dispatch(cartToggled(true))}
+            aria-label={`Open bag, ${plural(cartCount, 'item')}`}
             className="relative inline-flex h-10 items-center gap-2 rounded-full bg-ink-900 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-600"
           >
-            <ShoppingBag size={16} />
-            <span className="hidden sm:inline">{currency(cartTotal)}</span>
+            <ShoppingBag size={16} aria-hidden />
+            <span className="hidden sm:inline">{currency(cartSubtotal)}</span>
             {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 grid size-5 place-items-center rounded-full bg-brand-500 text-[11px] font-semibold text-white">
+              <span className="absolute -top-1 -right-1 grid size-5 place-items-center rounded-full bg-brand-600 text-[11px] font-semibold text-white">
                 {cartCount}
               </span>
             )}
@@ -192,7 +241,7 @@ export function Header() {
       <div className="hidden border-t border-ink-100 lg:block">
         <div className="container-page flex items-center gap-1 py-2">
           <span className="eyebrow mr-2">Categories</span>
-          {(categories?.categories || []).slice(0, 8).map((category) => (
+          {stripCategories(categories?.categories).map((category) => (
             <Link
               key={category._id}
               to={`/shop?category=${category.slug}`}
@@ -208,8 +257,8 @@ export function Header() {
       </div>
 
       {menuOpen && (
-        <div className="border-t border-ink-200 bg-white p-4 lg:hidden">
-          <SearchBox className="mb-3" />
+        <div id={menuId} ref={menuRef} className="border-t border-ink-200 bg-white p-4 lg:hidden">
+          <SearchBox className="mb-3" onNavigate={() => setMenuOpen(false)} />
           <div className="flex flex-col">
             {NAV_LINKS.map((link) => (
               <Link key={link.to} to={link.to} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm hover:bg-ink-50">
