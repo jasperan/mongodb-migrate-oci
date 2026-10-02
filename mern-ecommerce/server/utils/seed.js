@@ -50,15 +50,15 @@ const seedDB = async () => {
       console.log(`${chalk.yellow('!')} ${chalk.yellow('Sufficient number of categories already exist, skipping seeding for categories.')}`);
       categories = await Category.find().select('_id');
     } else {
-      for (let i = 0; i < NUM_CATEGORIES; i++) {
+      for (let i = categoriesCount; i < NUM_CATEGORIES; i++) {
         const category = new Category({
           name: faker.commerce.department(),
           description: faker.lorem.sentence(),
           isActive: true
         });
         await category.save();
-        categories.push(category);
       }
+      categories = await Category.find().select('_id');
       console.log(`${chalk.green('✓')} ${chalk.green('Categories seeded.')}`);
     }
 
@@ -66,7 +66,7 @@ const seedDB = async () => {
     if (brandsCount >= NUM_BRANDS) {
       console.log(`${chalk.yellow('!')} ${chalk.yellow('Sufficient number of brands already exist, skipping seeding for brands.')}`);
     } else {
-      for (let i = 0; i < NUM_BRANDS; i++) {
+      for (let i = brandsCount; i < NUM_BRANDS; i++) {
         const brand = new Brand({
           name: faker.company.name(),
           description: faker.lorem.sentence(),
@@ -82,7 +82,7 @@ const seedDB = async () => {
       console.log(`${chalk.yellow('!')} ${chalk.yellow('Sufficient number of products already exist, skipping seeding for products.')}`);
     } else {
       const brands = await Brand.find().select('_id');
-      for (let i = 0; i < NUM_PRODUCTS; i++) {
+      for (let i = productsCount; i < NUM_PRODUCTS; i++) {
         const randomCategoryIndex = faker.number.int(categories.length - 1);
         const product = new Product({
           sku: faker.string.alphanumeric(10),
@@ -103,7 +103,7 @@ const seedDB = async () => {
   } catch (error) {
     console.log(`${chalk.red('x')} ${chalk.red('Error while seeding database')}`);
     console.log(error);
-    return null;
+    process.exitCode = 1;
   } finally {
     await mongoose.connection.close();
     console.log(`${chalk.blue('✓')} ${chalk.blue('Database connection closed!')}`);
@@ -116,5 +116,6 @@ const seedDB = async () => {
     await seedDB();
   } catch (error) {
     console.error(`Error initializing database: ${error.message}`);
+    process.exitCode = 1;
   }
 })();

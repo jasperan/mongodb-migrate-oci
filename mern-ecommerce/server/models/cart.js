@@ -10,7 +10,14 @@ const CartItemSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'Product'
   },
-  quantity: Number,
+  quantity: {
+    type: Number,
+    min: 1,
+    validate: {
+      validator: Number.isInteger,
+      message: 'Quantity must be a whole number.'
+    }
+  },
   purchasePrice: {
     type: Number,
     default: 0

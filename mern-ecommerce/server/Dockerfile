@@ -1,20 +1,20 @@
-# Use official Node.js 16 (the version the migrated server runs on)
-FROM node:16.20.2-buster-slim
+FROM node:22-alpine
 
-# Set working directory
+ENV NODE_ENV=production
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
+# Dependencies first so the layer is cached until the manifests change
 COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install dependencies
-RUN npm install
+COPY --chown=node:node . .
 
-# Copy the rest of the server code
-COPY . .
+USER node
 
-# Expose port 3000 for the server
 EXPOSE 3000
 
-# Default command to start the application
+# /api/health answers 503 while MongoDB is down; the fetch exits non-zero on that
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+
 CMD ["npm", "start"]

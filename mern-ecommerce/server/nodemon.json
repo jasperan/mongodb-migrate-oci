@@ -1,12 +1,5 @@
 {
-  "ignore": [
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "node_modules",
-    "client",
-    "build",
-    "dist"
-  ],
+  "ignore": ["**/*.test.js", "node_modules"],
   "verbose": false,
   "watch": ["./"],
   "env": {

@@ -8,8 +8,6 @@ const options = {
   truncate: 120
 };
 
-Mongoose.plugin(slug, options);
-
 // Product Schema
 const ProductSchema = new Schema({
   sku: {
@@ -35,10 +33,12 @@ const ProductSchema = new Schema({
     trim: true
   },
   quantity: {
-    type: Number
+    type: Number,
+    min: 0
   },
   price: {
-    type: Number
+    type: Number,
+    min: 0
   },
   taxable: {
     type: Boolean,
@@ -59,5 +59,9 @@ const ProductSchema = new Schema({
     default: Date.now
   }
 });
+
+// Registered on this schema only: the global Mongoose.plugin() re-applied the
+// slug hooks to every schema compiled afterwards.
+ProductSchema.plugin(slug, options);
 
 module.exports = Mongoose.model('Product', ProductSchema);

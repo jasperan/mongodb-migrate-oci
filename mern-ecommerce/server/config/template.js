@@ -1,13 +1,11 @@
-exports.resetEmail = (host, resetToken) => {
+exports.resetEmail = (clientUrl, resetToken) => {
   const message = {
     subject: 'Reset Password',
     text:
-      `${
-        'You are receiving this because you have requested to reset your password for your account.\n\n' +
-        'Please click on the following link, or paste this into your browser to complete the process:\n\n' +
-        'http://'
-      }${host}/reset-password/${resetToken}\n\n` +
-      `If you did not request this, please ignore this email and your password will remain unchanged.\n`
+      'You are receiving this because you have requested to reset your password for your account.\n\n' +
+      'Please click on the following link, or paste this into your browser to complete the process:\n\n' +
+      `${clientUrl}/reset-password/${resetToken}\n\n` +
+      'If you did not request this, please ignore this email and your password will remain unchanged.\n'
   };
 
   return message;
@@ -24,14 +22,13 @@ exports.confirmResetPasswordEmail = () => {
   return message;
 };
 
-exports.merchantSignup = (host, { resetToken, email }) => {
+exports.merchantSignup = (clientUrl, { resetToken, email }) => {
   const message = {
     subject: 'Merchant Registration',
-    text: `${
+    text:
       'Congratulations! Your application has been accepted. Please complete your Merchant account signup by clicking on the link below. \n\n' +
       'Please click on the following link, or paste this into your browser to complete the process:\n\n' +
-      'http://'
-    }${host}/merchant-signup/${resetToken}?email=${email}\n\n`
+      `${clientUrl}/merchant-signup/${resetToken}?email=${encodeURIComponent(email)}\n\n`
   };
 
   return message;
@@ -97,11 +94,12 @@ exports.merchantDeactivateAccount = () => {
   return message;
 };
 
-exports.orderConfirmationEmail = order => {
+// data: { order, user } - the saved order and the signed-in customer.
+exports.orderConfirmationEmail = ({ order, user }) => {
   const message = {
     subject: `Order Confirmation ${order._id}`,
     text:
-      `Hi ${order.user.profile.firstName}! Thank you for your order!. \n\n` +
+      `Hi ${user.firstName || 'there'}! Thank you for your order!. \n\n` +
       `We've received your order and will contact you as soon as your package is shipped. \n\n`
   };
 

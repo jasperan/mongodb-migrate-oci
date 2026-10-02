@@ -4,57 +4,59 @@ const router = express.Router();
 // Bring in Models & Helpers
 const Contact = require('../../models/contact');
 const mailgun = require('../../services/mailgun');
+const { formLimiter } = require('../../middleware/rateLimit');
+const { isEmail, normalizeEmail } = require('../../utils/utils');
+const { asyncHandler } = require('../../utils/http');
 
-router.post('/add', async (req, res) => {
-  try {
-    const name = req.body.name;
-    const email = req.body.email;
-    const message = req.body.message;
+router.post(
+  '/add',
+  formLimiter,
+  asyncHandler(async (req, res) => {
+    const { name, email, message } = req.body;
 
-    if (!email) {
+    if (typeof email !== 'string' || !email.trim()) {
       return res
         .status(400)
         .json({ error: 'You must enter an email address.' });
     }
 
-    if (!name) {
+    if (!isEmail(email.trim())) {
+      return res
+        .status(400)
+        .json({ error: 'You must enter a valid email address.' });
+    }
+
+    if (typeof name !== 'string' || !name.trim() || name.length > 100) {
       return res
         .status(400)
         .json({ error: 'You must enter description & name.' });
     }
 
-    if (!message) {
+    if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'You must enter a message.' });
     }
 
-    const existingContact = await Contact.findOne({ email });
-
-    if (existingContact) {
+    if (message.length > 2000) {
       return res
         .status(400)
-        .json({ error: 'A request already existed for same email address' });
+        .json({ error: 'Your message must be 2000 characters or fewer.' });
     }
 
-    const contact = new Contact({
+    const contactEmail = normalizeEmail(email);
+    const contactDoc = await new Contact({
       name,
-      email,
+      email: contactEmail,
       message
-    });
+    }).save();
 
-    const contactDoc = await contact.save();
-
-    await mailgun.sendEmail(email, 'contact');
+    await mailgun.sendEmailSafely(contactEmail, 'contact');
 
     res.status(200).json({
       success: true,
-      message: `We receved your message, we will reach you on your email address ${email}!`,
+      message: `We receved your message, we will reach you on your email address ${contactEmail}!`,
       contact: contactDoc
     });
-  } catch (error) {
-    return res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
+  })
+);
 
 module.exports = router;

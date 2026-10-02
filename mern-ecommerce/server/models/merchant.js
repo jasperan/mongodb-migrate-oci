@@ -11,13 +11,20 @@ const MerchantSchema = new Schema({
     trim: true
   },
   email: {
-    type: String
+    type: String,
+    trim: true,
+    lowercase: true,
+    maxlength: 254
   },
   phoneNumber: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 40
   },
   brandName: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 100
   },
   business: {
     type: String,

@@ -8,8 +8,6 @@ const options = {
   truncate: 120
 };
 
-Mongoose.plugin(slug, options);
-
 // Brand Schema
 const BrandSchema = new Schema({
   name: {
@@ -44,5 +42,9 @@ const BrandSchema = new Schema({
     default: Date.now
   }
 });
+
+// Registered on this schema only: the global Mongoose.plugin() re-applied the
+// slug hooks to every schema compiled afterwards.
+BrandSchema.plugin(slug, options);
 
 module.exports = Mongoose.model('Brand', BrandSchema);

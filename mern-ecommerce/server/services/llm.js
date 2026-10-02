@@ -23,7 +23,10 @@
  *
  *   LLM_EMBEDDING_MODEL  optional, e.g. text-embedding-3-small
  */
-const DEFAULT_TIMEOUT_MS = 60000;
+// Chat answers are interactive, so a stalled provider fails the request instead
+// of holding it open; embeddings of a batch of products get a longer budget.
+const CHAT_TIMEOUT_MS = 20000;
+const EMBED_TIMEOUT_MS = 60000;
 
 // `https://host` or `https://host/openai/v1` -> `https://host/openai/v1`
 const normalizeEndpoint = (value) => {
@@ -49,12 +52,12 @@ const isConfigured = () => {
   return Boolean(baseUrl && apiKey);
 };
 
+// The provider endpoint stays out of the status: it is served to anonymous callers.
 const status = () => {
-  const { provider, baseUrl, model, embeddingModel } = config();
+  const { provider, model, embeddingModel } = config();
   return {
     configured: isConfigured(),
     provider,
-    baseUrl: baseUrl || null,
     model,
     embeddingModel: embeddingModel || null,
     hint: isConfigured()
@@ -63,10 +66,20 @@ const status = () => {
   };
 };
 
-const post = async (path, body) => {
+// Provider failures carry raw upstream text (account ids, quota messages, request
+// ids). That text is logged here and replaced by a stable message, so no caller
+// can forward it to a browser by accident.
+const upstreamError = (code, message, cause) => {
+  console.error(`[llm] ${code}: ${cause}`);
+  const error = new Error(message);
+  error.code = code;
+  return error;
+};
+
+const post = async (path, body, timeoutMs) => {
   const { baseUrl, apiKey } = config();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method: 'POST',
@@ -85,12 +98,16 @@ const post = async (path, body) => {
       payload = { raw: text };
     }
     if (!response.ok) {
-      const message = payload?.error?.message || payload?.message || payload?.raw || response.statusText;
-      const error = new Error(`LLM request failed (${response.status}): ${message}`);
-      error.status = response.status;
-      throw error;
+      const detail = payload?.error?.message || payload?.message || payload?.raw || response.statusText;
+      throw upstreamError('LLM_UPSTREAM', `The language model request failed (${response.status}).`, `${path} ${response.status} ${detail}`);
     }
     return payload;
+  } catch (error) {
+    if (error.code === 'LLM_UPSTREAM') throw error;
+    if (error.name === 'AbortError') {
+      throw upstreamError('LLM_TIMEOUT', 'The language model did not answer in time.', `${path} timed out after ${timeoutMs} ms`);
+    }
+    throw upstreamError('LLM_UNREACHABLE', 'The language model could not be reached.', `${path} ${error.message}`);
   } finally {
     clearTimeout(timer);
   }
@@ -101,12 +118,11 @@ const post = async (path, body) => {
  */
 const chat = async ({ messages, temperature = 0.2, maxTokens = 700 }) => {
   const { model } = config();
-  const payload = await post('/chat/completions', {
-    model,
-    messages,
-    temperature,
-    max_tokens: maxTokens
-  });
+  const payload = await post(
+    '/chat/completions',
+    { model, messages, temperature, max_tokens: maxTokens },
+    CHAT_TIMEOUT_MS
+  );
   return {
     model: payload?.model || model,
     content: payload?.choices?.[0]?.message?.content?.trim() || '',
@@ -119,11 +135,15 @@ const embed = async (input) => {
   if (!embeddingModel) {
     const error = new Error('No embedding model configured (set LLM_EMBEDDING_MODEL).');
     error.status = 503;
+    error.code = 'EMBEDDINGS_NOT_CONFIGURED';
+    error.expose = true;
     throw error;
   }
-  const payload = await post('/embeddings', { model: embeddingModel, input });
+  const payload = await post('/embeddings', { model: embeddingModel, input }, EMBED_TIMEOUT_MS);
   const vectors = (payload?.data || []).map((item) => item.embedding);
-  if (!vectors.length) throw new Error('Embedding provider returned no vectors');
+  if (!vectors.length) {
+    throw upstreamError('LLM_UPSTREAM', 'The embedding provider returned no vectors.', `/embeddings returned no vectors for model ${embeddingModel}`);
+  }
   return { model: payload?.model || embeddingModel, vectors };
 };
 

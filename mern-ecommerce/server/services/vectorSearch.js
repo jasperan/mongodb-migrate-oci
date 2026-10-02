@@ -15,6 +15,9 @@ const EMBEDDING_TABLE = process.env.VECTOR_TABLE || 'PRODUCT_EMBEDDINGS';
 const EMBEDDING_MODEL = process.env.VECTOR_EMBEDDING_MODEL || '';
 const EMBEDDING_DIM = Number(process.env.EMBEDDING_DIM || 1536);
 
+const DEFAULT_TOP_K = 6;
+const MAX_TOP_K = 20;
+
 const hasInDatabaseModel = () => Boolean(EMBEDDING_MODEL);
 
 const toLiteral = (vector) => `[${vector.map((value) => Number(value)).join(',')}]`;
@@ -22,6 +25,9 @@ const toLiteral = (vector) => `[${vector.map((value) => Number(value)).join(',')
 const mapRows = (rows) =>
   rows.map((row) => ({ id: row.PRODUCT_ID, name: row.NAME, score: row.SCORE }));
 
+// Oracle evaluates the repeated vector_embedding(...) expression once per
+// statement, so the ORDER BY does not embed the text a second time (measured:
+// identical latency to a CTE that embeds explicitly).
 const searchInDatabase = async (text, topK, model) => {
   const sql = `
     select product_id,
@@ -50,8 +56,13 @@ const searchRemote = async (text, topK) => {
   return { source: `remote:${model}`, results: mapRows(rows) };
 };
 
-const search = async (text, topK = 6) => {
-  const limit = Number.isFinite(Number(topK)) ? Number(topK) : 6;
+const clampTopK = (value) => {
+  const requested = Math.trunc(Number(value));
+  return Number.isFinite(requested) && requested > 0 ? Math.min(requested, MAX_TOP_K) : DEFAULT_TOP_K;
+};
+
+const search = async (text, topK = DEFAULT_TOP_K) => {
+  const limit = clampTopK(topK);
   const result = hasInDatabaseModel()
     ? await searchInDatabase(text, limit, EMBEDDING_MODEL)
     : await searchRemote(text, limit);
@@ -61,6 +72,8 @@ const search = async (text, topK = 6) => {
       `No embeddings found in ${EMBEDDING_TABLE}. Run scripts/embed_catalog.js to populate them.`
     );
     error.status = 503;
+    error.code = 'NO_EMBEDDINGS';
+    error.expose = true;
     throw error;
   }
 

@@ -4,16 +4,32 @@ const router = express.Router();
 // Bring in Models & Helpers
 const Address = require('../../models/address');
 const auth = require('../../middleware/auth');
+const { asyncHandler, httpError, pick, isObjectId } = require('../../utils/http');
+
+const ADDRESS_FIELDS = ['address', 'city', 'state', 'country', 'zipCode', 'isDefault'];
+
+// Every lookup is scoped to the signed-in owner: an address id alone never
+// grants access, and a foreign or unknown id is simply "not found".
+const ownAddressId = req => {
+  if (!isObjectId(req.params.id)) throw httpError(404, 'Address not found.');
+  return { _id: req.params.id, user: req.user._id };
+};
 
 // add address api
-router.post('/add', auth, async (req, res) => {
-  try {
-    const user = req.user;
-
+router.post(
+  '/add',
+  auth,
+  asyncHandler(async (req, res) => {
     const address = new Address({
-      ...req.body,
-      user: user._id
+      ...pick(req.body, ADDRESS_FIELDS),
+      user: req.user._id
     });
+
+    try {
+      await address.validate();
+    } catch (error) {
+      throw httpError(400, 'Your address is not valid.');
+    }
     const addressDoc = await address.save();
 
     res.status(200).json({
@@ -21,85 +37,72 @@ router.post('/add', auth, async (req, res) => {
       message: `Address has been added successfully!`,
       address: addressDoc
     });
-  } catch (error) {
-    res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
+  })
+);
 
 // fetch all addresses api
-router.get('/', auth, async (req, res) => {
-  try {
+router.get(
+  '/',
+  auth,
+  asyncHandler(async (req, res) => {
     const addresses = await Address.find({ user: req.user._id });
 
-    res.status(200).json({
-      addresses
-    });
-  } catch (error) {
-    res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
+    res.status(200).json({ addresses });
+  })
+);
 
-router.get('/:id', async (req, res) => {
-  try {
-    const addressId = req.params.id;
+router.get(
+  '/:id',
+  auth,
+  asyncHandler(async (req, res) => {
+    const addressDoc = await Address.findOne(ownAddressId(req));
 
-    const addressDoc = await Address.findOne({ _id: addressId });
+    if (!addressDoc) throw httpError(404, 'Address not found.');
 
-    if (!addressDoc) {
-      res.status(404).json({
-        message: `Cannot find Address with the id: ${addressId}.`
+    res.status(200).json({ address: addressDoc });
+  })
+);
+
+router.put(
+  '/:id',
+  auth,
+  asyncHandler(async (req, res) => {
+    const query = ownAddressId(req);
+    const update = { ...pick(req.body, ADDRESS_FIELDS), updated: Date.now() };
+
+    let addressDoc;
+    try {
+      addressDoc = await Address.findOneAndUpdate(query, update, {
+        new: true,
+        runValidators: true
       });
+    } catch (error) {
+      throw httpError(400, 'Your address is not valid.');
     }
 
-    res.status(200).json({
-      address: addressDoc
-    });
-  } catch (error) {
-    res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
-
-router.put('/:id', async (req, res) => {
-  try {
-    const addressId = req.params.id;
-    const update = req.body;
-    const query = { _id: addressId };
-
-    await Address.findOneAndUpdate(query, update, {
-      new: true
-    });
+    if (!addressDoc) throw httpError(404, 'Address not found.');
 
     res.status(200).json({
       success: true,
       message: 'Address has been updated successfully!'
     });
-  } catch (error) {
-    res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
+  })
+);
 
-router.delete('/delete/:id', async (req, res) => {
-  try {
-    const address = await Address.deleteOne({ _id: req.params.id });
+router.delete(
+  '/delete/:id',
+  auth,
+  asyncHandler(async (req, res) => {
+    const result = await Address.deleteOne(ownAddressId(req));
+
+    if (result.deletedCount === 0) throw httpError(404, 'Address not found.');
 
     res.status(200).json({
       success: true,
       message: `Address has been deleted successfully!`,
-      address
+      address: result
     });
-  } catch (error) {
-    res.status(400).json({
-      error: 'Your request could not be processed. Please try again.'
-    });
-  }
-});
+  })
+);
 
 module.exports = router;

@@ -1,5 +1,9 @@
 const router = require('express').Router();
-const { ragQuery } = require('../../services/llmChat');
+const { ragQuery, parseChatInput, warmUp } = require('../../services/llmChat');
+const oracle = require('../../services/oracle');
+const llm = require('../../services/llm');
+const { aiLimiter } = require('../../middleware/rateLimit');
+const { asyncHandler, httpError } = require('../../utils/http');
 
 const authRoutes = require('./auth');
 const userRoutes = require('./user');
@@ -62,25 +66,35 @@ router.use('/admin-db', adminDbRouter);
 // AI routes (vector search, Select AI)
 router.use('/ai', aiRouter);
 
-// POST /chat — RAG over the migrated catalogue
-router.post('/chat', async (req, res) => {
-  const { message } = req.body;
-  if (!message) {
-    return res.status(400).json({ error: 'message is required' });
-  }
-  try {
-    const result = await ragQuery(message);
-    if (!result.configured) {
-      return res.status(503).json({ response: null, error: result.error, retrieval: result.retrieval });
+// The first question otherwise pays for the connection pool, the catalogue
+// aggregates and the embedding model's first run (several seconds).
+if (oracle.isConfigured()) {
+  warmUp().catch((error) => console.warn(`[chat] warm-up skipped: ${error.message}`));
+}
+
+// POST /chat - RAG over the migrated catalogue
+router.post(
+  '/chat',
+  aiLimiter,
+  asyncHandler(async (req, res) => {
+    const { message, history } = parseChatInput(req.body);
+    if (!llm.isConfigured()) {
+      throw httpError(503, 'The AI assistant is not configured.', { hint: llm.status().hint });
     }
-    return res.json({
-      response: result.answer,
-      model: result.model,
-      retrieval: result.retrieval
-    });
-  } catch (err) {
-    return res.status(500).json({ error: 'RAG chat failed', details: err.message });
-  }
-});
+    if (!oracle.isConfigured()) {
+      throw httpError(503, 'The AI assistant needs Oracle SQL access, which is not configured.', {
+        hint: 'Set ORACLE_APP_USER, ORACLE_APP_PASSWORD and ORACLE_CONNECT_STRING in server/.env.'
+      });
+    }
+    try {
+      return res.json(await ragQuery({ message, history }));
+    } catch (error) {
+      // Retrieval and provider errors carry database and upstream text; the
+      // browser gets one stable message and the details stay in the log.
+      console.error('[chat] failed:', error);
+      throw httpError(500, 'The assistant is unavailable right now.');
+    }
+  })
+);
 
 module.exports = router;

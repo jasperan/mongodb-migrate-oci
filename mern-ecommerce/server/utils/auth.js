@@ -1,20 +1,18 @@
 const jwt = require('jsonwebtoken');
 
+const keys = require('../config/keys');
+
+// Optional authentication for public routes: resolves the verified token
+// payload ({ id, ... }) or null. Never trusts an unsigned or expired token.
 const checkAuth = async req => {
   try {
-    if (!req.headers.authorization) {
-      return null;
-    }
+    const header = req.headers.authorization;
+    if (typeof header !== 'string') return null;
 
-    const token =
-      (await jwt.decode(req.headers.authorization.split(' ')[1])) ||
-      req.headers.authorization;
+    const [scheme, token] = header.split(' ');
+    if (scheme !== 'Bearer' || !token) return null;
 
-    if (!token) {
-      return null;
-    }
-
-    return token;
+    return jwt.verify(token, keys.jwt.secret, { algorithms: ['HS256'] });
   } catch (error) {
     return null;
   }

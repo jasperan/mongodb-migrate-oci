@@ -16,10 +16,12 @@ const secret = keys.jwt.secret;
 const opts = {};
 opts.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
 opts.secretOrKey = secret;
+opts.algorithms = ['HS256'];
 
 passport.use(
   new JwtStrategy(opts, (payload, done) => {
     User.findById(payload.id)
+      .select('-password -resetPasswordToken -resetPasswordExpires')
       .then(user => {
         if (user) {
           return done(null, user);
@@ -53,6 +55,12 @@ const googleAuth = async () => {
           User.findOne({ email: profile.email })
             .then(user => {
               if (user) {
+                // Never sign a Google login into an e-mail/password account that
+                // merely shares the address: the address is not proof of ownership
+                // of that local account.
+                if (user.provider !== EMAIL_PROVIDER.Google) {
+                  return done(null, false);
+                }
                 return done(null, user);
               }
 

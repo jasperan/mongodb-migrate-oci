@@ -8,8 +8,6 @@ const options = {
   truncate: 120
 };
 
-Mongoose.plugin(slug, options);
-
 // Category Schema
 const CategorySchema = new Schema({
   _id: {
@@ -49,5 +47,9 @@ const CategorySchema = new Schema({
     default: Date.now
   }
 });
+
+// Registered on this schema only: the global Mongoose.plugin() re-applied the
+// slug hooks to every schema compiled afterwards.
+CategorySchema.plugin(slug, options);
 
 module.exports = Mongoose.model('Category', CategorySchema);

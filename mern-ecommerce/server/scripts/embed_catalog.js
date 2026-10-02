@@ -15,12 +15,30 @@
  * Run from mern-ecommerce/server so the .env file is picked up.
  */
 require('dotenv').config();
-const { query, getPool, isConfigured, schema } = require('../services/oracle');
+const { query, getPool, close, isConfigured, schema } = require('../services/oracle');
 const llm = require('../services/llm');
 
 const TABLE = process.env.VECTOR_TABLE || 'PRODUCT_EMBEDDINGS';
 const IN_DB_MODEL = process.env.VECTOR_EMBEDDING_MODEL || '';
 const BATCH = Number(process.env.EMBED_BATCH || 32);
+
+// The refresh is one transaction on one connection: readers (the chat, /api/ai/similar)
+// keep seeing the previous embeddings until the commit, and a failure half way
+// rolls back instead of leaving the table empty.
+const inTransaction = async (work) => {
+  const pool = await getPool();
+  const connection = await pool.getConnection();
+  try {
+    const result = await work(connection);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    await connection.close();
+  }
+};
 
 const toLiteral = (vector) => `[${vector.map((value) => Number(value)).join(',')}]`;
 
@@ -45,11 +63,12 @@ const embedInDatabase = async () => {
               ${document},
               vector_embedding(${IN_DB_MODEL} using ${document} as data)
          from products p`;
-  // Two committed statements rather than one PL/SQL block: the helper returns rows
-  // only for plain statements, and the pool rolls back uncommitted work on close.
-  await query(`delete from ${TABLE}`, {}, { autoCommit: true });
-  const rows = await query(insert, {}, { autoCommit: true });
-  console.log(`done in ${Date.now() - start} ms`, rows.length ? `(${rows.length} rows)` : '');
+  const { insertedRows } = await inTransaction(async (connection) => {
+    await connection.execute(`delete from ${TABLE}`);
+    const result = await connection.execute(insert);
+    return { insertedRows: result.rowsAffected };
+  });
+  console.log(`done in ${Date.now() - start} ms (${insertedRows} rows)`);
 };
 
 const embedRemotely = async () => {
@@ -64,13 +83,20 @@ const embedRemotely = async () => {
   );
   console.log(`Embedding ${products.length} products with ${llm.config().embeddingModel} …`);
 
-  let done = 0;
+  // Embed everything first: the provider calls are the slow, fallible part and
+  // must not run while the table is being rewritten.
+  const embedded = [];
   for (let index = 0; index < products.length; index += BATCH) {
     const batch = products.slice(index, index + BATCH);
     const inputs = batch.map((row) => `${row.NAME}. ${row.DESCRIPTION || ''}`.trim());
     const { vectors } = await llm.embed(inputs);
-    for (let i = 0; i < batch.length; i += 1) {
-      await query(
+    batch.forEach((row, i) => embedded.push({ id: row.ID, name: row.NAME, doc: inputs[i], vec: toLiteral(vectors[i]) }));
+    console.log(`  ${embedded.length}/${products.length}`);
+  }
+
+  await inTransaction(async (connection) => {
+    for (const row of embedded) {
+      await connection.execute(
         `merge into ${TABLE} t
            using (select :id as product_id, :name as name, :doc as document, vector(:vec) as embedding from dual) s
               on (t.product_id = s.product_id)
@@ -78,12 +104,14 @@ const embedRemotely = async () => {
                                           t.embedding = s.embedding, t.embedded_at = systimestamp
             when not matched then insert (t.product_id, t.name, t.document, t.embedding)
                                   values (s.product_id, s.name, s.document, s.embedding)`,
-        { id: batch[i].ID, name: batch[i].NAME, doc: inputs[i], vec: toLiteral(vectors[i]) }
+        row
       );
     }
-    done += batch.length;
-    console.log(`  ${done}/${products.length}`);
-  }
+    // Products deleted since the last run must not stay searchable.
+    await connection.execute(
+      `delete from ${TABLE} where product_id not in (select json_value(data, '$._id') from products)`
+    );
+  });
 };
 
 (async () => {
@@ -108,7 +136,6 @@ const embedRemotely = async () => {
   } finally {
     // The connection pool keeps the event loop alive: without this the script
     // finishes its work and then hangs instead of exiting.
-    const pool = await getPool().catch(() => null);
-    await pool?.close(0).catch(() => {});
+    await close().catch(() => {});
   }
 })();

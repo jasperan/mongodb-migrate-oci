@@ -1,17 +1,16 @@
-// const AWS = require('aws-sdk');
+// Product images are not persisted yet (the storefront renders generated art), so
+// the upload only yields the reference stored on the product. The name comes from
+// the client, hence it is reduced to a plain file name before it is kept.
+const safeName = name =>
+  String(name)
+    .split(/[\\/]/)
+    .pop()
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .slice(0, 120);
 
 exports.s3Upload = async image => {
-  try {
-    let imageUrl = '';
-    let imageKey = '';
+  if (!image) return { imageUrl: '', imageKey: '' };
 
-    if (image) {
-	imageUrl = '/images/products/' + image.originalname;
-        imageKey = image.originalname;
-    }
-
-    return { imageUrl, imageKey };
-  } catch (error) {
-    return { imageUrl: '', imageKey: '' };
-  }
+  const imageKey = safeName(image.originalname);
+  return { imageUrl: '/images/products/' + imageKey, imageKey };
 };

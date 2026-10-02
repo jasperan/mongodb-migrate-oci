@@ -8,19 +8,29 @@ const AddressSchema = new Schema({
     ref: 'User'
   },
   address: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 200
   },
   city: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 200
   },
   state: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 200
   },
   country: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 200
   },
   zipCode: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: 200
   },
   isDefault: {
     type: Boolean,

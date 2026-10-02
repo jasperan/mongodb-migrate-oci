@@ -1,37 +1,60 @@
 const Mongoose = require('mongoose');
 
-exports.getStoreProductsQuery = (min, max, rating) => {
-  rating = Number(rating);
-  max = Number(max);
-  min = Number(min);
+const { REVIEW_STATUS } = require('../constants');
 
-  const priceFilter = min && max ? { price: { $gte: min, $lte: max } } : {};
-  const ratingFilter = { rating: { $gte: rating } };
+// The Oracle Database API for MongoDB is reached through a load-balanced URI, and
+// that is the one place `$lookup` cannot express the joins below (no `let`, no
+// missing `localField`). The backend never changes while the process runs, so it
+// is decided once here instead of on every request.
+const ORACLE_API = /loadBalanced/i.test(process.env.MONGO_URI || '');
 
-  const matchQuery = {
-    isActive: true,
-    price: priceFilter.price,
-    averageRating: ratingFilter.rating
+// Everything the storefront list needs per product: the brand (name and state),
+// the Approved-review aggregates and, for a signed-in caller, the wishlist flag.
+//
+// On Oracle all of it is one `$sql` stage. A `$sql` stage sees only the pipeline's
+// original collection as `input` (later `$sql` stages cannot name the previous
+// stage reliably), so the filters that can run on raw product fields are `$match`
+// stages placed before it and the reviews are pre-aggregated to one row per
+// product - joining raw review rows would duplicate a product per review.
+const oracleJoinStage = userId => {
+  const wishlist = userId
+    ? `,
+    'isLiked' value nvl(
+      (select json_value(w.data, '$.isLiked' returning boolean)
+         from wishlists w
+        where w.data.product.idOnly() = i.data."_id".idOnly()
+          and w.data."user".idOnly() = hextoraw('${new Mongoose.Types.ObjectId(userId).toString()}')
+        fetch first 1 row only), false)`
+    : '';
+
+  return {
+    $sql: `select json_mergepatch(i.data, json_object(
+    'brand' value json_object('_id' value b.data."_id", 'name' value b.data.name, 'isActive' value b.data.isActive returning json),
+    'totalRatings' value nvl(rv.total, 0),
+    'totalReviews' value nvl(rv.cnt, 0),
+    'averageRating' value case when nvl(rv.cnt, 0) = 0 then 0 else rv.total / rv.cnt end${wishlist}
+    returning json) returning json)
+  from input i
+  left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()
+  left outer join (select r.data.product.idOnly() pid, count(*) cnt, sum(r.data.rating.number()) total
+                     from reviews r
+                    where r.data.status.string() = '${REVIEW_STATUS.Approved}'
+                    group by r.data.product.idOnly()) rv
+    on i.data."_id".idOnly() = rv.pid`
   };
+};
 
-  const basicQuery = process.env.MONGO_URI.includes('loadBalanced') ? [
+const mongoJoinStages = userId => {
+  const stages = [
     {
-       /*$lookup: {
+      $lookup: {
         from: 'brands',
         localField: 'brand',
         foreignField: '_id',
         as: 'brands'
-      }*/
-      $sql: `select json_mergepatch(i.data, json_object('brands' : json_array(b.data returning json) returning json))
- from input i 
-left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
-    },
-    {
-      $unwind: {
-        path: '$brands',
-        preserveNullAndEmptyArrays: true
       }
     },
+    { $unwind: { path: '$brands', preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
         'brand.name': '$brands.name',
@@ -40,18 +63,23 @@ left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
       }
     },
     {
-      $match: {
-        'brand.isActive': true
-      }
-    },
-    {
-      /*$lookup: {
+      $lookup: {
         from: 'reviews',
         localField: '_id',
         foreignField: 'product',
         as: 'reviews'
-      }*/
-      $sql: `select json_mergepatch(i.data, json_object('reviews': json_array(r.data returning json) returning json)) from "Q6" i left outer join reviews r on i.data."_id".idOnly() = r.data.product.idOnly()`
+      }
+    },
+    {
+      $addFields: {
+        reviews: {
+          $filter: {
+            input: '$reviews',
+            as: 'review',
+            cond: { $eq: ['$$review.status', REVIEW_STATUS.Approved] }
+          }
+        }
+      }
     },
     {
       $addFields: {
@@ -69,133 +97,11 @@ left outer join brands b on i.data.brand.idOnly() = b.data."_id".idOnly()`
           ]
         }
       }
-    },
-    {
-      $match: matchQuery
-    },
-    {
-      $project: {
-        brands: 0,
-        reviews: 0
-      }
     }
-  ]
+  ];
 
-    : // original pipeline
-    [
-      {
-        $lookup: {
-          from: 'brands',
-          localField: 'brand',
-          foreignField: '_id',
-          as: 'brands'
-        }
-      },
-      {
-        $unwind: {
-          path: '$brands',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $addFields: {
-          'brand.name': '$brands.name',
-          'brand._id': '$brands._id',
-          'brand.isActive': '$brands.isActive'
-        }
-      },
-      {
-        $match: {
-          'brand.isActive': true
-        }
-      },
-      {
-        $lookup: {
-          from: 'reviews',
-          localField: '_id',
-          foreignField: 'product',
-          as: 'reviews'
-        }
-      },
-      {
-        $addFields: {
-          totalRatings: { $sum: '$reviews.rating' },
-          totalReviews: { $size: '$reviews' }
-        }
-      },
-      {
-        $addFields: {
-          averageRating: {
-            $cond: [
-              { $eq: ['$totalReviews', 0] },
-              0,
-              { $divide: ['$totalRatings', '$totalReviews'] }
-            ]
-          }
-        }
-      },
-      {
-        $match: matchQuery
-      },
-      {
-        $project: {
-          brands: 0,
-          reviews: 0
-        }
-      }
-    ]
-    ;
-
-  return basicQuery;
-};
-
-exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
-  // The `$sql` stage addresses the caller's previous stage by name, so the alias
-  // has to grow with the number of filter stages product.js pushed before it.
-  let alias = "Q12";
-
-  if (brandDoc && categoryDoc) {
-    alias = "Q14";
-  } else if (brandDoc || categoryDoc) {
-    alias = "Q13";
-  }
-
-  const wishListQuery = process.env.MONGO_URI.includes('loadBalanced') ? [
-    {
-            /*$lookup: {
-              from: 'wishlists',
-              left: { product: '$_id' },
-              pipeline: [
-                {
-                  $match: {
-                    $and: [
-                      { $expr: { $eq: ['$$product', '$product'] } },
-                      { user: new Mongoose.Types.ObjectId(userId) }
-                    ]
-                  }
-                }
-              ],
-              as: 'isLiked'
-            }*/
-          
-      // Oracle branch: the wishlist collection is a JSON collection, so the
-      // reference is resolved against `data` (the previous 23ai revision joined a
-      // duality root table that no longer exists in the migrated schema).
-      $sql: `select json_mergepatch(i.data,
-                       json_object('isLiked' value nvl(json_value(w.data, '$.isLiked' returning boolean), false) returning json))
-                from "` + alias + `" i
-                left outer join wishlists w
-                  on i.data."_id".idOnly() = w.data.product.idOnly()
-                 and w.data."user".idOnly() = hextoraw('` + new Mongoose.Types.ObjectId(userId) + `')`
-    }/*,
-    {
-      $addFields: {
-        isLiked: { $arrayElemAt: ['$isLiked.isLiked', 0] }
-      }
-    }*/
-  ]
-    : // original pipeline
-    [
+  if (userId) {
+    stages.push(
       {
         $lookup: {
           from: 'wishlists',
@@ -215,10 +121,56 @@ exports.getStoreProductsWishListQuery = (userId, brandDoc, categoryDoc) => {
       },
       {
         $addFields: {
-          isLiked: { $arrayElemAt: ['$isLiked.isLiked', 0] }
+          isLiked: { $ifNull: [{ $arrayElemAt: ['$isLiked.isLiked', 0] }, false] }
         }
       }
-    ];
+    );
+  }
 
-  return wishListQuery;
+  stages.push({ $project: { brands: 0, reviews: 0 } });
+  return stages;
+};
+
+/**
+ * Pipeline behind GET /product/list, up to (not including) sort and paging.
+ *
+ * @param {object} filters
+ * @param {number} [filters.min]       inclusive lower price bound, applied when finite
+ * @param {number} [filters.max]       inclusive upper price bound, applied when finite
+ * @param {number} [filters.rating]    minimum average rating (Approved reviews only)
+ * @param {RegExp} [filters.name]      case-insensitive name pattern
+ * @param {Array}  [filters.productIds] restrict to these products (a category)
+ * @param {*}      [filters.brandId]   restrict to this brand
+ * @param {string} [filters.userId]    signed-in caller; adds the `isLiked` flag
+ */
+exports.getStoreProductsQuery = ({
+  min,
+  max,
+  rating = 0,
+  name,
+  productIds,
+  brandId,
+  userId
+} = {}) => {
+  const match = { isActive: true };
+
+  const price = {};
+  if (Number.isFinite(min)) price.$gte = min;
+  if (Number.isFinite(max)) price.$lte = max;
+  if (Object.keys(price).length > 0) match.price = price;
+
+  if (name) match.name = name;
+  if (productIds) match._id = { $in: productIds };
+  if (brandId) match.brand = brandId;
+
+  const pipeline = [
+    { $match: match },
+    ...(ORACLE_API ? [oracleJoinStage(userId)] : mongoJoinStages(userId)),
+    // Products of an inactive (or missing) brand are not for sale.
+    { $match: { 'brand.isActive': true } }
+  ];
+
+  if (rating > 0) pipeline.push({ $match: { averageRating: { $gte: rating } } });
+
+  return pipeline;
 };

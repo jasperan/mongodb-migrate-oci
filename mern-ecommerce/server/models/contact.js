@@ -5,14 +5,19 @@ const { Schema } = Mongoose;
 const ContactSchema = new Schema({
   name: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: 100
   },
   email: {
-    type: String
+    type: String,
+    trim: true,
+    lowercase: true,
+    maxlength: 254
   },
   message: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: 2000
   },
   updated: Date,
   created: {

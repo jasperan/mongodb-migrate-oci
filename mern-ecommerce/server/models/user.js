@@ -8,9 +8,12 @@ const { Schema } = Mongoose;
 const UserSchema = new Schema({
   email: {
     type: String,
-    required: () => {
-      return this.provider !== 'email' ? false : true;
-    }
+    // a real function: `this` is the document (an arrow would capture the module)
+    required: function () {
+      return this.provider === EMAIL_PROVIDER.Email;
+    },
+    trim: true,
+    lowercase: true
   },
   phoneNumber: {
     type: String
