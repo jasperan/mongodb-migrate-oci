@@ -26,11 +26,23 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# ignore common security keys
-.key
-.crt
-.csr
-.pem
+# credentials, wallets and local environment files
+*.key
+*.pem
+*.crt
+*.csr
+*.p12
+*.sso
+cwallet.sso
+ewallet.p12
+Wallet_*.zip
+tnsnames.ora
+sqlnet.ora
+.env
+.env.*
+!.env.example
+log/
+*.log
 
 solutions/ai-analytics/config.yaml
 # Local tooling and scratch (portable MongoDB/SQLcl, temp scripts)

@@ -1,14 +1,14 @@
 {
   "name": "mern-ecommerce",
   "version": "1.0.0",
-  "description": "MERN Ecommerce",
+  "description": "MERN ecommerce demo (Express + Mongoose, React + Vite) running on MongoDB or Oracle AI Database 26ai",
   "main": "server/index.js",
   "scripts": {
     "dev": "npm-run-all --parallel dev:*",
-    "dev:client": "cd client && npm run dev",
+    "dev:web": "cd web && npm run dev",
     "dev:server": "cd server && npm run dev",
     "postinstall": "npm-run-all --parallel install:*",
-    "install:client": "cd client && npm install",
+    "install:web": "cd web && npm install",
     "install:server": "cd server && npm install",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -21,9 +21,10 @@
     "express",
     "mongoose",
     "react",
-    "redux",
-    "redux-thunk",
-    "webpack"
+    "redux-toolkit",
+    "vite",
+    "tailwindcss",
+    "oracle"
   ],
   "author": "Mohamed Samara (https://github.com/mohamedsamara)",
   "license": "MIT",

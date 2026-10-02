@@ -1,7 +1,7 @@
-oracledb
-requests
-pyyaml
-numpy
-sentence-transformers 
-pymongo
+fastapi
 uvicorn
+pydantic
+oracledb
+pyyaml
+requests
+sentence-transformers

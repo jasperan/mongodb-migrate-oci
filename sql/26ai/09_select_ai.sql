@@ -27,8 +27,12 @@ set define on
 set echo on
 set serveroutput on size unlimited
 
--- 0) the key, kept out of version control
+-- 0) the key, kept out of version control. `verify off` first: otherwise SQLcl
+--    echoes every block with the substituted key (old:/new: lines).
+set verify off
+set echo off
 @@sql/26ai/09_select_ai_key.sql
+set echo on
 
 -- 0b) refuse to run on the placeholder (an empty password would create a
 --     credential that only fails later, inside a model call)
@@ -38,7 +42,7 @@ begin
   if l_key is null or substr(l_key, 1, 1) = '<' then
     raise_application_error(-20001, 'mern_llm_key is not set - put your key in sql/26ai/09_select_ai_key.sql');
   end if;
-  dbms_output.put_line('key     : ' || substr(l_key, 1, 6) || '...' || substr(l_key, -4));
+  dbms_output.put_line('key     : set (' || length(l_key) || ' characters)');
 end;
 /
 
@@ -61,13 +65,11 @@ begin
 end;
 /
 
--- 2) profile (run as MERN26) - re-created; `force` drops what depends on it
+-- 2) profile (run as MERN26) - re-created; `force` ignores a missing profile and drops
+--    what depends on it, so a real error (e.g. missing privileges) is not hidden
 begin
   dbms_cloud_ai.drop_profile(profile_name => 'MERN_LLM', force => true);
   dbms_output.put_line('dropped profile MERN_LLM');
-exception
-  when others then
-    dbms_output.put_line('no previous profile to drop');
 end;
 /
 

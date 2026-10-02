@@ -133,9 +133,10 @@ Now, we're ready to run the MERN app, with its backend running against MongoDB, 
 
 ### 3. Run the MERN app
 
-After client & server setup on the MERN app, we're ready to run it! Run the following command to start a development environment (what we need):
+After client & server setup on the MERN app, we're ready to run it! Run the following command from `mern-ecommerce/` (it starts `server/` and `web/` together) to start a development environment:
 
   ```bash
+  cd mern-ecommerce
   npm run dev
   ```
 

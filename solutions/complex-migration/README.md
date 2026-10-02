@@ -162,7 +162,7 @@ However, you will probably need to fix syntax errors, as the generations may con
 - Ensure table and view names are in **lowercase** (e.g., "products" instead of "PRODUCTS")
 - Validate the syntax before execution
 
-You can take a look at my edited file [here.](../../sql/my_script_fixed_normalized.sql)
+The reviewed result for each of the 12 collections is committed under [`sql/26ai/generated/duality_ddl/`](../../sql/26ai/generated/duality_ddl/).
 
 > **Note**: Make sure to run the script with the `ecommercedv` user. Then, you will have successfully created your JSON DVs!
 

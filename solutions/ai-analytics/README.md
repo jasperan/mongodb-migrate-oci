@@ -184,8 +184,10 @@ Therefore, this file called [`review_collection_sync`](./review_collection_sync.
 Run the script once (after you've performed your migration) - note that after getting new reviews you'll have to re-run this script to update the embeddings in the `reviews` collection:
 
 ```bash
+pip install -r requirements.txt
 python review_collection_sync.py --ingest # run with ingest mode
-# this adds embeddings to existing reviews in SODA collection
+# this loads generated_reviews.json (override with --file <reviews.json>, as written by generate_reviews.py)
+# and inserts the reviews with their embeddings into the SODA collection
 ```
 
 Then, when we have the database backend created, we already have access to:
@@ -210,6 +212,8 @@ For this, run the following script, and then proceed with the above content in s
    python generate_reviews.py --generate --product-id <product_id> --file my_reviews.json
    # Insert generated reviews into Autonomous JSON collection
    python generate_reviews.py --insert --file my_reviews.json
+   # or ingest the same file through the review sync script
+   # python review_collection_sync.py --ingest --file my_reviews.json
    # Generate and insert in one step (uses default product id)
    # python generate_reviews.py --generate --insert
    ```

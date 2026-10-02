@@ -79,7 +79,20 @@ def test_soda_operations(config):
         print(f"🔍 Error type: {type(e).__name__}")
         return False
 
-def add_embeddings_to_reviews(config):
+def split_review_record(record):
+    """
+    Return (review_obj, embedding) for one record of a reviews file.
+
+    generate_reviews.py writes flat review dicts with an "embedding" key; older
+    files wrap the review as a JSON string under "text" next to the embedding.
+    """
+    if 'text' in record:
+        return json.loads(record['text']), record.get('embedding')
+    review_obj = dict(record)
+    embedding = review_obj.pop('embedding', None)
+    return review_obj, embedding
+
+def add_embeddings_to_reviews(config, reviews_file):
     print("🚀 Starting embedding addition process using SODA...")
     
     # First, test SODA operations
@@ -91,12 +104,11 @@ def add_embeddings_to_reviews(config):
         print("🔗 Initializing SODA connection...")
         soda_utils = SodaUtils(config)
         
-        # Load reviews from generated_reviews.json
-        print("📖 Loading reviews from generated_reviews.json...")
-        with open('generated_reviews.json', 'r') as f:
+        print(f"📖 Loading reviews from {reviews_file}...")
+        with open(reviews_file, 'r', encoding='utf-8') as f:
             reviews_data = json.load(f)
         
-        print(f"📊 Found {len(reviews_data)} reviews in generated_reviews.json")
+        print(f"📊 Found {len(reviews_data)} reviews in {reviews_file}")
         
         # Get existing documents in SODA collection to avoid duplicates
         print("🔍 Checking existing documents in SODA collection...")
@@ -108,12 +120,11 @@ def add_embeddings_to_reviews(config):
         skipped_count = 0
         
         for i, review_data in enumerate(reviews_data, 1):
+            review_id = None
             try:
                 print(f"🔄 Processing review {i}/{len(reviews_data)}...")
                 
-                # Parse the review text to get the review object
-                review_text = review_data.get('text', '{}')
-                review_obj = json.loads(review_text)
+                review_obj, embedding = split_review_record(review_data)
                 
                 review_id = review_obj.get('_id') or review_obj.get('id')
                 print(f"📋 Review ID: {review_id}")
@@ -129,8 +140,6 @@ def add_embeddings_to_reviews(config):
                     skipped_count += 1
                     continue
                 
-                # Add embedding from the review data
-                embedding = review_data.get('embedding')
                 if not embedding:
                     print(f"⚠️  Review {review_id} has no embedding, skipping...")
                     skipped_count += 1
@@ -253,6 +262,7 @@ def main():
     print("🎯 Starting review collection sync script using SODA...")
     parser = argparse.ArgumentParser(description="Add embeddings to reviews in the SODA collection.")
     parser.add_argument('--ingest', action='store_true', help='Add embeddings to reviews in SODA collection')
+    parser.add_argument('--file', type=str, default='generated_reviews.json', help='Reviews file written by generate_reviews.py (used with --ingest)')
     parser.add_argument('--query', type=str, help='Query SODA collection for similar reviews')
     parser.add_argument('--display', action='store_true', help='Display reviews from SODA collection without ingesting (default behavior)')
     args = parser.parse_args()
@@ -265,7 +275,7 @@ def main():
 
         if args.ingest:
             print("🔄 Starting ingest mode...")
-            add_embeddings_to_reviews(config)
+            add_embeddings_to_reviews(config, args.file)
         elif args.query:
             print(f"🔍 Starting query mode with query: '{args.query}'")
             review_similarity_search(config, args.query)

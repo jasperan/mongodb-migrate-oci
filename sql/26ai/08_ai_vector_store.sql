@@ -17,7 +17,14 @@
 
 set echo on
 set define on
-define embedding_dim=384
+
+-- keep a dimension the caller already defined; otherwise default to 384
+set termout off
+column embedding_dim new_value embedding_dim noprint
+select null embedding_dim from dual where 1 = 0;
+column embedding_dim_default new_value embedding_dim noprint
+select nvl('&embedding_dim', '384') embedding_dim_default from dual;
+set termout on
 
 begin
   execute immediate 'create table product_embeddings (

@@ -4,6 +4,7 @@ import os
 import yaml
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.yaml')
+PASSWORD_ENV = 'MONGO_PASSWORD'
 
 DUMP_CMD = [
     'mongodump',
@@ -30,9 +31,11 @@ def load_config():
         try:
             data = yaml.safe_load(f)
             user = data.get('user')
-            password = data.get('password')
-            if not user or not password:
-                raise ValueError('user or password missing in config.yaml')
+            password = os.environ.get(PASSWORD_ENV)
+            if not user:
+                raise ValueError('user missing in config.yaml')
+            if not password:
+                raise ValueError(f'set {PASSWORD_ENV} in the environment')
             return user, password
         except Exception as e:
             print(f"Error loading config.yaml: {e}")
@@ -50,13 +53,14 @@ def usage():
     print("""
 Usage: python dumprestore.py [dump|restore]
 
-  dump     - Run mongodump with credentials from config.yaml
-  restore  - Run mongorestore with credentials from config.yaml
+  dump     - Run mongodump as the user in config.yaml
+  restore  - Run mongorestore as the user in config.yaml
 
-config.yaml should be in the same directory, e.g.:
+config.yaml should be in the same directory and hold only the user name:
 
 user: sysdba
-password: REDACTED-PASSWORD
+
+The password is read from the MONGO_PASSWORD environment variable.
 """)
     sys.exit(1)
 

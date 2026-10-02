@@ -1,10 +1,19 @@
 const { MongoClient } = require('mongodb');
 
-const username = 'admin';
-const password = 'REDACTED-PASSWORD';
-const host = 'REDACTED-ADB-TENANT-MERN.adb.uk-london-1.oraclecloudapps.com';
+function requireEnv(name) {
+    const value = process.env[name];
+    if (!value) {
+        console.error(`Set ${name} before running this script (ADB_USER, ADB_PASSWORD, ADB_HOST, optional ADB_DATABASE).`);
+        process.exit(2);
+    }
+    return value;
+}
+
+const username = requireEnv('ADB_USER');
+const password = encodeURIComponent(requireEnv('ADB_PASSWORD'));
+const host = requireEnv('ADB_HOST');
 const port = 27017;
-const databaseName = 'MERN';
+const databaseName = process.env.ADB_DATABASE || 'MERN';
 
 const connectionString = `mongodb://${username}:${password}@${host}:${port}/${databaseName}?authMechanism=PLAIN&authSource=$external&ssl=true&retryWrites=false&loadBalanced=true`;
 

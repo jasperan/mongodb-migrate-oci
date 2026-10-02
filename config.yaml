@@ -1,4 +1,4 @@
 # config.yaml
 source_mongo_uri: "mongodb://localhost:27017/source_db"
-oracle_mongo_uri: "mongodb://oracle_host:27017/oracle_db"
+# the Oracle target URI (credentials included) comes from ORACLE_MONGO_URI
 dump_dir: "dump"

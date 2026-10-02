@@ -204,82 +204,48 @@ class SodaUtils:
     
     def update_document(self, filter_dict, update_dict):
         """
-        Update documents matching the filter criteria
-        
+        Merge update_dict into the first document matching filter_dict.
+
+        The document is replaced by key, so every other document in the
+        collection is left untouched.
+
         Args:
-            filter_dict (dict): SODA filter criteria to match documents
-            update_dict (dict): Fields to update in matching documents
-            
+            filter_dict (dict): SODA filter criteria to match a document
+            update_dict (dict): Fields to set on the matching document
+
         Returns:
-            int: Number of documents updated
+            int: Number of documents updated (0 or 1)
         """
         try:
-            print(f"🔍 Updating document with filter: {filter_dict}")
-            print(f"🔍 Update dict type: {type(update_dict)}")
-            print(f"🔍 Update dict keys: {list(update_dict.keys()) if isinstance(update_dict, dict) else 'Not a dict'}")
-            
-            # For SODA replaceOne, we need to use the key attribute
-            # First find the document to get its key
             documents = self.find_documents(filter_dict)
             if not documents:
                 print(f"⚠️  No documents found with filter: {filter_dict}")
                 return 0
-            
-            # Get the document key from the first matching document
+
             doc = documents[0]
-            doc_key = doc.get('_id')
-            if not doc_key:
-                print(f"⚠️  Document has no _id field")
-                return 0
-            
-            print(f"🔍 Using document key: {doc_key}")
-            
-            # Convert document to JSON serializable format to handle JsonId and other types
-            safe_doc = self.convert_to_json_serializable(doc)
-            
-            # Ensure _id is normalized to hex string
-            if '_id' in safe_doc:
-                safe_doc['_id'] = self.normalize_document_id(safe_doc['_id'])
-                print(f"🔍 Normalized safe_doc _id: {safe_doc['_id']}")
-            
-            # Add embedding to the document
-            safe_doc["embedding"] = embedding
-            print(f"🔍 Added embedding with {len(embedding)} dimensions")
-            
-            # Update the document using the original document key
             original_key = doc.get('_id')
-            print(f"🔍 Updating document with key: {original_key}")
-            
-            # Try delete all and re-insert approach (workaround for JsonId filtering)
-            try:
-                # Delete all documents in the collection
-                print(f"🔍 Deleting all documents in collection...")
-                delete_result = self.collection.find().remove()
-                print(f"🔍 Delete result: {delete_result}")
-                
-                # Insert the updated document with embedding
-                print(f"🔍 Inserting updated document with embedding...")
-                insert_result = self.collection.insertOne(safe_doc)
-                print(f"🔍 Insert result: {insert_result}")
-                
-                result = True
-            except Exception as e:
-                print(f"🔍 Delete all and re-insert approach failed: {e}")
-                raise e
-            
-            # Commit the transaction
+            if not original_key:
+                print("⚠️  Document has no _id field")
+                return 0
+
+            merged = self.convert_to_json_serializable(doc)
+            merged.update(update_dict)
+            merged['_id'] = self.normalize_document_id(original_key)  # the key never changes
+
+            if 'JsonId' in str(type(original_key)):
+                key_string = original_key.hex()
+            else:
+                key_string = str(original_key)
+
+            replaced = self.collection.find().key(key_string).replaceOne(merged)
             self.conn.commit()
-            
-            return 1 if result else 0
-            
+            return 1 if replaced else 0
+
         except Exception as e:
             print(f"❌ Error in update_document: {e}")
-            print(f"🔍 Error type: {type(e).__name__}")
-            import traceback
-            print(f"🔍 Full traceback: {traceback.format_exc()}")
             self.conn.rollback()
             raise
-    
+
     def count_documents(self, filter_dict=None):
         """
         Count documents in the collection

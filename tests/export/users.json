@@ -14,8 +14,8 @@
   {
     "_id": "683e0f3d491d43c4652d6983",
     "email": "member@example.com",
-    "firstName": "Nacho",
-    "lastName": "Martinez",
+    "firstName": "Sample",
+    "lastName": "Member",
     "password": "$2a$10$00000000000000000000000000000000000000000000000000000",
     "merchant": null,
     "provider": "Email",

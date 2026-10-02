@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import yaml
+import os
 import sys
 from pathlib import Path
 
@@ -49,12 +50,15 @@ def main():
 
     config = load_config(config_path)
     source_uri = config["source_mongo_uri"]
-    oracle_uri = config["oracle_mongo_uri"]
+    oracle_uri = os.environ.get("ORACLE_MONGO_URI")
     dump_dir = config.get("dump_dir", "dump")
 
     if args.action == "dump":
         run_mongodump(source_uri, dump_dir)
     elif args.action == "migrate":
+        if not oracle_uri:
+            print("Set ORACLE_MONGO_URI (Oracle Database API for MongoDB connection string, credentials included).")
+            sys.exit(1)
         run_mongorestore(oracle_uri, dump_dir)
 
 if __name__ == "__main__":

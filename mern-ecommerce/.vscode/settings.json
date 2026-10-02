@@ -3,8 +3,5 @@
   "prettier.singleQuote": true,
   "prettier.arrowParens": "avoid",
   "prettier.jsxSingleQuote": true,
-  "prettier.trailingComma": "none",
-  "jumpToAliasFile.alias": {
-    "app": "client/app"
-  }
+  "prettier.trailingComma": "none"
 }

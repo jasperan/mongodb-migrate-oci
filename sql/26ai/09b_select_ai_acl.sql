@@ -9,17 +9,24 @@
 --   @sql/26ai/09b_select_ai_acl.sql
 
 set define on
+set verify off
 set serveroutput on
 
-define mern_llm_region = us-phoenix-1
+-- keep a region the caller already defined; otherwise default it
+set termout off
+column mern_llm_region new_value mern_llm_region noprint
+select null mern_llm_region from dual where 1 = 0;
+column mern_llm_region_default new_value mern_llm_region noprint
+select nvl('&mern_llm_region', 'us-phoenix-1') mern_llm_region_default from dual;
+set termout on
 
 begin
   dbms_network_acl_admin.append_host_ace(
-    host  => 'inference.generativeai.&mern_llm_region.oci.oraclecloud.com',
+    host  => 'inference.generativeai.&mern_llm_region..oci.oraclecloud.com',
     ace   => xs$ace_type(privilege_list => xs$name_list('http'),
                          principal_name => 'MERN26',
                          principal_type => xs_acl.ptype_db));
-  dbms_output.put_line('host ACE present for inference.generativeai.&mern_llm_region.oci.oraclecloud.com');
+  dbms_output.put_line('host ACE present for inference.generativeai.&mern_llm_region..oci.oraclecloud.com');
 end;
 /
 
