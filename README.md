@@ -74,7 +74,7 @@ npm start                 # http://localhost:3000
 # 2. Client ------------------------------------------------------------
 cd ../web
 npm install
-npm run dev               # http://localhost:8080 (proxies /api to :3000)
+npm run dev               # http://localhost:8080 (proxies /api and /socket.io to :3000)
 ```
 
 Seed an administrator on the source database with
@@ -100,8 +100,9 @@ Seed an administrator on the source database with
    (`select banner from v$version` returns
    `Oracle AI Database 26ai Enterprise Edition Release 23.26.3.3.0 - Production`). No application
    changes beyond `MONGO_URI`.
-4. **Validate** — with no writers running: `python scripts/verify_migration.py` compares every
-   document (ids, counts, content hashes), `sql/26ai/02_verify_counts.sql` performs the SQL-side
+4. **Validate** — with no writers running: `pip install -r scripts/requirements.txt`, then
+   `python scripts/verify_migration.py --source <source URI> --target <Oracle MongoDB API URI>`
+   (both required) compares every document (ids, counts, content hashes), `sql/26ai/02_verify_counts.sql` performs the SQL-side
    count check, and `_scratch/e2e` replays 96 API assertions, 27 pages (plus the 8-step member flow)
    and 13 user flows against both backends.
 5. **Extend** — relational views (`04`), duality views (`05`/`06`), JSON validity views (`07`) and
@@ -110,7 +111,8 @@ Seed an administrator on the source database with
 
 Presenter version, in deck order, with timings and fallbacks:
 [`docs/26ai/demo-runbook.md`](docs/26ai/demo-runbook.md). Full details, including the reference
-run's results (204 documents, 12 collections, 12 duality views, 132/132 valid documents):
+run's results (204 documents, 12 collections, 12 duality views; the 132 documents of the four
+collections that have validity views — users, products, orders, carts — all valid):
 [`docs/26ai/migration-guide.md`](docs/26ai/migration-guide.md).
 
 ## Solutions
@@ -121,8 +123,9 @@ run's results (204 documents, 12 collections, 12 duality views, 132/132 valid do
 
 ## Annex: data model
 
-- See [docs/ai-analytics/collections-and-schemas.md](docs/ai-analytics/collections-and-schemas.md)
-  for the collections and document structures (stored as Oracle JSON collections).
+- [docs/mern_collection_examples.json](docs/mern_collection_examples.json) has one sample document per
+  collection; the schemas are the Mongoose models in `mern-ecommerce/server/models/` and the Oracle
+  side is `sql/26ai/generated/duality_ddl/`.
 
 ## Contributing
 

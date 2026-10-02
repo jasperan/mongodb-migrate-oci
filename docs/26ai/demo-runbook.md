@@ -25,7 +25,7 @@ The outputs shown are the real command output from that run.
 
 ## 0. Prerequisites
 
-### 0.1 Services (all local, no containers)
+### 0.1 Services (all local; `docker compose` is covered in the migration guide §9)
 
 | Name | What it serves | Port |
 |---|---|---|
@@ -53,16 +53,30 @@ cd mern-ecommerce/web && API_PROXY_TARGET=http://localhost:3001 npx vite preview
 Verify each one — always on `localhost`, never `127.0.0.1` (see §6.6):
 `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/admin-db/views` → `200`, the same on
 `:3001` (`http://localhost:3001/api/admin-db/views`), and
-`curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/` → `200`.
+`curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/` → `200`; `curl -s http://localhost:3000/api/health`
+→ `{"status":"ok","mongo":"up","oracle":"up"}`.
 
 > **Never export `ORACLE_*` before starting an API.** dotenv does not override a variable that is
-> already in the environment, so a stale exported `ORACLE_PASSWORD` silently wins over `server/.env`
-> and every SQL endpoint answers `ORA-01017: invalid credential`. The two traps that used to need a
+> already in the environment, so a stale exported `ORACLE_APP_PASSWORD` silently wins over `server/.env`
+> and every SQL endpoint answers `ORA-01017: invalid credential`. (The app's Oracle pool reads only
+> `ORACLE_APP_USER`/`ORACLE_APP_PASSWORD`/`ORACLE_CONNECT_STRING`; it no longer falls back to the
+> ADMIN pair `ORACLE_USER`/`ORACLE_PASSWORD`, which are for the `sql/26ai` setup scripts.) The two traps
+> that used to need a
 > scratch launcher are fixed in `server/.env` itself: `ORACLE_CONNECT_STRING` now carries the full TLS
 > descriptor (thin mode cannot resolve a bare service name - `NJS-516`) and `ORACLE_APP_PASSWORD` is
 > quoted, because `#` in an unquoted value survives dotenv but is truncated by Node's `--env-file`
 > parser. Measured: from a shell with no `ORACLE_*` set at all, both commands above come up and all
-> eight `/api/admin-db/*` endpoints answer `200` on `:3000` and on `:3001`.
+> nine `/api/admin-db/*` endpoints answer `200` on `:3000` and on `:3001`.
+
+> **Server environment this runbook relies on** (all documented in `mern-ecommerce/server/.env.example`).
+> `JWT_SECRET` (≥ 32 characters) is required — the API refuses to start without it. Optional:
+> `CORS_ORIGINS` (default `CLIENT_URL`), `TRUST_PROXY` (leave empty when the API is reached directly, as
+> here), `ORACLE_POOL_MAX` (default 6) and `ORACLE_CALL_TIMEOUT_MS` (default 15000). Per-IP rate limits:
+> `RATE_LIMIT_AUTH` (50 / 15 min: sign-in, sign-up, password reset), `RATE_LIMIT_FORMS` (30 / 15 min:
+> contact, newsletter, merchant application) and `RATE_LIMIT_AI` (30 / min: `/api/chat` and `/api/ai/*`);
+> `0` disables a limit and over-budget calls answer `429 {error}`. Scripts that replay many sign-ins or
+> hammer `/api/chat` / `/api/ai/*` (the UAT harnesses) should start the API under test with
+> `RATE_LIMIT_AUTH=0 RATE_LIMIT_FORMS=0 RATE_LIMIT_AI=0`; the read-only traffic pass touches none of them.
 
 > **Only if your runner strips `node` from `PATH`.** A service runner that spawns from another
 > directory on this workstation needs the command wrapped as
@@ -85,7 +99,7 @@ Verify each one — always on `localhost`, never `127.0.0.1` (see §6.6):
 |---|---|
 | Target MongoDB-API URI for `MERN26` | `mern-ecommerce/server/.env` → `MONGO_URI` |
 | `ADMIN` password | `mern-ecommerce/server/.env` → `ORACLE_PASSWORD` |
-| `MERN26` / `MERN26DV` passwords | `mern-ecommerce/server/.env`, `sql/26ai/01_schemas.sql` |
+| `MERN26` / `MERN26DV` passwords | `mern-ecommerce/server/.env`; `sql/26ai/01_schemas.sql` takes them as the substitution variables `mern26_password` / `mern26dv_password` (nothing is stored in the script) |
 | Storefront admin login | `admin@example.com` / `admin123` (`npm run seed:db`) |
 
 ### 0.4 Pre-flight checklist
@@ -170,7 +184,7 @@ Show the two strings side by side (password masked) on slide 10:
 
 ```
 source : mongodb://127.0.0.1:27017/mern_ecommerce
-target : mongodb://MERN26:<password>@REDACTED-ADB-TENANT-MERN.adb.us-phoenix-1.oraclecloudapps.com:27017/mern26
+target : mongodb://MERN26:<password>@<adb-host>:27017/mern26
          ?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true
 ```
 
@@ -334,7 +348,7 @@ UNSUPPORTED / INCOMPATIBLE constructs observed:
 |---|---|
 | Symptom | `GET /api/product/list/search/mug` returned 3 products on MongoDB and **0** on Oracle — the storefront search box looked empty after the cut-over. Nothing errors: the API answers `200` with an empty array |
 | How it surfaces | the workload pass records the `find` filters, the operator review reads them against Oracle's matrix (`$options` is *documented* as supported), and a direct probe of the live API settles it: `{name:{$regex:/mug/, $options:'is'}}` → 0 rows on Oracle / 3 on MongoDB, while `{name:{$regex:/mug/i}}` → 3 on both. The wire shape is visible in `system.profile` (`_scratch/planning/read-filter.js`) |
-| Fix | one line — the flags move onto the pattern: `{ name: { $regex: new RegExp(escapeRegex(name), 'i') }, isActive: true }` (`routes/api/product.js:64`, `escapeRegex` in `server/utils/utils.js`). This is the demo's honest “minimal code change” |
+| Fix | one line — the flags move onto the pattern: `{ name: { $regex: new RegExp(escapeRegex(name), 'i') }, isActive: true }` (`GET /product/list/search/:name` in `routes/api/product.js`, `escapeRegex` in `server/utils/utils.js`). This is the demo's honest “minimal code change” |
 
 Two points worth saying out loud:
 
@@ -368,8 +382,8 @@ Database Tools 100.12.0, mongoose 6.10.0 (driver 4.x), PyMongo 4.18.2 — all ab
 ### 2.6 Application code review — 1 min
 
 Point at the code the profiling just justified: `mern-ecommerce/server/utils/queries.js` holds every
-aggregation pipeline (three `$lookup`s in the MongoDB branch, three `$sql` stages in the Oracle
-branch — line numbers in §4.3), and `server/services/{oracle,vectorSearch,llm,llmChat}.js` hold the
+aggregation pipeline (three `$lookup`s in the MongoDB branch, one `$sql` stage that joins brands,
+reviews and wishlists in the Oracle branch — table in §4.3), and `server/services/{oracle,vectorSearch,llm,llmChat}.js` hold the
 SQL/AI paths.
 
 ---
@@ -387,7 +401,10 @@ The slide has two halves: *source system* (permissions, network access) and *tar
 | **SQL** (what this repo automates) | `sql/26ai/01_schemas.sql` as `ADMIN` | `ORDS.ENABLE_SCHEMA(p_enabled => true, p_schema => 'MERN26', p_url_mapping_type => 'BASE_PATH', p_url_mapping_pattern => 'mern26', p_auto_rest_auth => false)` — the same operation, scripted and idempotent |
 
 ```bash
-bash _scratch/sqlrun.sh mig26-admin sql/26ai/01_schemas.sql
+# the schema passwords come from your shell (same values as in server/.env), never from the repo
+{ echo "define mern26_password = $MERN26_PASSWORD"; echo "define mern26dv_password = $MERN26DV_PASSWORD"
+  cat sql/26ai/01_schemas.sql; } > _scratch/01_schemas_run.sql
+bash _scratch/sqlrun.sh mig26-admin _scratch/01_schemas_run.sql
 ```
 
 The script then grants the schema what the MongoDB API needs
@@ -489,17 +506,19 @@ where MongoDB cannot express the join safely, and it is a one-stage swap.
 
 ### 4.3 Where the app uses it — 1 min
 
-`mern-ecommerce/server/utils/queries.js`, guarded by `process.env.MONGO_URI.includes('loadBalanced')`:
+`mern-ecommerce/server/utils/queries.js`, selected by `ORACLE_API = /loadBalanced/i.test(process.env.MONGO_URI)`:
 
-| Line (MongoDB form / Oracle `$sql`) | MongoDB branch | Oracle branch |
+| Join | MongoDB branch (`mongoJoinStages`) | Oracle branch (`oracleJoinStage`, one `$sql`) |
 |---|---|---|
-| 19–24 / 25–27 | `$lookup` products→brands | `$sql` `json_mergepatch` + `left outer join brands` |
-| 48–53 / 54 | `$lookup` products→reviews | `$sql` … `left outer join reviews` |
-| 165–179 / 184–189 | `$lookup` pipeline with `let` (unsupported on Oracle) | `$sql` … `left outer join wishlists` |
+| products → brands | `$lookup` on `brand` | `left outer join brands` + `json_mergepatch` |
+| products → reviews | `$lookup` + `$filter` on `status: 'Approved'`, then `$sum`/`$size`/`$cond` | `left outer join` of a per-product pre-aggregated subquery (`status = 'Approved'`, `count`/`sum`) |
+| products → wishlists (`isLiked`, signed-in callers only) | `$lookup` pipeline with `let` (unsupported on Oracle) + `$ifNull` → `false` | correlated scalar subquery on `wishlists`, `nvl(…, false)` |
 
-The numbers are the Oracle-branch array, where each MongoDB form is kept as a comment directly above
-the `$sql` stage; the vanilla-MongoDB copy of the whole pipeline is the `:` branch at line 87
-(brands), 113 (reviews) and 200 (wishlists).
+The Oracle branch is one `$sql` stage that does all three joins at once (`oracleJoinStage`); the
+MongoDB branch is three `$lookup`s (`mongoJoinStages`). The backend is picked once at start-up
+(`ORACLE_API`), not per request. `getStoreProductsQuery` puts the raw-field `$match` stages
+(`isActive`, price, name, category, brand) *before* the `$sql` stage, because a `$sql` stage sees only
+the pipeline's original collection as `input`.
 
 Everything else in the pipelines (`$match`, `$project`, `$sort`, `$skip`, `$limit`, `$unwind`,
 `$addFields`, `$sum`, `$size`, `$cond`, `$divide`) is used unchanged on both backends — that is the
@@ -782,7 +801,7 @@ The only change: `mern-ecommerce/server/.env`.
 
 ```diff
 - MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
-+ MONGO_URI=mongodb://MERN26:<password>@REDACTED-ADB-TENANT-MERN.adb.us-phoenix-1.oraclecloudapps.com:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
++ MONGO_URI=mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
 ```
 
 `loadBalanced=true` is what also flips `server/utils/queries.js` onto the `$sql` branch.
@@ -795,7 +814,7 @@ The masked before/after pair used on stage is captured verbatim in
 == before (local MongoDB) ==
 MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
 == after (Oracle Database API for MongoDB) ==
-MONGO_URI=mongodb://MERN26:<password>@REDACTED-ADB-TENANT-MERN.adb.us-phoenix-1.oraclecloudapps.com:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
+MONGO_URI=mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
 ```
 
 The storefront never sees the password: the URI lives in `server/.env` (gitignored) and the app only
@@ -998,8 +1017,8 @@ Fallbacks when a live step is slow:
 | `mongorestore` | large restore | narrate over the slide; `_scratch/dryrun/05-restore.txt` is the recorded output |
 | `verify_migration.py` | > 30 s | show `docs/26ai/migration-report.json` (reference 204/204) |
 | Client cold start | first load compiles | pre-warm both origins before the talk (`curl -s :8090 >/dev/null`, `:8080`) |
-| AI chat | provider key missing | `/api/ai/similar` needs no key (in-database ONNX model); Select AI/chat need `OCI_GENAI_API_KEY` |
-| Any dashboard panel empty | API not restarted | `curl -s :3000/api/admin-db/migration-status` to isolate |
+| AI chat | provider key missing | `/api/ai/similar` needs no key (in-database ONNX model); Select AI/chat need `OCI_GENAI_API_KEY` (`/api/chat` answers `503 {error, hint}` until one is set). Rate limit: `/api/chat` and `/api/ai/*` share `RATE_LIMIT_AI` (30 per minute per IP) — a `429 {error}` during a scripted run means the budget is spent; wait a minute or start the API with `RATE_LIMIT_AI=0` |
+| Any dashboard panel empty | API not restarted | `curl -s http://localhost:3000/api/admin-db/migration-status` to isolate; `curl -s http://localhost:3000/api/health` shows `{status, mongo, oracle}` |
 
 ---
 
@@ -1010,7 +1029,7 @@ Fallbacks when a live step is slow:
 | JSON collection tables with ACID transactions | `/support/admin-db` → *JSON collections*, counts on both sides |
 | JSON relational duality | *Duality views* section (12 views, one per collection) |
 | Native tools or GoldenGate | `mongodump` / `mongorestore` in §5; GoldenGate named as the CDC option |
-| Minimal code changes | the `MONGO_URI` diff (§6.4) + three `$sql` stages (§4.3) |
+| Minimal code changes | the `MONGO_URI` diff (§6.4) + one `$sql` join stage (§4.3) |
 | More than JSON: analytics, ML, spatial, graph, text | relational views, `DBMS_JSON_SCHEMA` validity, `VECTOR_DISTANCE` search, Select AI — all on `/support/admin-db` and `/support/llm-chat` |
 | The migration is repeatable, and the app keeps working | §5 runs `--drop` into the live target and §6 shows `verify_migration` PASS + 96/96 API assertions + 27/27 pages + 13/13 flows on the same session; the only artefact the two sides disagree on is the Oracle-only `PRODUCTS_ENRICHED` view (§6.5) |
 
@@ -1060,7 +1079,7 @@ a shell with no `ORACLE_*` exported; the per-step log is `_scratch/dryrun/timing
 | Dashboard “Migration summary” tiles differ from the live counts | the tiles read `docs/26ai/migration-report.json`, not the live databases | re-run `verify_migration.py` on a quiet system |
 | `/api/admin-db/duality-views` shows `pending > 0` | duality views are a point-in-time copy — `IMPORT_ALL` ran before the last write | re-run `sql/26ai/06_import_duality_views.sql` |
 | Web bundle looks stale on `:8080`/`:8090` (`vite preview` serves `dist/`) | the bundle was rebuilt by someone else mid-run | `npm run build` in `mern-ecommerce/web`, then reload |
-| Local API returns `ORA-01017: invalid credential` for `/api/admin-db/*` | something in the environment overrode `server/.env`: dotenv never replaces an exported variable (a stale `ORACLE_PASSWORD`/`ORACLE_APP_PASSWORD` in the shell wins over the file), and `node --env-file=server/.env` truncates an unquoted value at `#` (`abc#123` → `abc`) | fixed in `server/.env` — the `#` value is quoted and `ORACLE_CONNECT_STRING` is the full TLS descriptor. Start the API with **no** `ORACLE_*` exported: `cd mern-ecommerce/server && npm start`. Diagnose with `node -e "require('dotenv').config();console.log(process.env.ORACLE_APP_PASSWORD)"` |
+| Local API returns `ORA-01017: invalid credential` for `/api/admin-db/*` | something in the environment overrode `server/.env`: dotenv never replaces an exported variable (a stale `ORACLE_APP_USER`/`ORACLE_APP_PASSWORD` in the shell wins over the file), and `node --env-file=server/.env` truncates an unquoted value at `#` (`abc#123` → `abc`) | fixed in `server/.env` — the `#` value is quoted and `ORACLE_CONNECT_STRING` is the full TLS descriptor. Start the API with **no** `ORACLE_*` exported: `cd mern-ecommerce/server && npm start`. Diagnose without printing the secret: `node -e "require('dotenv').config();console.log((process.env.ORACLE_APP_PASSWORD\|\|'').length)"`. The app pool never falls back to `ORACLE_USER`/`ORACLE_PASSWORD` (the ADMIN setup credentials), so a missing `ORACLE_APP_*` disables SQL access instead of connecting as ADMIN |
 | `npm start` fails instantly: `exec: node: not found`, or `Could not read package.json … H:\github\package.json` | a runner that spawns commands from another directory with no `node` on `PATH` | wrap it as in §0.1 (`bash -c 'cd mern-ecommerce/server && export PATH="/c/Program Files/nodejs:$PATH" && exec npm start'`) — a presenter's own terminal needs none of that |
 | `curl http://127.0.0.1:8080/` → `000` although the client is up | `vite preview` binds IPv6 `::1` only | probe `localhost`; the browser tabs are `localhost` too (§0.4) |
 | `api-e2e` hangs with no output; `curl 127.0.0.1:3001/api/ai/status` → `404`/`000` while `localhost:3001` → `200` | VS Code port-forwarding bound `127.0.0.1:3000/3001/8080/8090` itself | run the harnesses on `--base http://localhost:<port>/api` (§6.6); the `--db` URI stays on `127.0.0.1:27017` |

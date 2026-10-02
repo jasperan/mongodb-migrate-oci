@@ -101,7 +101,7 @@ construct with real restrictions is `$lookup`:
 > field that occurs more than once in an input document, then an error is raised.
 
 That is exactly why the migrated code paths in `server/utils/queries.js` replace the three `$lookup`
-stages with `$sql` (see §4.1) — the application's `$lookup` uses `let` in the wishlist pipeline, and
+stages with a single `$sql` stage (see §3.4) — the application's `$lookup` uses `let` in the wishlist pipeline, and
 `localField` values are optional on products.
 
 Two more findings worth carrying into a migration plan:
@@ -148,9 +148,9 @@ this workstation runs:
 ### 1.5 Application code review
 
 The workload assessment points at the code it justifies: `server/utils/queries.js` holds every
-aggregation pipeline (three `$lookup`s in the MongoDB branch, three `$sql` stages in the Oracle
+aggregation pipeline (three `$lookup`s in the MongoDB branch, one `$sql` stage in the Oracle
 branch), `server/services/{oracle,vectorSearch,llm,llmChat}.js` hold the SQL and AI paths, and the
-only deployment-time change is the connection string (§4.2).
+only deployment-time change is the connection string (§4.3).
 
 ### 1.6 Clean up after planning
 
@@ -183,7 +183,9 @@ sql -name mig26-dv      # MERN26DV
 ```
 
 ```sql
--- run as ADMIN
+-- run as ADMIN; the script takes the two schema passwords as substitution variables
+accept mern26_password   char hide prompt 'MERN26 password: '
+accept mern26dv_password char hide prompt 'MERN26DV password: '
 @sql/26ai/01_schemas.sql              -- creates MERN26 + MERN26DV, enables ORDS for both
 ```
 
@@ -216,7 +218,7 @@ That page is also where `authMechanism=PLAIN` / `authSource=$external` / `tls=tr
 
 ```bash
 cd mern-ecommerce/server
-# .env
+# .env  (JWT_SECRET is also required - see §9)
 MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
 npm install && npm run seed:db admin@example.com admin123
 npm start
@@ -327,17 +329,19 @@ is the *only* stage in a pipeline and has no starting collection; once it consum
 be a `SELECT` projecting a single JSON column — see
 [Aggregation Pipelines](https://docs.oracle.com/en/database/oracle/mongodb-api/mgapi/pipelines.html)).
 
-Where the application uses it — `mern-ecommerce/server/utils/queries.js`, guarded by
-`process.env.MONGO_URI.includes('loadBalanced')`:
+Where the application uses it — `mern-ecommerce/server/utils/queries.js`; `ORACLE_API =
+/loadBalanced/i.test(process.env.MONGO_URI)` picks the branch once at start-up:
 
-| Lines (MongoDB form / Oracle `$sql`) | MongoDB | Oracle |
+| Join | MongoDB (`mongoJoinStages`) | Oracle (`oracleJoinStage`, one `$sql` stage) |
 |---|---|---|
-| 19–24 / 25–27 | `$lookup` products → brands | `$sql` `json_mergepatch` + `left outer join brands` |
-| 48–53 / 54 | `$lookup` products → reviews | `$sql` … `left outer join reviews` |
-| 165–179 / 184–189 | `$lookup` pipeline with `let` | `$sql` … `left outer join wishlists` |
+| products → brands | `$lookup` | `json_mergepatch` + `left outer join brands` |
+| products → reviews (Approved only) | `$lookup` + `$filter`, `$sum`/`$size`/`$cond` | `left outer join` of a per-product pre-aggregated subquery |
+| products → wishlists (`isLiked`, signed-in callers) | `$lookup` pipeline with `let` + `$ifNull` → `false` | correlated scalar subquery, `nvl(…, false)` |
 
-The MongoDB branches use `$lookup`; the Oracle branches use `$sql` because the API's `$lookup`
-forbids `let` and errors when `localField` is an array or is missing from any input document (§1.3).
+The MongoDB branch uses `$lookup`; the Oracle branch uses a single `$sql` stage because the API's
+`$lookup` forbids `let` and errors when `localField` is an array or is missing from any input document
+(§1.3). A `$sql` stage sees only the pipeline's original collection, so `getStoreProductsQuery` places the
+raw-field `$match` stages (active, price, name, category, brand) before it.
 
 ### 3.5 Alternatives that this migration does not demo
 
@@ -363,8 +367,13 @@ traffic, drop the planning artefacts (§1.6), then compare.
 python scripts/verify_migration.py \
   --source "mongodb://127.0.0.1:27017/mern_ecommerce" \
   --target "mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&tls=true" \
-  --report docs/26ai/migration-report.json
+  --report _scratch/out/migration-report.json
 ```
+
+`--source` and `--target` are both required and `--report` has no default, so a failing run can never
+overwrite the committed reference; after a PASS on a quiet system, copy the report over
+`docs/26ai/migration-report.json` (the dashboard tiles read that file). The report is written
+atomically (temp file + rename).
 
 The script compares, per collection: the `_id` sets, document counts and a canonical hash of every
 document (numbers by value, dates/decimals/binary/ObjectId normalised). Result of the reference run:
@@ -395,13 +404,13 @@ The deck's *“update application endpoint”* is a one-line change — and the 
 ```diff
 # mern-ecommerce/server/.env
 - MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
-+ MONGO_URI=mongodb://MERN26:<password>@REDACTED-ADB-TENANT-MERN.adb.us-phoenix-1.oraclecloudapps.com:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
++ MONGO_URI=mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true&tlsAllowInvalidCertificates=true
 ```
 
-`loadBalanced=true` is also the switch that moves `server/utils/queries.js` onto its `$sql` branches
+`loadBalanced=true` is also the switch that moves `server/utils/queries.js` onto its `$sql` branch
 (§3.4), so the connection string is both the endpoint and the feature flag. Restart the API
 (`mern-server`) afterwards. The only other environment inputs are the SQL/AI ones
-(`ORACLE_*`, `LLM_*`, `SELECT_AI_PROFILE`) documented in section 8.
+(`ORACLE_*`, `LLM_*`, `SELECT_AI_PROFILE`) documented in section 8 and §9.
 
 ### 4.4 User acceptance testing
 
@@ -418,7 +427,7 @@ time as `verify_migration.py` (§4 of this guide).
 
 Two differences between the backends are expected and documented in `_scratch/e2e/README.md`: the
 Oracle side lists `PRODUCTS_ENRICHED` (the JSON collection view, so 13 collections against 12) and
-`isLiked` is `false` rather than absent when a user has no wishlist row.
+`isLiked` is `false` (not absent) for signed-in callers on both backends.
 
 ---
 
@@ -482,7 +491,8 @@ A JSON schema is inferred for every collection from its duality view
 (`DBMS_JSON_SCHEMA.DESCRIBE`), stored in `JSON_SCHEMAS`, and each document is validated with
 `DBMS_JSON_SCHEMA.IS_VALID`. `DOCUMENT_VALIDITY` reports per-collection totals; the
 `*_VALIDITY` views list offending documents with a `VALIDATE_REPORT`. Reference run: **132/132
-documents valid, 0 invalid**.
+documents valid, 0 invalid** (132 = the 7 + 112 + 5 + 8 documents of those four collections; the other
+eight collections have no validity view, so the 204 migrated documents are not all schema-checked).
 
 ## 8. Extend: AI inside the database
 
@@ -543,10 +553,12 @@ node scripts/embed_catalog.js
 
 | Endpoint | Backing feature |
 |---|---|
-| `GET /api/ai/status` | configuration report: `{llm:{configured,provider,baseUrl,model,embeddingModel,hint}, embeddings:{inDatabaseModel,dimension,table,remoteModel}, selectAi:{profile,configured}}` — live values `MERN_LLM`, `xai.grok-4.3`, `ALL_MINILM_L12_V2`/384/`PRODUCT_EMBEDDINGS` |
-| `POST /api/ai/similar` | `VECTOR_DISTANCE` over `PRODUCT_EMBEDDINGS` (in-database ranking) |
-| `POST /api/ai/ask` | Oracle Select AI (`DBMS_CLOUD_AI.GENERATE`) natural-language SQL |
-| `POST /api/chat` | RAG: in-database retrieval + OpenAI-compatible chat model |
+| `GET /api/ai/status` | configuration report: `{llm:{configured,provider,model,embeddingModel,hint}, embeddings:{inDatabaseModel,dimension,table,remoteModel}, selectAi:{profile,configured}}` — live values `MERN_LLM`, `xai.grok-4.3`, `ALL_MINILM_L12_V2`/384/`PRODUCT_EMBEDDINGS` |
+| `POST /api/ai/similar` `{text ≤ 500 chars, topK?}` (public) | `VECTOR_DISTANCE` over `PRODUCT_EMBEDDINGS` (in-database ranking) → `{query, source, results:[{id,name,score}]}`; `400` for a non-string/over-long `text` or non-numeric `topK` |
+| `POST /api/ai/ask` `{question}` (admin) | Oracle Select AI (`DBMS_CLOUD_AI.GENERATE`) natural-language SQL, run only if it is one read-only `SELECT` → `{question, provider, profile, sql, rows\|null, truncated, skipped?, error?}`; `503 {error, hint}` without `SELECT_AI_PROFILE` |
+| `POST /api/chat` `{message 1..500, history? ≤ 6 turns}` (public) | RAG: in-database retrieval + OpenAI-compatible chat model → `{response, model, retrieval:{source:'in-database:<model>'\|'remote:<model>'\|'keyword-fallback', documents:[{id,name,slug,price,brand,category,inStock}]}}`; `400` invalid, `503 {error, hint}` when unconfigured |
+
+`/api/chat` and `/api/ai/*` (including `/api/ai/status`) share the `RATE_LIMIT_AI` budget (30 per minute per IP, `429 {error}` beyond it).
 
 Configure the provider in `mern-ecommerce/server/.env`. OCI Generative AI is the default workshop
 setup — `LLM_PROVIDER=oci`, `OCI_GENAI_ENDPOINT` (a bare region URL; the client appends
@@ -564,14 +576,41 @@ embedding model is configured, and reports which path it used.
 
 ```bash
 cd mern-ecommerce/server && npm install && npm start     # API on :3000, MongoDB API → MERN26
-cd mern-ecommerce/web && npm install && npm run dev      # client on :8080
+cd mern-ecommerce/web && npm install && npm run dev      # client on :8080 (proxies /api and /socket.io to :3000)
 ```
 
 No application code changes were needed for the migration itself: the only difference is the
 connection string (`MONGO_URI`). The aggregation pipelines used by the storefront run through the
-Oracle MongoDB API; stages that MongoDB implements with `$lookup` are expressed with the supported
-`$sql` operator where the Oracle implementation needs it (see
+Oracle MongoDB API; the product list joins (brand, Approved-review aggregates, `isLiked`) are
+expressed as one supported `$sql` stage where the Oracle implementation needs it (see
 `server/utils/queries.js` and the complex-migration notes).
+
+Server environment (`mern-ecommerce/server/.env.example` lists every variable):
+
+| Variable | Meaning |
+|---|---|
+| `JWT_SECRET` | **required**, ≥ 32 characters; the API refuses to start without it |
+| `CORS_ORIGINS` | comma-separated browser origins for CORS and the support-chat socket (default `CLIENT_URL`) |
+| `TRUST_PROXY` | reverse proxies in front of the API (`1` behind `web/nginx.conf`); leave empty when reached directly. The rate limiters count the address derived from it |
+| `RATE_LIMIT_AUTH` / `RATE_LIMIT_FORMS` / `RATE_LIMIT_AI` | per-IP budgets: 50 per 15 min (sign-in, sign-up, password reset), 30 per 15 min (contact, newsletter, merchant application), 30 per minute (`/api/chat` and `/api/ai/*`); `0` disables; over budget → `429 {error}`. Disable them for scripts that replay many sign-ins or hammer `/api/chat` / `/api/ai/*` |
+| `ORACLE_APP_USER`, `ORACLE_APP_PASSWORD`, `ORACLE_CONNECT_STRING` | the application's SQL pool (schema owner). It does **not** fall back to `ORACLE_USER`/`ORACLE_PASSWORD`: those are the ADMIN credentials for the `sql/26ai` setup scripts only, and a missing `ORACLE_APP_*` disables SQL access |
+| `ORACLE_POOL_MAX`, `ORACLE_CALL_TIMEOUT_MS` | pool size (default 6) and per-statement limit in ms (default 15000) |
+
+Newsletter sign-up and forgot-password answer `503` while `MAILCHIMP_*` / `MAILGUN_*` are unset.
+
+### 9.1 Docker Compose (local MongoDB only)
+
+`mern-ecommerce/docker-compose.yml` runs the client, the API and a local MongoDB (`mongo:7`); it does not
+reach Oracle. `JWT_SECRET` and `ADMIN_PASSWORD` must be in the environment (compose aborts otherwise);
+`ADMIN_EMAIL` defaults to `admin@example.com`. The API port is **not** published — only the web
+container's `8080` is, and nginx forwards `/api` and `/socket.io` to the API:
+
+```bash
+cd mern-ecommerce
+export JWT_SECRET=$(openssl rand -hex 32) ADMIN_PASSWORD='<choose one>'
+docker compose up --build
+curl -s http://localhost:8080/api/health        # {"status":"ok","mongo":"up","oracle":"not-configured"}
+```
 
 ---
 
@@ -603,7 +642,7 @@ Checks that pass without any provider key (all executed against the live instanc
 verify_migration.py            -> PASS  source and target documents match (204/204)
 sql/26ai/02_verify_counts.sql  -> 12/12 collections MATCH
 DBMS_JSON_DUALITY.IMPORT_ALL   -> 12/12 views, 0 error-log rows
-DBMS_JSON_SCHEMA.IS_VALID      -> 132/132 documents valid
+DBMS_JSON_SCHEMA.IS_VALID      -> 132/132 documents valid (users, products, orders, carts)
 POST /api/ai/similar           -> 200, in-database ranking (no API key)
 POST /api/chat                 -> retrieval from Oracle (in-database:ALL_MINILM_L12_V2),
                                   generation reports the missing LLM_* settings

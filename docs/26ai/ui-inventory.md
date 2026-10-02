@@ -1,9 +1,232 @@
-# Legacy Client UI Inventory — `mern-ecommerce/client/app`
+# UI Inventory — current web app (`mern-ecommerce/web`) and the legacy client it replaced
 
-> **Historical record.** This inventory drove the React 19 rewrite in `mern-ecommerce/web`
-> (every container/component below is ported or deliberately dropped, see §"Dropped").
-> The legacy `client/` tree was retired at cutover and no longer exists in the repository,
-> so the `client/app/**` paths cited here refer to the pre-cutover revision.
+> **Part A** documents the UI that ships today: `mern-ecommerce/web` (React 19, Vite 8, Tailwind 4,
+> React Router 7, Redux Toolkit + RTK Query). **Part B** is the historical inventory of the legacy React 16
+> client (`mern-ecommerce/client/app`) that drove the rewrite; every container/component in it is ported or
+> deliberately dropped. The legacy `client/` tree was retired at cutover and no longer exists in the
+> repository, so the `client/app/**` paths cited in Part B refer to the pre-cutover revision. Where Part B
+> describes behaviour the current stack replaced (cart/order creation, unauthenticated routes), it says so
+> and points back to Part A.
+
+# Part A — Current UI (`mern-ecommerce/web/src`)
+
+## A.1 Foundations
+
+| Concern | Current behaviour |
+|---|---|
+| Router | `createBrowserRouter` in `routes.jsx`: one `Layout` route with `errorElement: <RouteError />`; every page except `Home` and `RouteError` is `React.lazy` behind `Suspense` (`withSuspense`) |
+| State | `app/store.js` registers `api` (RTK Query), `auth`, `cart`, `ui`; endpoint slices live in `features/*/…Api.js` and are registered by `features/index.js`. **There is no `features/cart/cartApi.js`**: the bag is a plain slice and checkout is an order mutation |
+| API base | `VITE_API_URL` or `/api` (`app/api.js`); Vite dev and `vite preview` proxy both `/api` and `/socket.io` to `API_PROXY_TARGET` (default `http://localhost:3000`); `nginx.conf` does the same in the container |
+| Error handling | `lib/apiError.js` (`apiErrorMessage`, `describeApiError`, `isUnauthorized`) reads the API's JSON `{ error, … }` body (and passport's plain-text 401) |
+| Fonts | Self-hosted: `@fontsource-variable/inter` and `@fontsource-variable/space-grotesk` imported in `main.jsx`; no Google Fonts request |
+| Images | Product photos are `public/products/*.jpg` resolved by `lib/productImages.js`; cards, bag lines and category tiles load the 640 px WebP rendition via `thumbUrl()` (`/products/x.jpg` → `/products/thumbs/x.webp`) and fall back to the full JPG, then a gradient. The product page gallery uses the full JPGs. Regenerate thumbnails with `npm run images:thumbs` (`scripts/build-thumbnails.mjs`, uses `sharp`) |
+| Class merging | `lib/cn.js` (`clsx` + `tailwind-merge`) |
+
+### A.1.1 Session handling
+
+| Concern | Behaviour |
+|---|---|
+| Storage | `localStorage['mern26.auth']` = `{ token, user }` (`features/auth/authSlice.js`); the token is the server's `Bearer <jwt>` string and is sent verbatim as the `authorization` header (`prepareHeaders` in `app/api.js`) |
+| Startup | `main.jsx` dispatches `GET /user/me` (`forceRefetch`) whenever a stored token exists, so a stale role or account is not trusted; `DashboardLayout` re-reads the profile and `profileReceived` replaces `merchant` (null for non-merchants) |
+| 401 | `app/api.js` base query: a 401 on a request that **carried a token** dispatches `loggedOut()` plus one toast `Your session has expired. Please sign in again.` (the first 401 clears the token, so concurrent 401s toast once; `toastShown` also drops a message that is already on screen, so the failing caller's own error toast does not repeat it); a wrong password on `POST /auth/login` is a 401 without a token and does not trigger it |
+| Cache reset | `app/store.js` listener middleware: on `loggedOut` it waits one macrotask (so the 401 request that triggered it settles instead of rejecting with `Aborted`) and then dispatches `api.util.resetApiState()`, so orders, addresses and wishlists never leak to the next account on the tab |
+| Sign-out | Dashboard button: `loggedOut`, toast `You have signed out!`, navigate `/login`. Header menu: toast `Signed out`, navigate `/`. There is no logout endpoint (tokens simply expire); the Security page says other devices stay signed in |
+| Route guard | `components/auth/RequireAuth.jsx`: no token → `/login` with `state.from` = full path + search + hash (Login and Register honour it); signed in without the required role → toast `You do not have access to that page.` and redirect to `/dashboard` |
+| OAuth landing | `pages/auth/AuthSuccess.jsx` reads `?token=` with `useSearchParams`, stores the credentials and goes to `/dashboard`, where the profile request validates them (a bad token is logged out by the 401 rule); a missing token shows an error page |
+
+## A.2 Route table (`routes.jsx`)
+
+| Path | Page | Guard |
+|---|---|---|
+| `/` | `Home` | public |
+| `/shop` | `Shop` (all filters are URL query parameters, §A.3.1) | public |
+| `/product/:slug` | `Product` | public |
+| `/brands` | `Brands` (cards link to `/shop?brand=<slug>`) | public |
+| `/sell`, `/contact` | `Sell`, `Contact` | public |
+| `/cart`, `/checkout` | `Cart`, `Checkout` (`Checkout` redirects guests to `/login` with `from: '/checkout'`) | public route / session required inside the page |
+| `/order/success/:id`, `/order/:id` | `OrderSuccess`, `OrderDetail` | public routes; the API scopes order reads to the owner (404 for anyone else) |
+| `/login`, `/register`, `/forgot-password`, `/reset-password/:token`, `/auth/success`, `/merchant-signup/:token` | `pages/auth/*` | public |
+| `/support/llm-chat` | `pages/support/LlmChat` (AI assistant) | public |
+| `/support/admin-db` | `pages/support/AdminDb` (database showcase) | public |
+| `/support` | `pages/support/Support` (socket chat) | `RequireAuth` |
+| `/dashboard` (+ `security`, `address`, `orders`, `wishlist`) | `DashboardLayout` + `Overview`, `Security`, `Addresses`, `Orders`, `Wishlist` | `RequireAuth` |
+| `/dashboard/product`, `/dashboard/brand` | `Products`, `Brands` | `RequireAuth roles=[ADMIN, MERCHANT]` |
+| `/dashboard/category`, `/dashboard/users`, `/dashboard/merchant`, `/dashboard/review` | `Categories`, `Users`, `Merchants`, `Reviews` | `RequireAuth roles=[ADMIN]` |
+| `/404` and `*` | `NotFound` | public |
+
+The legacy `/shop/category/:slug` and `/shop/brand/:slug` routes, `/dashboard/orders/customers` and the
+`/dashboard/address/{add,edit/:id}` sub-routes do not exist any more (category/brand are query parameters,
+the admin orders view is a tab, address add/edit is a modal on one page). `RouteError` is the root error
+element (below); `NotFound` handles unknown paths.
+
+## A.3 Storefront
+
+### A.3.1 Shop (`pages/Shop.jsx`) — URL filters and mobile filter sheet
+
+State lives in the query string, so every filter is linkable and survives reload and back/forward.
+
+| Query parameter | Meaning | Sent to `GET /api/product/list` as |
+|---|---|---|
+| `q` | free-text search (header search submits `/shop?q=<term>`) | `name` |
+| `category`, `brand` | category / brand **slug** (header category bar, home tiles, brand cards, dashboard links use `/shop?category=<slug>` / `/shop?brand=<slug>`) | `category`, `brand` |
+| `min`, `max` | optional price bounds (non-negative numbers; either side may be absent) | `min`, `max` |
+| `rating` | minimum average rating, floored and clamped to 0–5 | `rating` (0 = any) |
+| `sort` | `newest` (default, omitted from the URL), `price-desc`, `price-asc`, `rating`, `name` (`components/store/SortSelect.jsx`) | `sortOrder` JSON: `{created:-1}`, `{price:-1}`, `{price:1}`, `{averageRating:-1}`, `{name:1}` |
+| `page` | 1-based page; any change other than paging resets it | `page` (`PAGE_SIZE` 12 → `limit`) |
+
+* Header text `a–b of N products` and the pager follow the server's `currentPage`: an out-of-range `?page=` is clamped by the API and replaced in the URL; active-filter chips (category, brand, price, rating, search) each with a clear
+  button, plus `Clear all`.
+* An unknown `category`/`brand` slug (checked against `GET /category/list` and `GET /brand/list`) renders
+  `Category not found` / `Brand not found` and skips the product request (the API also returns an empty page for an unknown slug).
+* **Desktop**: sticky `Filters` column (price presets and min/max inputs committed on blur/Enter, rating
+  options, category and brand selects; `categoryLabels` disambiguates categories that share a name).
+* **Below `lg`**: a `Filters (n)` button opens `FilterSheet` — a bottom-sheet dialog (`useDialog`, portal) holding the same
+  `Filters` in `bare` mode, with footer buttons `Clear all` and `Show N products`.
+* States: card skeletons while loading, `The products did not load` + Retry on error, `No products match` + `Clear all filters` when empty.
+* `isLiked`, `averageRating` (Approved reviews only) and `totalReviews` come from the list response.
+
+### A.3.2 Product page (`pages/Product.jsx`)
+
+`GET /product/item/:slug` (no rating fields), reviews from `GET /review/:slug` (Approved only; the summary is computed in
+`components/store/ReviewList.jsx#reviewStats`). `ReviewForm` posts `POST /review/add`; the review is queued as
+`Waiting Approval` and the form says so. Add-to-bag stores the product's `quantity` as the line's `stock`;
+the wishlist heart posts `POST /wishlist { product, isLiked }` (guests are sent to sign in).
+
+### A.3.3 Bag: stock clamp and revalidation notices
+
+* `features/cart/cartSlice.js` persists lines in `localStorage['mern26.cart']`. Each line carries
+  `product, name, slug, imageUrl, brand, quantity, price, taxable, stock` plus derived `totalPrice/totalTax`.
+* **Clamp**: `lineLimit(item)` = `min(stock, 99)` (99 when stock is unknown, never below 1); `itemAdded`,
+  `itemQuantityChanged` and `cartLinesSynced` all clamp the quantity, and `QuantityStepper` / the drawer disable `+` at the limit.
+* **Revalidation**: `features/cart/useRevalidateCart.js`, run once when `Cart` or `Checkout` mounts, re-fetches every line's
+  product (`GET /product/item/:slug`, forced) and dispatches `cartLinesSynced({ updates, removed })`:
+  a 404 (inactive product or deactivated brand) or an inactive/zero-stock product removes the line; lower stock lowers
+  the quantity; a changed price updates the line. Each correction yields one sentence
+  (`… was removed from your bag.`, `Only N left of …; your quantity was lowered to N.`, `The price of … changed from $a to $b.`)
+  rendered by `components/store/BagNotices.jsx` (`role="status"`, dismissible). Any other failure keeps the line.
+* Totals are a preview: pre-tax line totals, `TAX_RATE` (5 % on taxable lines) and a `Shipping: Free` row are display-only;
+  the server re-prices every line.
+* The header shows the pre-tax subtotal and `aria-label="Open bag, N items"`; `CartDrawer` is a dialog (`useDialog`).
+
+### A.3.4 Checkout (`pages/Checkout.jsx`)
+
+1. Guests are redirected to `/login`; an empty bag shows an empty state; `useRevalidateCart` runs first and `Place order` is disabled while it checks.
+2. The shopper picks a saved address (`GET /address`) or adds one with `components/account/AddressForm.jsx`
+   (`POST /address/add`); the default address (else the first) is preselected.
+3. `Place order` calls `useCheckoutMutation` → **`POST /api/order/checkout`** with `{ products: [{ product, quantity }] }` only
+   (ids and quantities; prices come from the database, stock is reserved per line and rolled back on failure). **No cart document is created
+   and no `POST /order/add` is made at checkout**; the chosen address is a UI step and is not part of the request body.
+   An `inFlight` ref blocks double submits.
+4. Success: `cartCleared`, success toast, `navigate('/order/success/<order._id>', { replace: true })`.
+5. Errors: `409 INSUFFICIENT_STOCK { product, available }` lowers the line to `available` (or removes it at 0) and appends
+   `We lowered the quantity in your bag.`; `409 PRODUCT_UNAVAILABLE { product }` removes the line; `400 INVALID_CART` and other errors show the server message
+   in the page alert and a toast. The bag is untouched on any failure that is not a stock/availability correction.
+
+## A.4 Dashboard (`pages/dashboard/*`)
+
+### A.4.1 Navigation (`DashboardLayout.jsx`)
+
+| Group | Links | Roles |
+|---|---|---|
+| Account | `/dashboard` (Account details), `/dashboard/security`, `/dashboard/address`, `/dashboard/orders`, `/dashboard/wishlist` | all signed-in users (Security is shown for every provider; external-provider accounts get an explanation instead of the form) |
+| Manage | Products, Categories, Brands, Users, Merchants, Reviews | `ROLE ADMIN` |
+| Manage | Brand, Products | `ROLE MERCHANT` (the "merchant nav": no Categories, Users, Merchants or Reviews) |
+| Help | `/support` | all |
+
+* **Disabled merchant** (`role === 'ROLE MERCHANT' && user.merchant.isActive === false`): the Manage group is removed, a
+  `Merchant account disabled.` notice (`DisabledMerchantNotice`) is shown under the nav, and visiting `/dashboard/product` or `/dashboard/brand`
+  shows the same notice in the content area. Orders, addresses and wishlist keep working; the API answers 403 to a disabled merchant on management routes.
+* `/dashboard/review`, `/dashboard/category`, `/dashboard/users`, `/dashboard/merchant` are admin-only (a merchant or member is redirected to `/dashboard` with a toast).
+* Below `lg` the nav collapses into a disclosure button (`aria-expanded`, `aria-controls="dashboard-nav"`).
+
+### A.4.2 Pages
+
+| Page | API used | Notes |
+|---|---|---|
+| `Overview` | `GET /user/me`, `PUT /user { profile }` (first name, last name, phone), plus `GET /order/me`, `GET /wishlist`, `GET /address` for the summary counts | account details form and summary |
+| `Security` | `POST /auth/reset` (`password` = current, `confirmPassword` = new) | signs out on this device after the change |
+| `Addresses` | `GET /address`, `POST /address/add`, `PUT /address/:id`, `DELETE /address/delete/:id` | one page; add/edit in a `Modal` hosting `AddressForm`, delete confirmed in a second `Modal` |
+| `Orders` | `GET /order/me`, `GET /order`, `GET /order/search`, `GET /order/:id`, `DELETE /order/cancel/:id`, `PUT /order/status/item/:itemId` | see A.4.3 |
+| `Wishlist` | `GET /wishlist`, `DELETE /wishlist/:id` | rows link to the product; remove deletes the entry by its own id |
+| `Products` | `GET /product`, `POST /product/add` (multipart, field `image`), `PUT /product/:id`, `PUT /product/:id/active`, `DELETE /product/delete/:id` | edits send only changed fields; quantity 0 is allowed |
+| `Categories` | `GET /category` (admin manager list), `POST /category/add`, `PUT /category/:id`, `PUT /category/:id/active`, `DELETE /category/delete/:id` | storefront link `/shop?category=<slug>` |
+| `Brands` | `POST /brand/add` (flat `{name, description, isActive}`), `PUT /brand/:id`, `PUT /brand/:id/active`, `DELETE /brand/delete/:id` | deactivation asks for confirmation; link `/shop?brand=<slug>` |
+| `Users` | `GET /user`, `GET /user/search` | admin; read-only role badge |
+| `Merchants` | `GET /merchant`, `GET /merchant/search`, approve / reject / active / delete | active switch and delete invalidate Brand and Merchant caches |
+| `Reviews` | see A.4.4 | admin |
+
+### A.4.3 Orders: "All orders" / "My orders" and line status
+
+* **Members and merchants** see only their own orders (`GET /order/me`), no tabs.
+* **Admins** get a `SegmentedTabs` control `All orders` (default; `GET /order`, page title `All orders`) / `My orders` (`GET /order/me`).
+  Search (all-orders tab only) takes a **full 24-character order id** (`GET /order/search` matches one order by its id).
+* Expanding an all-orders row mounts `components/manager/OrderLines.jsx` (`Fulfilment`): the order is fetched with `GET /order/:id`, and each line shows its
+  `StatusBadge`, a `Mark <next>` button along `Not processed → Processing → Shipped → Delivered`, and a `Cancel line` button (confirmed in a `ConfirmDialog`,
+  available until the line is Delivered or Cancelled) calling `PUT /order/status/item/:itemId { status }`. Cancelling a line returns its stock; when
+  every line is cancelled the server deletes the order (`orderCancelled: true`): the row closes and the toast says the order was removed. A line that is
+  already cancelled answers 409 and the lists refetch. The server validates the status and derives the order and cart itself.
+* `OrderDetailPanel` shows the totals; `Cancel order` (shown only while every line is Not processed, Processing or Cancelled — `lib/orders.js canCancelOrder`, also used by `OrderDetail`) opens a confirm `Modal` and calls `DELETE /order/cancel/:id`.
+  The API refuses with 409 `ORDER_DISPATCHED` once a line is Shipped or Delivered; the dialog then closes, the order refetches and a toast explains.
+  Line amounts on every order and bag screen are pre-tax (`lib/orders.js lineTotal`); tax appears once, in the totals.
+
+### A.4.4 Reviews (`/dashboard/review`, admin only)
+
+`SegmentedTabs` `All reviews` (`GET /review?page&limit`) and `Pending` (`GET /review?status=Waiting%20Approval`), both queries mounted so the counters are accurate.
+Rows show product, reviewer, rating, text, date and status with approve (`PUT /review/approve/:id`), reject (`PUT /review/reject/:id`) and delete (`DELETE /review/delete/:id`)
+actions, each behind a `ConfirmDialog`. The public `GET /review` returns Approved reviews only; the admin sees every status.
+
+## A.5 Support surfaces
+
+### A.5.1 AI assistant (`pages/support/LlmChat.jsx`, public)
+
+* `POST /api/chat { message (≤500 chars), history }` where `history` is the last 6 user/assistant turns (each truncated to 2000 characters); the reply is
+  `{ response, model, retrieval }`. `GET /ai/status` drives the status pill (`Configured · <model>` / `Not configured` / `Assistant status unknown`); when
+  the server has no LLM the composer is disabled and the 503 `hint` is shown.
+* Six suggested questions (sidebar on desktop, inline on mobile); `Clear` aborts an in-flight request and drops a late answer.
+* `chat/FormattedAnswer.jsx` renders the model output as React text only: paragraphs, `-`/`1.` lists and `**bold**` — never HTML.
+* `chat/SourceChips.jsx` under each answer: up to 8 chips for `retrieval.documents` (name, price; link `/product/<slug>`; tooltip brand · category · stock) and a
+  **retrieval badge** from `retrieval.source`: `in-database:<MODEL>` → "In-database vector search · <MODEL>", `remote:<model>` → "Vector search · <model> embeddings",
+  anything else (`keyword-fallback`) → "Keyword fallback · no embeddings available".
+* Errors show an `Assistant · error` bubble with the HTTP status and message.
+
+### A.5.2 Database showcase (`pages/support/AdminDb.jsx`, public)
+
+One `GET /admin-db/collections` request (`usePanel`) decides the layout: `oracleStatus === 'not-configured'` shows a single banner plus `JsonCollections`;
+otherwise the sections render in this order, each in its own file under `pages/support/admin-db/` with a skeleton and a `QueryBoundary` error state:
+
+| Section (file) | Endpoint |
+|---|---|
+| Migration summary (`MigrationSummary.jsx`) | `GET /admin-db/migration-status` |
+| JSON collections (`JsonCollections.jsx`) | `GET /admin-db/collections` → `{ mongo:[{name,count}], oracle:[{name,type,count}], oracleStatus }` |
+| Views over the JSON store (`ViewsCatalogue.jsx`) | `GET /admin-db/views` |
+| Duality views (`DualityViews.jsx`) | `GET /admin-db/duality-views` |
+| JSON validity report (`ValidityReport.jsx`) | `GET /admin-db/validity` |
+| Vector search (`VectorSearch.jsx`) | `POST /ai/similar { text }` (public) |
+| Ask the database (`AskDatabase.jsx`) | `POST /ai/ask { question }` (admin only; a 401/403 shows `Sign in as an administrator to run generated SQL`) |
+
+The panel `Refresh` buttons re-request with `?fresh=1` (the server otherwise caches for 15 s) while keeping the previous data on screen.
+
+### A.5.3 Support chat (`pages/support/Support.jsx`, auth)
+
+Socket.io through `components/support/useSupportSocket.js`. `SOCKET_URL` defaults to `window.location.origin` in every mode (Vite dev and preview proxy `/socket.io`);
+`VITE_SOCKET_URL` overrides it. The handshake sends the full `Bearer <jwt>`. Members can message administrators only and payloads carry no socket ids;
+`disconnectUser` only marks a known contact offline. The selected conversation is stored per user under `mern26.support.selectedUser.<userId>`; the input is capped at 2000 characters.
+
+## A.6 Shell and accessibility
+
+| Piece | Behaviour |
+|---|---|
+| Skip link | `Layout.jsx`: `Skip to content` (first focusable element) focuses `<main id="main" tabIndex={-1}>` |
+| Route error page | `pages/RouteError.jsx` is the root `errorElement`: it renders without Header/Footer, with a stale-chunk message when a lazy import fails after a deploy, `Try again` (full reload) and `Back to the store` |
+| Dialogs | `components/ui/useDialog.js` powers `Modal`, `FilterSheet` and `CartDrawer`: portal into `document.body`, `aria-labelledby` title, Escape closes (topmost only), Tab is trapped, body scroll is locked, focus moves in and returns to the opener. `components/manager/ConfirmDialog.jsx` wraps `Modal` for destructive actions |
+| Forms | `components/ui/Field.jsx` passes `aria-invalid`, `aria-describedby`, `aria-required`; `Button` sets `aria-busy` while loading; toggles use `role="switch"` / `aria-checked`, segmented tabs `aria-pressed` |
+| Contrast, motion | `index.css` colour tokens were darkened to meet AA; `prefers-reduced-motion` stops pulse/bounce/ping animations |
+| Toasts | `components/ui/Toaster.jsx`, fed by `features/ui/uiSlice.js#toastShown` |
+
+---
+
+# Part B — Legacy client inventory (historical, `mern-ecommerce/client/app`)
+
 
 Source of truth: `client/app/**` (React 16 + redux + redux-thunk + connected-react-router),
 plus `client/app/containers/Application/index.js` (the single top-level router),
@@ -74,7 +297,7 @@ The cart is **entirely `localStorage`** — there is no `GET /api/cart`:
 |---|---|
 | `cart_items` | JSON array of the products added (full product objects, plus `quantity`, `totalPrice`) |
 | `cart_total` | `Σ(price × quantity)`, rounded to 2dp — **pre-tax, no shipping** |
-| `cart_id` | the server cart id minted by `POST /api/cart/add` |
+| `cart_id` | legacy server-cart id; dropped — the current bag (`mern26.cart`, Part A §A.3.3) has no server cart and checkout creates the order directly |
 
 `Application.componentDidMount` rehydrates via `handleCart()`, and a `window` `storage` listener
 re-runs `handleCart()` when another tab changes `cart_items`.
@@ -203,8 +426,8 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
   `NotFound 'No address found.'` until `address._id`.
 * **Validation**: add — `address|city|state|country` required, `zipCode` `required|min:5`;
   edit — same fields required without the `min:5`.
-* **Gaps**: the routes in the UI are the *unauthenticated* ones (`GET/PUT/DELETE` by id have no
-  server-side auth and no ownership check); `Edit.js` passes a `defaultChange` prop that has no
+* **Gaps**: the legacy client used the by-id address routes; they are all `auth`-protected and scoped to the owner
+  (a foreign or unknown id is a 404) in the current server. `Edit.js` passes a `defaultChange` prop that has no
   action creator; `state.address.isDefault` is read but absent from the reducer initial state.
 * **Reducer**: `{ addresses:[], addressFormData:{address,city,state,country,zipCode,isDefault},
   address:{_id,address,city,state,country,zipCode,isDefault}, formErrors:{}, editFormErrors:{} }`.
@@ -290,9 +513,8 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
 * **Route**: not a route — the mini-cart drawer rendered by `containers/Navigation`
   (`state.navigation.isCartOpen`).
 * **Purpose**: cart line items, totals, checkout CTA.
-* **API**: `POST /api/cart/add` (`getCartId`, called from the Order module) body
-  `{products:[{quantity, price, taxable, product:_id}]}` → `SET_CART_ID` + `localStorage['cart_id']`.
-  **No other cart API is ever called.**
+* **API**: none of its own in the current stack — the bag is client-side and checkout is a single
+  `POST /api/order/checkout` (Part A §A.3.3–A.3.4); the legacy server-cart round trip is gone.
 * **Actions**: `handleAddToCart` → `ADD_TO_CART` (+ Product's `SET_PRODUCT_SHOP_FORM_ERRORS` /
   `RESET_PRODUCT_SHOP`), writes `cart_items`, `calculateCartTotal()`; `handleRemoveFromCart` →
   `REMOVE_FROM_CART` + `calculateCartTotal()`; `calculateCartTotal` → `HANDLE_CART_TOTAL` +
@@ -303,9 +525,8 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
   empty`; `CartList` then `CartSummary(cartTotal)` + `Checkout`. Quantity validation tiers from
   `calculatePurchaseQuantity(inventory)`: `≤25→1`, `26–100→5`, `101–499→25`, `≥500→50`, with
   messages `Quantity must be at least 1.` / `Quantity may not be greater than N.`
-* **Gaps**: the cart is client-authoritative; the server cart minted by `POST /api/cart/add` is
-  never read back, never cleared on removal, and its stock decrement is never reversed when the user
-  removes a line item locally; `handleRemoveFromCart` filters by `_id` and drops duplicates.
+* **Gaps**: the cart was client-authoritative, with `handleRemoveFromCart` filtering by `_id` and dropping
+  duplicates. Superseded by the server-priced checkout and stock revalidation of Part A §A.3.3.
 * **Reducer**: `{ cartItems:[], cartTotal:0, cartId:'' }`.
 
 ### 3.11 `containers/Category`
@@ -525,13 +746,8 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
   (`searchOrders`), `GET /api/order/:id` (`fetchOrder`),
   `DELETE /api/order/cancel/:id` (`cancelOrder`),
   `PUT /api/order/status/item/:itemId` (`updateOrderItemStatus`) body
-  `{orderId, cartId, status}`, `POST /api/order/add` (`addOrder`) body `{cartId, total}`.
+  `{orderId, cartId, status}`. Order creation is no longer an Order-container concern: see Part A §A.3.4.
 * **Behaviour to preserve**:
-  * `placeOrder()` (bound to the Checkout button) requires `localStorage.token` **and** a non-empty
-    cart; it runs `Promise.all([dispatch(getCartId())]).then(() => dispatch(addOrder()))` and then
-    always `toggleCart()`.
-  * `addOrder` reads `cartId = localStorage['cart_id']` and `total = state.cart.cartTotal`; on success
-    `push('/order/success/' + response.data.order._id)` then `clearCart()`.
   * `updateOrderItemStatus`: if `response.data.orderCancelled` → `push('/dashboard/orders')`, else
     `UPDATE_ORDER_STATUS {itemId,status}` + refetch the order + success toast.
   * Lists: `LoadingIndicator` while loading; `SET_ADVANCED_FILTERS {totalPages,currentPage,count}`;
@@ -555,8 +771,7 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
   else `NotFound 'No order found.'`; `onBack` pushes `/dashboard/orders` when the URL contains
   `success`, otherwise `history.goBack()`.
 * **Gaps**: shares `state.order` with the Order container (no independent loading guard); the
-  payload must include `products[]`, `_id`, `cartId` and per-item `_id`/`status` — `cartId` is
-  required by the item-status endpoint.
+  payload must include `products[]`, `_id` and per-item `_id`/`status`.
 
 ### 3.26 `containers/OrderSuccess`
 
@@ -739,9 +954,8 @@ link whose `provider` array does not include `user.provider`. The `Support` entr
   (which calls `http://localhost:8000/rag` directly); `AdminDbPanelPage` renders
   `components/Manager/AdminDbPanel/AdminDbPanel` (literal `/api/admin-db/*` calls).
 * **Gaps**: the junk route path
-  `mern-ecommerce/client/app/components/Manager/AdminDbPanel` must not be ported; the admin DB panel
-  is reachable without authentication at the client route level and the server endpoints have no
-  auth either.
+  `mern-ecommerce/client/app/components/Manager/AdminDbPanel` must not be ported. Both feature pages were
+  public at the client route level; they remain public in `web` by design (Part A §A.2), with `/ai/ask` admin-only on the server.
 
 ### 3.36 `containers/Users`
 
@@ -828,9 +1042,8 @@ dispatch through the single `actions` barrel. Only `LlmChat` performs I/O itself
 * **Purpose**: two-row summary.
 * **Reads**: `cartTotal` prop.
 * **UI to preserve**: `Shipping` hard-coded `Free`; `Total` `$${cartTotal}`.
-* **Gaps**: there is **no tax and no shipping computation anywhere in the client** — the amount sent
-  to `POST /api/order/add` is the pre-tax line-item sum, while the server recomputes tax on every
-  order read. A rewrite must decide which is authoritative.
+* **Gaps**: the legacy client did no tax or shipping computation; its `Shipping — Free` row was a literal. The current bag
+  shows a tax preview (`TAX_RATE`) and the server re-prices on checkout (Part A §A.3.3).
 
 ### 4.6 `components/Store/Checkout`
 
@@ -840,10 +1053,7 @@ dispatch through the single `actions` barrel. Only `LlmChat` performs I/O itself
   `Place Order` → `placeOrder()`; unauthenticated → `Proceed To Checkout` → `handleCheckout()`
   (which closes the drawer, pushes `/login` and shows
   `Please Login to proceed to checkout`).
-* **API chain behind `placeOrder`**: `POST /api/cart/add` (only if `localStorage.cart_id` is empty)
-  → `POST /api/order/add` `{cartId, total}` → `push('/order/success/<orderId>')` + `clearCart()`.
-* **Gaps**: no shipping address or payment is collected before the order is created; no error toast
-  if `cart_id` is missing.
+* **Superseded**: `Place Order` is now `pages/Checkout.jsx` — address step plus `POST /api/order/checkout` (Part A §A.3.4).
 
 ### 4.7 `components/Store/BrandList`
 
@@ -885,7 +1095,7 @@ dispatch through the single `actions` barrel. Only `LlmChat` performs I/O itself
     `formatDate(review.created)`, `title`, three-line-clamped `review`. Keyed by array index.
   * `Add` fields: `title`, `review` (textarea), `rating` (star input), `isRecommended`
     (`[{value:1,label:'Yes'},{value:0,label:'No'}]`); submit button `Publish Review`.
-* **Approval buttons are NOT here** — they live in the admin `ReviewList` (§5.27).
+* **Approval buttons are NOT here** — they live in the admin `ReviewList` (row 5.29 in §5).
 * **Gaps**: the review endpoint returns only `user.firstName` (no avatar/id) — the avatar is
   synthetic; reviews are refetched only on ProductPage mount.
 
@@ -900,10 +1110,8 @@ dispatch through the single `actions` barrel. Only `LlmChat` performs I/O itself
   blank/whitespace input is ignored; user messages right-aligned, LLM left-aligned; `Loading...`
   while pending; on error the assistant bubble reads `Error: Could not get response.`;
   send button `disabled={loading}`; placeholder `Type your message...`; no auto-scroll.
-* **Gaps**: the server exposes `POST /api/chat` (`{message} → {response}`) which this component
-  **does not use** — it posts to its own hardcoded `http://localhost:8000/rag` host instead. The
-  server's unmounted `routes/api/llmChat.js` handler (the only thing that ever defined
-  `/api/llm-chat/message`) has since been deleted, so `POST /api/chat` is the only chat route.
+* **Gaps**: the component posted to its own hardcoded `http://localhost:8000/rag` host. It is replaced by
+  `pages/support/LlmChat.jsx` on `POST /api/chat` (Part A §A.5.1).
 
 ---
 
@@ -952,41 +1160,41 @@ Presentational; the contracts below are the containers that render them.
 
 ---
 
-## 6. What the legacy client does that the API contract does not support
+## 6. Legacy gaps and how the current stack resolves them
 
-These are the places where a faithful port cannot simply call the existing endpoints — each needs a
-decision (change the API, or change the client behaviour) before the rewrite is complete.
+Each row is a place where the legacy client and the API contract disagreed. **Status** is what the current
+`web` app and server do today.
 
-| # | Client behaviour | API reality | Consequence for the port |
-|---|---|---|---|
-| 1 | `components/Store/LlmChat` posts to `http://localhost:8000/rag` with `{question}` and reads `data.answer` | The server exposes `POST /api/chat` (`{message} → {response}`) and nothing else on that path — the unmounted `routes/api/llmChat.js` handler was removed | Repoint the chat at `POST /api/chat` (or a new streaming endpoint); a hardcoded host is not deployable |
-| 2 | `AdminDbPanel` calls `/api/admin-db/*` with no auth | The endpoints exist and are correct — but they are **unauthenticated on the server** | Decide the auth policy; add `auth` + `role.check(ROLES.Admin)` server-side and gate the client route |
-| 3 | The PDP (`/product/:slug`) shows a rating via `ProductReviews` | `GET /api/product/item/:slug` returns **no `averageRating`/`totalReviews`** — only `GET /api/product/list` computes them | A rewrite must either add the field to the product detail response (or a dedicated summary endpoint), or keep fetching `/api/review/:slug` and computing client-side as today |
-| 4 | `ProductList` cards render `averageRating`/`totalReviews` | Present only in the `GET /api/product/list` aggregation, and `isLiked` only when a bearer token is sent | Listing pages are fine; any other product surface must not assume these fields |
-| 5 | The cart lives in `localStorage`; the server cart is minted by `POST /api/cart/add` and then forgotten | There is **no `GET /api/cart`** and no cart-update/AI endpoint; removing a line item locally never reverses the server-side stock decrement done at cart creation | Either add cart read/update endpoints, or accept that server carts accumulate and stock is only restored by cancelling the order |
-| 6 | `Order.total` is computed client-side (`Σ price×quantity`, **pre-tax, no shipping**) and posted to `POST /api/order/add` | The server stores it verbatim and recomputes `totalTax`/`totalWithTax` only on read | The stored total and the displayed total can disagree; decide the single source of truth |
-| 7 | `CartSummary` shows `Shipping — Free` and `OrderSummary` shows `Shipping & Handling — $0` | No shipping concept exists in the API or the models | Shipping must be added to the API or removed from the UI |
-| 8 | Order creation collects **no shipping address and no payment** | `POST /api/order/add` accepts only `{cartId, total}` | The checkout flow is effectively "order from cart"; a real checkout needs new API surface |
-| 9 | Admin `Order/List` search filters `order._id.includes(search)` locally; other lists use the server | `GET /api/order/search` exists and is used only by `Order/Customer` | Standardise on the server endpoint |
-| 10 | `Merchant`, `Users`, `Review` search results are unpaginated | The search endpoints return bare arrays with no `totalPages`/`currentPage`/`count` | Add pagination to the search responses, or keep search unpaginated |
-| 11 | `GET /api/product` (manager product list), `GET /api/brand`, `GET /api/category` render everything at once | These endpoints have **no pagination parameters** | Large catalogues will need pagination added server-side |
-| 12 | `AddProduct` requires an image (`image: required`) and uploads `multipart/form-data` field `image` | `s3Upload` is **stubbed** — `imageUrl` becomes `/images/products/<originalname>` and nothing is persisted | Either implement real storage (S3 / Oracle) or make the image optional and accept a URL |
-| 13 | `AddProduct`/`EditProduct` accept a `brand` only; there is no category picker on the product form | `POST /api/product/add` does **not** push the product into `Category.products`; category membership is only editable from the category form | Products added via the API are unreachable from category filters unless the admin edits the category |
-| 14 | `DeleteProduct` is a hard delete from the manager UI | The API hard-deletes and leaves stale ids in `Category.products` and orphan `reviews` | Add cleanup to the API or make the client accept orphans |
-| 15 | `UserRole` is a read-only badge; there is no role-change UI | No endpoint accepts a role change (`PUT /api/user` accepts arbitrary fields, including `role`, by accident) | If role management is wanted, add an explicit admin endpoint rather than relying on the unwhitelisted profile PUT |
-| 16 | `Address` edit/delete, `Review` edit/delete, all `adminDb` reads are performed by logged-in users | Those endpoints have **no `auth` middleware** and (except review) no ownership check | Tighten server-side auth; the client already assumes it is authenticated |
-| 17 | `Merchant` approve/reject and `Review` approve/reject buttons are shown only to admins | Both endpoints require only `auth` — **any** authenticated user can call them | Add `role.check(ROLES.Admin)` server-side |
-| 18 | `Login.signOut()` clears local state only | There is **no logout endpoint**; tokens stay valid for 7 days | Acceptable, but the client should not imply a server session was ended |
-| 19 | `AuthSuccess` trusts the `?token=` query parameter | The server does not verify it either | A rewrite should call `GET /api/user/me` before marking the session authenticated |
-| 20 | `PUT /api/auth/reset` (account security) takes `password` = **old** and `confirmPassword` = **new** | The server verifies `password` against the hash and stores `confirmPassword` | The form labels must be mapped deliberately, not by field name |
-| 21 | `MerchantSignup` parses the invite email with `location.search.split('=')[1]` | The invite link is server-generated (`merchant-signup` email) | Use `URLSearchParams` in the rewrite |
-| 22 | `Newsletter` submits a single email; `Signup` sends an `isSubscribed` checkbox | The `User` model has **no `isSubscribed` field** — registration only triggers a Mailchimp call | Persist the flag if the client is to read it back |
-| 23 | The client funnels every HTTP error through `utils/error.handleError` and expects `error`/`message` keys | The API returns `{error}` for 400s but `{message}` for 404s, and **plain text** (`Unauthorized`, `You are not allowed…`) for 401/403 | Error rendering must handle three shapes |
-| 24 | The client expects `{success, message}` on most mutations and toasts `response.data.message` | True for most routes, but `Address` update, `Brand` update, `Category` update, `Review` delete, and the `PUT .../active` toggles return narrower shapes (some echo `deleteOne` results under a misleading key, e.g. `product` for a deleted category) | Normalise the response envelope in the rewrite |
-| 25 | `ProductList` (manager) and `OrderList` show product/order images from `product.imageUrl` | Image URLs are synthetic (`/images/products/<name>`) with a static fallback `/images/placeholder-image.png` under `client/public` | Ship the placeholder assets or change the fallback |
-| 26 | Search only fires on every 3rd keystroke (`Navigation`) or after a 1000 ms debounce (`SearchBar`) with a ≥2-char gate | The search endpoints accept any string and use raw regex | Keep the debounce; the endpoints are otherwise compatible |
-| 27 | Two dashboard routes are documented but effectively unreachable/dead: the literal junk route `mern-ecommerce/client/app/components/Manager/AdminDbPanel`, and `Merchant/List.handleOnPagination` (calls a non-existent `fetchUsers`) | — | Drop both in the rewrite |
-| 28 | `/support/llm-chat` and `/support/admin-db` render **without** the auth HOC; `/dashboard/product/add` and `/dashboard/category/add` have their admin guards commented out | Server-side equivalents are also unguarded (`/api/admin-db`, and `/api/merchant/{approve,reject}`) | Decide the guard policy in one place rather than per component |
+| # | Legacy client behaviour | Status today |
+|---|---|---|
+| 1 | `components/Store/LlmChat` posted to `http://localhost:8000/rag` | Resolved: `pages/support/LlmChat.jsx` calls `POST /api/chat` (`{message, history}` → `{response, model, retrieval}`); the unmounted `routes/api/llmChat.js` is gone |
+| 2 | `AdminDbPanel` called `/api/admin-db/*` with no auth | Deliberately public and read-only: `/api/admin-db/*` and `POST /api/ai/similar` need no sign-in; `POST /api/ai/ask` requires an admin (`auth` + `role.check`). The client routes `/support/llm-chat` and `/support/admin-db` are public |
+| 3 | PDP rating relied on `ProductReviews` | `GET /api/product/item/:slug` still returns no `averageRating`/`totalReviews`; `pages/Product.jsx` computes the summary from `GET /api/review/:slug` (Approved only). Only `GET /api/product/list` aggregates ratings (Approved reviews only) |
+| 4 | `ProductList` cards needed `averageRating`/`totalReviews`/`isLiked` | `GET /api/product/list` returns them; `isLiked` is present (false when not liked) for signed-in callers |
+| 5 | Cart in `localStorage`, server cart minted by `POST /api/cart/add` and forgotten | Resolved: the bag is `mern26.cart` and checkout is `POST /api/order/checkout`, which prices from the database and reserves stock per line with rollback. The `/api/cart/*` routes still exist (owner-scoped; a cart backing an order answers 409 `CART_ORDERED`; deleting an unordered cart or line restocks) but `web` does not call them |
+| 6 | `Order.total` computed client-side and posted | Resolved: the client sends only `{product, quantity}` lines; totals come from the database |
+| 7 | `Shipping — Free` / `Shipping & Handling — $0` | Still display-only: the API has no shipping concept (`TotalsPanel` shows `Free`, `OrderDetailPanel` shows `$0`) |
+| 8 | Order creation collected no address or payment | The checkout page collects an address, but `POST /order/checkout` takes no address or payment and the order does not store one |
+| 9 | Admin `Order/List` filtered locally | The admin all-orders view uses `GET /api/order/search` with a full order id (Part A §A.4.3); `GET /api/order` and `/order/search` are admin-only |
+| 10 | Merchant/Users/Review search unpaginated | Unchanged for `GET /api/user/search`, `/merchant/search`, `/order/search` (bare `{users}`, `{merchants}`, `{orders}`); paginated lists are `GET /user`, `/merchant`, `/order`, `/order/me`, `/review` |
+| 11 | `GET /api/product` manager list unpaginated | Unchanged for `GET /api/product` (scoped to the merchant's brand for merchants) |
+| 12 | `AddProduct` image upload | `utils/storage.js#s3Upload` is still a stub: `imageUrl` becomes `/images/products/<safe name>`, nothing is stored |
+| 13 | No category picker on the product form | Unchanged: `POST /api/product/add` does not add the product to `Category.products` |
+| 14 | `DeleteProduct` hard delete | Unchanged: `DELETE /api/product/delete/:id` is a `deleteOne`; it does not touch `Category.products` |
+| 15 | `UserRole` read-only badge; `PUT /api/user` accepted any field | Resolved: `PUT /api/user` whitelists `PROFILE_FIELDS` (string values only). There is still no role-change endpoint |
+| 16 | Address/review edit and delete without `auth` or ownership | Resolved: address routes are `auth` + owner-scoped; review edit/delete are owner-or-admin; order reads are owner-scoped (404 for others) |
+| 17 | Merchant and review approve/reject open to any authenticated user | Resolved: both are `auth` + `role.check(ROLES.Admin)`; `GET /api/category` and the order list/search are admin-only |
+| 18 | `signOut` local only | Unchanged: no logout endpoint; sign-out discards the token, and the Security page says other sessions stay signed in |
+| 19 | `AuthSuccess` trusted `?token=` | `AuthSuccess` stores the token; the dashboard's `GET /user/me` validates it and a 401 logs out (Part A §A.1.1) |
+| 20 | `POST /auth/reset` takes old password as `password`, new as `confirmPassword` | Unchanged: `Security.jsx` maps `{ password: current, confirmPassword: next }` explicitly |
+| 21 | `MerchantSignup` parsed the query with `split('=')[1]` | Resolved: `pages/auth/MerchantSignup.jsx` uses `useSearchParams` |
+| 22 | Signup `isSubscribed` never persisted | Unchanged: `Register.jsx` sends `isSubscribed`; the server subscribes through Mailchimp when configured and returns `subscribed`; the `User` model stores nothing. `POST /newsletter/subscribe` and forgot-password answer 503 when mail is not configured |
+| 23 | Mixed error shapes (`{error}`, `{message}`, plain text) | Resolved: every API error is JSON `{ error, … }` (401 `{error:'Unauthorized'}`, 403 `{error:'You are not allowed to make this request.'}`, 429 and malformed JSON 400 included; unknown `/api` path 404 `{error:'Not found'}`); `lib/apiError.js` reads it (and passport's plain-text 401) |
+| 24 | Narrow/inconsistent mutation envelopes | Partly unchanged: several handlers still echo `deleteOne` results under a model key (e.g. `product` on `DELETE /product/delete/:id`); `web` toasts a fixed message or `message` when present |
+| 25 | Image URLs synthetic, fallback under `client/public` | `web` resolves product pictures from `public/products` by product name/category (`lib/productImages.js`, WebP thumbnails via `thumbUrl`) |
+| 26 | Search fired every 3rd keystroke / 1000 ms debounce | Header search is a form submit to `/shop?q=` plus a product suggestion dropdown (≥ 2 characters) |
+| 27 | Junk route and dead `Merchant/List.handleOnPagination` | Dropped |
+| 28 | Unguarded `/support/*` pages and add routes | Client guards live in `routes.jsx` (`RequireAuth roles`); the server enforces roles on every management route |
 
 ### 6.1 Redux/state defects to fix rather than port
 
