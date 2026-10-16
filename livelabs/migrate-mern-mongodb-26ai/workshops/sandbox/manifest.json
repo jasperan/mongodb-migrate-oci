@@ -1,0 +1,106 @@
+{
+    "workshoptitle": "Migrate a MongoDB App to Oracle AI Database 26ai Without Rewriting It",
+    "help": "livelabs-help-db_us@oracle.com",
+    "tutorials": [
+        {
+            "title": "Get Started",
+            "filename": "https://livelabs.oracle.com/cdn/common/labs/cloud-login/cloud-login-livelabs2.md"
+        },
+        {
+            "title": "Introduction",
+            "filename": "../../introduction/introduction.md"
+        },
+        {
+            "title": "Lab 1: Prepare Your Workstation",
+            "filename": "../../prepare-workstation/prepare-workstation.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 2: Provision Autonomous AI Database 26ai",
+            "filename": "../../provision-adb/provision-adb-sandbox.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 3: Run the Storefront on MongoDB",
+            "filename": "../../run-source-app/run-source-app.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 4: Assess the MongoDB Workload",
+            "filename": "../../assess-workload/assess-workload.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 5: Prepare the Target Schemas",
+            "filename": "../../prepare-target/prepare-target.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 6: Migrate the Data",
+            "filename": "../../migrate-data/migrate-data.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 7: Validate and Cut Over the App",
+            "filename": "../../validate-cutover/validate-cutover.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 8: Query the Migrated Data with SQL and Duality Views",
+            "filename": "../../extend-sql/extend-sql.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 9 (Optional): Vector Search and the AI Assistant",
+            "filename": "../../vector-assistant/vector-assistant.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Lab 10 (Optional): Natural-Language Queries with Select AI",
+            "filename": "../../select-ai/select-ai.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Clean Up",
+            "filename": "../../clean-up/clean-up-sandbox.md",
+            "type": {
+                "linux": "Linux",
+                "windows": "Windows"
+            }
+        },
+        {
+            "title": "Need Help?",
+            "filename": "https://livelabs.oracle.com/cdn/common/labs/need-help/need-help-livelabs.md"
+        }
+    ]
+}

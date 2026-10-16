@@ -30,8 +30,8 @@ The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into
 
 > [!IMPORTANT]
 > **What running this touches**
-> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first.
-> - The `sql/26ai` scripts use three accounts. `ADMIN` runs `01`, `02`, `03`, `03b` and `09b`: it creates the `MERN26` schema (JSON collections) and the `MERN26DV` schema (duality views), grants, ORDS enablement (Oracle REST Data Services, which serves the MongoDB API) and a network ACL. `MERN26` runs `04`, `05`, `07`, `08` and `09`: views, the vector store, and a Select AI credential and profile. `MERN26DV` runs `06`, `10` and the generated duality DDL.
+> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first. `mern-ecommerce/server/scripts/seed_sample_activity.js` (mongosh) adds a few documents to the eight collections the seed leaves empty, because the duality-view converter (`05`) cannot infer a schema from an empty collection.
+> - The `sql/26ai` scripts use three accounts. `ADMIN` runs `01`, `02`, `03`, `03b`, `08a`, `09b` and `99`: it creates the `MERN26` schema (JSON collections) and the `MERN26DV` schema (duality views), grants, ORDS enablement (Oracle REST Data Services, which serves the MongoDB API) and a network ACL. `MERN26` runs `04`, `05`, `07`, `08` and `09`: views, the vector store, and a Select AI credential and profile. `MERN26DV` runs `06`, `10` and the generated duality DDL.
 >
 > **What leaves the machine**
 > - Each `/api/chat` request sends the LLM provider the question, up to the last six turns, retrieved product snippets, store-wide catalogue facts and excerpts of recent approved reviews. The route needs no sign-in and is rate limited. Embeddings and vector search stay in the database while `VECTOR_EMBEDDING_MODEL` is set.
@@ -40,34 +40,14 @@ The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into
 >
 > **How to undo**
 >
-> There is no teardown script. Stop the API first (it holds pooled `MERN26` sessions), then run the SQL below. Data seeded into a MongoDB for this demo is yours to clean up; the demo database is `mern_ecommerce` by default.
+> Stop the API first (it holds pooled `MERN26` sessions), then run `sql/26ai/99_cleanup.sql` as `ADMIN`. Data seeded into a MongoDB for this demo is yours to clean up; the demo database is `mern_ecommerce` by default.
 
-<details>
-<summary><b>Undo SQL</b> (as <code>MERN26</code>, then as <code>ADMIN</code>)</summary>
-
-```sql
--- As MERN26, if you ran 09: the Select AI profile and credential
-begin
-  dbms_cloud_ai.drop_profile(profile_name => 'MERN_LLM', force => true);
-  dbms_cloud.drop_credential(credential_name => 'MERN_LLM_CRED');
-end;
-/
-
--- As ADMIN, if you ran 09b: the network ACL entry
-begin
-  dbms_network_acl_admin.remove_host_ace(
-    host => 'inference.generativeai.<region>.oci.oraclecloud.com',  -- the region you gave 09b (default us-phoenix-1)
-    ace  => xs$ace_type(privilege_list => xs$name_list('http'),
-                        principal_name => 'MERN26', principal_type => xs_acl.ptype_db));
-end;
-/
-
--- As ADMIN: both schemas and everything they own (collections, views, vector table, ONNX model)
-drop user mern26dv cascade;
-drop user mern26 cascade;
+```bash
+# MERN_LLM_REGION only if you gave 09b a region other than us-phoenix-1
+scripts/workshop/run-sql.sh ADMIN sql/26ai/99_cleanup.sql
 ```
 
-</details>
+The script removes the Select AI network ACL entry, then drops `MERN26DV` and `MERN26` with `CASCADE` (collections, views, duality views, vector table, ONNX model, Select AI credential and profile). It is safe to re-run.
 
 Needs a MongoDB on `localhost:27017` as the source and Node.js 20.19+ or 22.12+ (the client's Vite 8 requirement; the API alone runs on Node 20). Use two terminals:
 
@@ -80,6 +60,21 @@ cp .env.example .env      # set JWT_SECRET, e.g. the output of: openssl rand -he
 npm run seed:db admin@example.com "<password>"    # idempotent
 npm start                 # API on http://localhost:3000
 ```
+
+On Windows (PowerShell 5.1 or 7) the API terminal differs only in the `.env` step; the generator below also works in bash (`node -e` instead of `openssl rand`). Edit `.env` and set `JWT_SECRET` to the printed value:
+
+```powershell
+# Terminal 1: the API
+git clone https://github.com/oracle-devrel/mongodb-migrate-oci.git
+cd mongodb-migrate-oci\mern-ecommerce\server
+npm install
+Copy-Item .env.example .env
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # paste into JWT_SECRET in .env
+npm run seed:db admin@example.com "<password>"
+npm start
+```
+
+No local MongoDB? From the repo root, `scripts/workshop/start-source-mongo.sh` (PowerShell: `.\scripts\workshop\start-source-mongo.ps1`; add `stop` / `-Stop` to remove it) runs one as the `mern-mongo` container (`mongo:7`, Docker or Podman, published on `127.0.0.1:27017`). The client terminal is the same on both systems.
 
 ```bash
 # Terminal 2, from the directory you cloned into: the client
@@ -99,6 +94,14 @@ From `mern-ecommerce/`:
 
 ```bash
 JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="<password>" docker compose up --build
+```
+
+PowerShell:
+
+```powershell
+$env:JWT_SECRET = node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+$env:ADMIN_PASSWORD = '<password>'
+docker compose up --build
 ```
 
 Open <http://localhost:8080>. The MongoDB container is the migration source and the seed is idempotent. This path was reviewed but not run for this README. Details in [`mern-ecommerce/README.md`](mern-ecommerce/README.md).
@@ -184,7 +187,26 @@ ASSESS_MODE=start  mongosh "$MONGO_URI" --file mern-ecommerce/server/scripts/ass
 ASSESS_MODE=report mongosh "$MONGO_URI" --file mern-ecommerce/server/scripts/assess_workload.js
 ```
 
+PowerShell sets the variable in the session instead (`mongosh` takes the URI as an argument):
+
+```powershell
+$env:ASSESS_MODE = 'status'   # then 'start', then 'report'
+mongosh $env:MONGO_URI --file mern-ecommerce/server/scripts/assess_workload.js
+```
+
 **Prepare.** In Database Actions this is the *REST, GraphQL, MongoDB API, and Web access* toggle; the script runs `ORDS.ENABLE_SCHEMA` plus grants. Define the passwords first (`define mern26_password`, `define mern26dv_password`, or `accept ... hide`); the script stops if either is empty.
+
+To run the `sql/26ai` scripts without a saved SQLcl connection, use `scripts/workshop/run-sql.sh <DB_USER> <file.sql> ...` (PowerShell: `.\scripts\workshop\run-sql.ps1 -User <DB_USER> -File <f1>,<f2>`). It reads `ORACLE_CONNECT_STRING` (the TLS connect string from the ADB console, no wallet) and the password of the connecting user (`DB_PASSWORD` for `ADMIN`, `MERN26_PASSWORD` for `MERN26`, `MERN26DV_PASSWORD` for `MERN26DV`; prompted if unset), and supplies the script variables from `MERN26_PASSWORD`, `MERN26DV_PASSWORD`, `MERN_LLM_KEY`, `MERN_LLM_REGION` and `EMBEDDING_DIM`. For example:
+
+```bash
+export ORACLE_CONNECT_STRING='<TLS connect string>' MERN26_PASSWORD='<password>' MERN26DV_PASSWORD='<password>'
+scripts/workshop/run-sql.sh ADMIN sql/26ai/01_schemas.sql      # prompts for the ADMIN password
+```
+
+```powershell
+$env:ORACLE_CONNECT_STRING = '<TLS connect string>'; $env:MERN26_PASSWORD = '<password>'; $env:MERN26DV_PASSWORD = '<password>'
+.\scripts\workshop\run-sql.ps1 -User ADMIN -File sql/26ai/01_schemas.sql
+```
 
 **Execute.** The restore URI is the target schema's MongoDB API URL (quote it; write `$external` as `%24external`):
 
@@ -195,6 +217,27 @@ mongorestore --drop --writeConcern '{w:1}' \
   dump/mern_ecommerce
 ```
 
+PowerShell (Windows PowerShell 5.1 or 7), same commands; single quotes keep `$` and `{w:1}` literal:
+
+```powershell
+mongodump --uri 'mongodb://127.0.0.1:27017/mern_ecommerce' --out dump
+mongorestore --drop --writeConcern '{w:1}' `
+  --uri 'mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&tls=true' `
+  dump/mern_ecommerce
+```
+
+Or let the helper do both, check the restored count (it fails on 0 documents) and keep the password out of its output. Run it from the repo root; `scripts/workshop/start-source-mongo.sh` (`.ps1`) starts the source MongoDB container (`mern-mongo`, `mongo:7`) if you have none:
+
+```bash
+export TARGET_URI='mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&tls=true'
+scripts/workshop/migrate-data.sh          # SOURCE_URI and DUMP_DIR are optional
+```
+
+```powershell
+$env:TARGET_URI = 'mongodb://MERN26:<password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=%24external&tls=true'
+.\scripts\workshop\migrate-data.ps1       # -SourceUri, -TargetUri and -DumpDir are optional
+```
+
 The positional directory must match the URI. A URI that names a database (as this one does) wants the database directory (`dump/mern_ecommerce`); the dump root restores 0 documents and still exits 0 ([guide 3.2](docs/26ai/migration-guide.md#32-restore-into-autonomous-through-the-mongodb-api)). After the first restore, `ADMIN` runs `03` (grants the collections to `MERN26DV`). `--drop` invalidates everything built on the collections, so a repeat restore needs the [guide 3.3](docs/26ai/migration-guide.md#33-re-create-what-depends-on-the-collections) rebuild: `03` and `03b` as `ADMIN`; `04`, `07` and `08` as `MERN26`; `06` and `10` as `MERN26DV`. Then point `MONGO_URI` at the target and apply the [compatibility notes](#compatibility-notes). To check the version:
 
 ```sql
@@ -202,7 +245,7 @@ select banner from v$version;
 -- Oracle AI Database 26ai Enterprise Edition Release 23.26.3.3.0 - Production
 ```
 
-**Validate.** `verify_migration.py` needs both `--source` and `--target`; `02_verify_counts.sql` is the SQL-side count check and hard-codes this app's 12 collections.
+**Validate.** `verify_migration.py` needs both `--source` and `--target`; `02_verify_counts.sql` is the SQL-side count check: it counts every table in `MERN26` live and holds no expected values, so you compare it with the source counts.
 
 **Extend**, by account, in this order:
 
@@ -215,15 +258,30 @@ select banner from v$version;
 | | `MERN26` | `07` infers JSON schemas from the duality views and adds the validity views |
 | Vector store | `ADMIN` | grant `execute on dbms_vector` and `create mining model` to `MERN26` |
 | | `MERN26` | `load_onnx_embedding.py MERN26 "<password>" "<dsn>"` in the onnx2oracle venv loads the ONNX model; then `08` |
-| | app | `VECTOR_EMBEDDING_MODEL=ALL_MINILM_L12_V2 node scripts/embed_catalog.js` from `mern-ecommerce/server` |
+| | app | `VECTOR_EMBEDDING_MODEL=ALL_MINILM_L12_V2 node scripts/embed_catalog.js` from `mern-ecommerce/server` (PowerShell: `$env:VECTOR_EMBEDDING_MODEL = 'ALL_MINILM_L12_V2'; node scripts/embed_catalog.js`) |
 | Select AI | `ADMIN` | `09b` (one-time network ACL) |
-| | `MERN26` | `09`, re-runnable; reads its key from the gitignored `09_select_ai_key.sql` (copy `09_select_ai_key.sql.example`) |
+| | `MERN26` | `09`, re-runnable; reads the key from `MERN_LLM_KEY` (via `run-sql`) or the gitignored `09_select_ai_key.sql`, and the region from `MERN_LLM_REGION` (default `us-phoenix-1`) |
 
 Duality views are a point-in-time copy: documents written through the MongoDB API after `06` appear only after `06` runs again. Reference run: 12 collections, 204 documents, 12 duality views, 132 documents in the validity views (users, products, orders, carts), all valid.
 
 </details>
 
 Full guide with results: [`docs/26ai/migration-guide.md`](docs/26ai/migration-guide.md). Presenter script with timings, reset and fallbacks: [`docs/26ai/demo-runbook.md`](docs/26ai/demo-runbook.md).
+
+---
+
+## LiveLabs workshop
+
+The same migration is packaged as an Oracle LiveLabs workshop, **Migrate a MongoDB App to Oracle AI Database 26ai Without Rewriting It**, in [`livelabs/migrate-mern-mongodb-26ai/`](livelabs/migrate-mern-mongodb-26ai/). It has a `tenancy` variant (you provision the database in your own cloud account) and a `sandbox` variant (the reservation already includes one), and every lab that runs commands has Linux and Windows (PowerShell) tabs.
+
+To preview it locally, serve the repository root over HTTP and open one variant:
+
+```bash
+python -m http.server 8000
+```
+
+- <http://localhost:8000/livelabs/migrate-mern-mongodb-26ai/workshops/tenancy/index.html>
+- <http://localhost:8000/livelabs/migrate-mern-mongodb-26ai/workshops/sandbox/index.html>
 
 ---
 
@@ -284,7 +342,7 @@ all-MiniLM-L12-v2 is loaded into the schema as an ONNX model with [onnx2oracle](
 | [`docs/26ai/ui-inventory.md`](docs/26ai/ui-inventory.md) | Every screen |
 | [`mern-ecommerce/README.md`](mern-ecommerce/README.md) | The app: environment, Docker, scripts |
 | [Simple migration](solutions/simple-migration/README.md), [complex migration](solutions/complex-migration/README.md), [AI and analytics](solutions/ai-analytics/README.md) | Solution narratives |
-| [`livelabs/`](livelabs/) | LiveLabs workshop content |
+| [`livelabs/migrate-mern-mongodb-26ai/`](livelabs/migrate-mern-mongodb-26ai/) | LiveLabs workshop: [preview it locally](#livelabs-workshop) |
 
 <details>
 <summary><b>Repository layout</b></summary>
@@ -298,7 +356,8 @@ all-MiniLM-L12-v2 is loaded into the schema as an ONNX model with [onnx2oracle](
 | `scripts/verify_migration.py` | Document-level source to target verification |
 | `docs/` | Guides, runbook, API contract, sample documents |
 | `solutions/` | Simple migration, complex migration, AI and analytics narratives |
-| `livelabs/` | LiveLabs workshop content |
+| `scripts/workshop` | Bash and PowerShell helpers for the migration path (source MongoDB container, dump and restore, SQLcl runner) |
+| `livelabs/migrate-mern-mongodb-26ai` | LiveLabs workshop (tenancy and sandbox variants) |
 
 </details>
 
