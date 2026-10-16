@@ -20,7 +20,13 @@ select json_value(p.data, '$._id')                    as product_id,
        json_value(p.data, '$.slug')                   as slug,
        json_value(p.data, '$.brand')                  as brand_ref,
        json_value(b.data, '$.name')                   as brand_name,
-       json_value(b.data, '$.slug')                   as brand_slug
+       json_value(b.data, '$.slug')                   as brand_slug,
+       -- a category document lists its product ids in `products`; the product holds no category field
+       (select json_value(c.data, '$.name')
+          from categories c,
+               json_table(c.data, '$.products[*]' columns (pid varchar2(40) path '$')) jt
+         where jt.pid = json_value(p.data, '$._id')
+         fetch first 1 row only)                      as category_name
   from products p
   left join brands b
     on json_value(p.data, '$.brand') = json_value(b.data, '$._id');

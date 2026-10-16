@@ -292,7 +292,7 @@ anyway). Run these in order — measured total ≈ 2 minutes:
 @sql/26ai/10_duality_catalog.sql               -- republish the manifest the application reads
 ```
 
-Measured after the sequence: `verify_migration.py` PASS (204/204), `02_verify_counts.sql` 12/12 MATCH,
+Measured after the sequence: `verify_migration.py` PASS (204/204), `02_verify_counts.sql` TOTAL 204 (12 collections),
 `PRODUCTS_ENRICHED` readable through the MongoDB API (112 documents), `/api/admin-db/duality-views`
 `inSync=true` for all 12 views, `invalidDocuments: []`, and `POST /api/ai/similar` still ranked by
 `VECTOR_DISTANCE`. Skipping the grants is the loudest failure: as `MERN26DV` the collections answer
@@ -395,7 +395,7 @@ The JSON report is consumed by `GET /api/admin-db/migration-status` and rendered
 @sql/26ai/02_verify_counts.sql
 ```
 
-Every collection must report `MATCH` and `MISMATCHED_COLLECTIONS` must be `0`.
+The script counts every table of `MERN26` live and prints a `TOTAL`; it holds no expected values. Compare the per-collection counts with the source counts (for the reference dataset: 12 collections, 204 documents). `verify_migration.py` remains the authoritative check.
 
 ### 4.3 Update the application endpoint
 
@@ -640,7 +640,7 @@ Checks that pass without any provider key (all executed against the live instanc
 
 ```
 verify_migration.py            -> PASS  source and target documents match (204/204)
-sql/26ai/02_verify_counts.sql  -> 12/12 collections MATCH
+sql/26ai/02_verify_counts.sql  -> TOTAL 204 documents in 12 collections
 DBMS_JSON_DUALITY.IMPORT_ALL   -> 12/12 views, 0 error-log rows
 DBMS_JSON_SCHEMA.IS_VALID      -> 132/132 documents valid (users, products, orders, carts)
 POST /api/ai/similar           -> 200, in-database ranking (no API key)

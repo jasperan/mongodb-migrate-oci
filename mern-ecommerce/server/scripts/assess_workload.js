@@ -17,7 +17,7 @@
  *   ASSESS_MODE=start  mongosh "$MONGO_URI" --file scripts/assess_workload.js
  *       db.setProfilingLevel(2) - profile everything, so the next application pass is recorded.
  *
- *   # ...drive application traffic (see _scratch/planning/traffic-readonly.sh)...
+ *   # ...browse the storefront read-only (home, Shop, filters, search, product pages)...
  *
  *   ASSESS_MODE=report mongosh "$MONGO_URI" --file scripts/assess_workload.js
  *       db.setProfilingLevel(0) FIRST (never leave profiling on), then summarise system.profile:
@@ -245,9 +245,8 @@ function start() {
   print('system.profile exists  : ' + (db.getCollectionNames().indexOf('system.profile') !== -1));
   print('profiling level now    : ' + after.was + (after.slowms !== undefined ? ' (slowms ' + after.slowms + ')' : ''));
   print('');
-  print('Profiling every operation. Drive application traffic now, e.g.');
-  print('  bash _scratch/planning/traffic-readonly.sh http://127.0.0.1:3001 3');
-  print('then summarise (and switch profiling off) with ASSESS_MODE=report.');
+  print('Profiling every operation. Browse the storefront read-only now (Shop, filters, search,');
+  print('product pages), then summarise (and switch profiling off) with ASSESS_MODE=report.');
   return r;
 }
 

@@ -305,7 +305,15 @@ def write_report_atomic(path: str, report: dict) -> None:
         raise
 
 
+def _make_output_encoding_safe() -> None:
+    """Windows consoles/pipes default to cp1252; never crash on a non-ASCII document value."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+
+
 def main() -> int:
+    _make_output_encoding_safe()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source", required=True, help="source MongoDB URI (must name the database)")
     parser.add_argument("--target", required=True, help="target Oracle MongoDB API URI (must name the database)")

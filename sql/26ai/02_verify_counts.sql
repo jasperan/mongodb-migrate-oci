@@ -1,73 +1,35 @@
--- Validation step: compare MongoDB source counts with the Oracle JSON collections.
--- Run as ADMIN (saved SQLcl connection: mig26-admin); the counts come from the
--- target schema itself, so this is the SQL counterpart of mongosh counting.
+-- Validation step: count the documents of every migrated collection in Oracle.
+-- Run as ADMIN; the counts are read live from the MERN26 schema, so this is the SQL
+-- counterpart of counting with mongosh through the MongoDB API.
 --
--- Expected source counts are supplied by the migration run (see docs/26ai/migration-guide.md).
+-- Compare the COLLECTION / DOCUMENTS table with the "collections" table that
+-- ASSESS_MODE=status printed on the source (Lab 4). The authoritative, document-level
+-- comparison is scripts/verify_migration.py; this script contains no expected values.
 
-set linesize 200
+set serveroutput on size unlimited
 set feedback off
+set linesize 120
 
-column collection_name format a18
-column oracle_count    format 999999
-column mongodb_count   format 999999
-column status          format a8
-
-with expected (collection_name, mongodb_count) as (
-  select 'addresses',  4 from dual union all
-  select 'brands',    16 from dual union all
-  select 'cartitems', 15 from dual union all
-  select 'carts',      8 from dual union all
-  select 'categories',13 from dual union all
-  select 'contacts',   4 from dual union all
-  select 'merchants',  4 from dual union all
-  select 'orders',     5 from dual union all
-  select 'products', 112 from dual union all
-  select 'reviews',   10 from dual union all
-  select 'users',      7 from dual union all
-  select 'wishlists',  6 from dual
-),
-actual as (
-  select 'addresses'  collection_name, count(*) oracle_count from mern26.addresses  union all
-  select 'brands',        count(*) from mern26.brands     union all
-  select 'cartitems',     count(*) from mern26.cartitems  union all
-  select 'carts',         count(*) from mern26.carts      union all
-  select 'categories',    count(*) from mern26.categories union all
-  select 'contacts',      count(*) from mern26.contacts   union all
-  select 'merchants',     count(*) from mern26.merchants  union all
-  select 'orders',        count(*) from mern26.orders     union all
-  select 'products',      count(*) from mern26.products   union all
-  select 'reviews',       count(*) from mern26.reviews    union all
-  select 'users',         count(*) from mern26.users      union all
-  select 'wishlists',     count(*) from mern26.wishlists
-)
-select e.collection_name,
-       e.mongodb_count,
-       a.oracle_count,
-       case when e.mongodb_count = a.oracle_count then 'MATCH' else 'MISMATCH' end status
-  from expected e join actual a on a.collection_name = e.collection_name
- order by e.collection_name;
-
-select count(*) as mismatched_collections
-  from (
-    select 'addresses' c, 4 n from dual union all select 'brands', 16 from dual union all
-    select 'cartitems', 15 from dual union all select 'carts', 8 from dual union all
-    select 'categories', 13 from dual union all select 'contacts', 4 from dual union all
-    select 'merchants', 4 from dual union all select 'orders', 5 from dual union all
-    select 'products', 112 from dual union all select 'reviews', 10 from dual union all
-    select 'users', 7 from dual union all select 'wishlists', 6 from dual
-  ) e
-  left join (
-    select 'addresses' c, count(*) n from mern26.addresses union all
-    select 'brands', count(*) from mern26.brands union all
-    select 'cartitems', count(*) from mern26.cartitems union all
-    select 'carts', count(*) from mern26.carts union all
-    select 'categories', count(*) from mern26.categories union all
-    select 'contacts', count(*) from mern26.contacts union all
-    select 'merchants', count(*) from mern26.merchants union all
-    select 'orders', count(*) from mern26.orders union all
-    select 'products', count(*) from mern26.products union all
-    select 'reviews', count(*) from mern26.reviews union all
-    select 'users', count(*) from mern26.users union all
-    select 'wishlists', count(*) from mern26.wishlists
-  ) a on a.c = e.c
- where a.n is null or a.n <> e.n;
+declare
+  l_count number;
+  l_total number := 0;
+  l_n     number := 0;
+begin
+  dbms_output.put_line(rpad('COLLECTION', 24) || lpad('DOCUMENTS', 10));
+  dbms_output.put_line(rpad('-', 24, '-') || lpad('-', 10, '-'));
+  for t in (select t.table_name
+                from all_tables t
+               where t.owner = 'MERN26'
+                 and exists (select 1 from all_tab_columns c   -- JSON collection tables only
+                              where c.owner = t.owner and c.table_name = t.table_name
+                                and c.column_name = 'DATA' and c.data_type = 'JSON')
+               order by t.table_name) loop
+    execute immediate 'select count(*) from mern26."' || t.table_name || '"' into l_count;
+    dbms_output.put_line(rpad(lower(t.table_name), 24) || lpad(l_count, 10));
+    l_total := l_total + l_count;
+    l_n := l_n + 1;
+  end loop;
+  dbms_output.put_line(rpad('-', 24, '-') || lpad('-', 10, '-'));
+  dbms_output.put_line(rpad('TOTAL', 24) || lpad(l_total, 10) || '  (' || l_n || ' collections)');
+end;
+/

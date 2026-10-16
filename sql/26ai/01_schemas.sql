@@ -82,4 +82,7 @@ end;
 -- 3) Let MERN26DV read the MERN26 collections (needed to build duality views).
 --    Run sql/26ai/03_grants_after_restore.sql once the collections exist.
 
+set linesize 120
+column username format a12
+column account_status format a16
 select username, account_status from dba_users where username in ('MERN26','MERN26DV');

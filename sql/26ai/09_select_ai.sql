@@ -13,19 +13,33 @@
 --   1. credential   -> DBMS_CLOUD.CREATE_CREDENTIAL (bearer token: the GenAI API key)
 --   2. network ACL  -> the endpoint host must be reachable from the schema
 --                      (only the native `provider: oci` route skips the ACL)
---   3. profile      -> provider `openai` + provider_endpoint (host/path, no scheme,
+--   3. profile      -> provider `openai` + provider_endpoint (https://host/path,
 --                      without /v1/chat/completions) + the model id
 --
 -- Re-runnable: the credential and the profile are dropped and re-created, so the
 -- script can be re-run after every migration - and after editing `object_list`,
 -- e.g. when a new view or collection must become visible to Select AI.
 --
---   cp sql/26ai/09_select_ai_key.sql.example sql/26ai/09_select_ai_key.sql  # put the key in it
---   bash _scratch/sqlrun.sh mig26-app sql/26ai/09_select_ai.sql            # run from the repo root
+--   export MERN_LLM_KEY=<key> MERN_LLM_REGION=<region>                      # region defaults to us-phoenix-1
+--   bash scripts/workshop/run-sql.sh MERN26 sql/26ai/09_select_ai.sql       # run from the repo root
+--
+-- or, without run-sql: cp sql/26ai/09_select_ai_key.sql.example sql/26ai/09_select_ai_key.sql,
+-- put the key in it, optionally `define mern_llm_region = <region>`, then @sql/26ai/09_select_ai.sql.
+-- The region must be the OCI Generative AI region of the API key, and the same one given to
+-- 09b_select_ai_acl.sql.
 
 set define on
 set echo on
 set serveroutput on size unlimited
+
+-- keep a region the caller already defined; otherwise default it
+set verify off
+set termout off
+column mern_llm_region new_value mern_llm_region noprint
+select null mern_llm_region from dual where 1 = 0;
+column mern_llm_region_default new_value mern_llm_region noprint
+select nvl('&mern_llm_region', 'us-phoenix-1') mern_llm_region_default from dual;
+set termout on
 
 -- 0) the key, kept out of version control. `verify off` first: otherwise SQLcl
 --    echoes every block with the substituted key (old:/new: lines).
@@ -80,7 +94,7 @@ begin
         "provider": "openai",
         "credential_name": "MERN_LLM_CRED",
         "model": "xai.grok-4.3",
-        "provider_endpoint": "inference.generativeai.us-phoenix-1.oci.oraclecloud.com/openai/v1",
+        "provider_endpoint": "https://inference.generativeai.&mern_llm_region..oci.oraclecloud.com/openai/v1",
         "conversation": "true",
         "object_list": [
             {"owner": "MERN26", "name": "PRODUCT_CATALOG"},
@@ -102,7 +116,11 @@ select profile_name, status, description from user_cloud_ai_profiles order by pr
 
 -- 3) smoke tests: showsql (SQL only) then runsql (SQL + result) against the
 --    migrated catalogue, including a question the `categories` object answers.
-column generated_sql format a110
+set long 20000
+set longchunksize 20000
+set linesize 200
+set pagesize 100
+column generated_sql format a180 word_wrapped
 select dbms_cloud_ai.generate(
          prompt       => 'Which five products are the most expensive?',
          profile_name => 'MERN_LLM',
@@ -115,7 +133,7 @@ select dbms_cloud_ai.generate(
          action       => 'showsql') as generated_sql
   from dual;
 
-column answer format a90
+column answer format a180 word_wrapped
 select dbms_cloud_ai.generate(
          prompt       => 'How many products are in each category?',
          profile_name => 'MERN_LLM',
