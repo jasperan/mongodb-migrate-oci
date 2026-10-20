@@ -11,6 +11,7 @@ Estimated Time: 25 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Pass your region and API key to the scripts through environment variables
 * Allow the `MERN26` schema to reach the OCI Generative AI endpoint
 * Create the Select AI credential and profile and test them in SQL
@@ -19,13 +20,14 @@ In this lab, you will:
 ### Prerequisites
 
 This lab assumes you have:
+
 * Completed Labs 1 to 8. Lab 9 is not required for this lab, but its `server/.env` settings are reused if you did it.
 * An OCI Generative AI API key (`sk-...`) and the region of its endpoint
 * The SQL terminal from Lab 8: a terminal at the repository root with `ORACLE_CONNECT_STRING`, `DB_PASSWORD` (the `ADMIN` password) and `MERN26_PASSWORD` set
 
 ## Task 1: Set the region and the key
 
-The scripts read two environment variables, so nothing is edited and the key never lands in a tracked file. `run-sql` writes the key to a temporary, git-ignored file for the run and deletes it afterwards.
+The scripts read two environment variables, so nothing is edited and the key never lands in a tracked file. The runner script (`run-sql.sh` or `run-sql.ps1`) writes the key to a temporary, git-ignored file for the run and deletes it afterwards.
 
 1. In the **SQL terminal** (the one you used in Lab 8, not the API terminal), set the region of your OCI Generative AI endpoint and your API key. For the `us-phoenix-1` region you can skip `MERN_LLM_REGION`.
 
@@ -34,7 +36,7 @@ The scripts read two environment variables, so nothing is edited and the key nev
     ```bash
     <copy>
     export MERN_LLM_REGION=<region>
-    read -rs -p "OCI Generative AI API key: " MERN_LLM_KEY; echo; export MERN_LLM_KEY
+    printf 'OCI Generative AI API key: '; read -rs MERN_LLM_KEY; echo; export MERN_LLM_KEY
     </copy>
     ```
 
@@ -81,7 +83,7 @@ Script `09b_select_ai_acl.sql` adds a network access control entry so `MERN26` c
 
 ## Task 3: Create the credential and profile (MERN26)
 
-Script `09_select_ai.sql` creates the credential `MERN_LLM_CRED` (your key as a bearer token) and the profile `MERN_LLM` with provider `openai`, model `xai.grok-4.3` and an object list that covers `PRODUCT_CATALOG`, `ORDER_SUMMARY`, `PRODUCT_REVIEW_STATS` and the `products`, `orders`, `reviews`, `users` and `categories` collections. It uses `MERN_LLM_REGION` for the `provider_endpoint` and refuses to run when no key is set. It drops and re-creates the credential and the profile, so you can re-run it after every migration or after you change `object_list`.
+Script `09_select_ai.sql` creates the credential `MERN_LLM_CRED` (your key as a bearer token) and the profile `MERN_LLM` with provider `openai`, model `xai.grok-4.3` and an object list that covers `PRODUCT_CATALOG`, `ORDER_SUMMARY`, `PRODUCT_REVIEW_STATS` and the `products`, `orders`, `reviews`, `users` and `categories` collections. It uses `MERN_LLM_REGION` for the `provider_endpoint` and refuses to run when no key is set. It drops and re-creates the credential and the profile. A Select AI profile is a stored object, so editing the script does not change it: re-run the script after every migration or after you change `object_list`, or the model may answer from a schema without the object you expect.
 
 1. Run the script as `MERN26`.
 
@@ -108,7 +110,7 @@ Script `09_select_ai.sql` creates the credential `MERN_LLM_CRED` (your key as a 
 
 3. To try your own question in Database actions as `MERN26`, use `showsql` to see the SQL without running it.
 
-    ```
+    ```sql
     <copy>
     select dbms_cloud_ai.generate(
              prompt       => 'Which products have a price above 100?',
@@ -144,15 +146,13 @@ Script `09_select_ai.sql` creates the credential `MERN_LLM_CRED` (your key as a 
 
 > **What leaves your machine:** Select AI sends schema metadata for the objects in the profile, together with your question, to the model provider to get SQL back.
 
-## Task 5: Update the profile later
+You have completed the migration path and the AI extensions. The next lab, Clean Up, removes what you created.
 
-A Select AI profile is a stored object. Editing `09_select_ai.sql` does not change the live profile, and if the profile is older than the current `object_list` the model may answer from a schema without the object you expect. Re-run Task 3 to re-create it.
-
-You have completed the migration path and the AI extensions. Continue to **Clean Up** to remove what you created.
+You may now **proceed to the next lab**.
 
 ## Learn More
 
-* [Select AI for Autonomous AI Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/sql-generation-ai-autonomous.html)
+* [Use Select AI for Natural Language Interaction with your Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/select-ai.html)
 * [Source repository demo runbook](https://github.com/oracle-devrel/mongodb-migrate-oci/blob/main/docs/26ai/demo-runbook.md)
 
 ## Acknowledgements

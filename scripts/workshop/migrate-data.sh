@@ -27,6 +27,12 @@ DUMP_DIR="${DUMP_DIR:-./dump}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 mask() { sed -E 's#//[^/]*@#//***:***@#g'; }
+# Run a tool, print its credential-masked output (kept in $LOG), die if it exits non-zero.
+run_tool() {
+  local rc=0
+  "$@" 2>&1 | mask | tee "$LOG" || rc=$?
+  [ "$rc" -eq 0 ] || die "$1 failed (exit $rc)"
+}
 
 [ -n "$TARGET_URI" ] || die "TARGET_URI is not set (Oracle MongoDB API URI naming database mern26)"
 command -v mongodump >/dev/null 2>&1 || die "mongodump not found: install the MongoDB Database Tools"
@@ -57,16 +63,17 @@ echo "Source: $(printf '%s' "$SOURCE_URI" | mask)  (database $SOURCE_DB)"
 echo "Target: $(printf '%s' "$TARGET_URI" | mask)  (database $TARGET_DB)"
 echo "Dump:   $DUMP_DIR"
 
+LOG="$(mktemp)"
+trap 'rm -f "$LOG"' EXIT
+
 echo
 echo "== mongodump =="
-mongodump --uri "$SOURCE_URI" --out "$DUMP_DIR" 2>&1 | mask
+run_tool mongodump --uri "$SOURCE_URI" --out "$DUMP_DIR"
 [ -d "$DUMP_DIR/$SOURCE_DB" ] || die "mongodump produced no $DUMP_DIR/$SOURCE_DB directory"
 
 echo
 echo "== mongorestore =="
-LOG="$(mktemp)"
-trap 'rm -f "$LOG"' EXIT
-mongorestore --drop --writeConcern '{w:1}' --uri "$TARGET_URI" "$DUMP_DIR/$SOURCE_DB" 2>&1 | mask | tee "$LOG"
+run_tool mongorestore --drop --writeConcern '{w:1}' --uri "$TARGET_URI" "$DUMP_DIR/$SOURCE_DB"
 
 RESTORED="$(sed -nE 's/.*[^0-9]([0-9]+) document\(s\) restored successfully.*/\1/p' "$LOG" | tail -n 1)"
 FAILED="$(sed -nE 's/.*[^0-9]([0-9]+) document\(s\) failed to restore.*/\1/p' "$LOG" | tail -n 1)"

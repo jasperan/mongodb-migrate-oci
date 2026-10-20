@@ -198,10 +198,6 @@ You need two terminals. Keep both open for the rest of the workshop.
 
 4. Click **Shop**, open a product, and use the search box. Sign in with `admin@example.com` and the password you chose in Task 2 to confirm that authentication works.
 
-## Task 4 (Optional): Know the Docker Compose alternative
-
-The repository also contains a Docker Compose setup in `mern-ecommerce/` that starts the web client, the API and a MongoDB 7 container together on `http://localhost:8080`. It needs `JWT_SECRET` and `ADMIN_PASSWORD` in your environment. This workshop uses the step-by-step path above because the later labs edit `server/.env` and restart the API by hand. See `mern-ecommerce/README.md` if you want to try Compose on your own.
-
 You may now **proceed to the next lab**.
 
 ## Learn More

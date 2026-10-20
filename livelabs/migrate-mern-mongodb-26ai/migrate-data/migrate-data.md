@@ -22,7 +22,7 @@ In this lab, you will:
 This lab assumes you have:
 
 * Completed **Lab 5: Prepare the Target Schemas** (the `MERN26` and `MERN26DV` schemas exist and are ORDS-enabled)
-* `MONGO_API_HOST` from Lab 2 (the host name in the MongoDB API URL under **Database actions > Tool configuration > MongoDB API**)
+* `MONGO_API_HOST` from Lab 2 (the host name in the MongoDB API URL on the database's **Tool configuration** tab)
 * MongoDB Database Tools (`mongodump`, `mongorestore`) and `mongosh` installed
 * The source MongoDB container from Lab 3 still running
 * A terminal open at the **root of the cloned repository**, with `ORACLE_CONNECT_STRING`, `MONGO_API_HOST`, `DB_PASSWORD` (the `ADMIN` password) and the Lab 5 variables set. If you opened a new terminal, set them again as in Lab 5
@@ -82,7 +82,7 @@ The restore URI is the MongoDB API URL for the **target schema**: it signs in as
 The script reads three settings. Only `TARGET_URI` is required.
 
 | Setting | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `SOURCE_URI` | `mongodb://127.0.0.1:27017/mern_ecommerce` | The source MongoDB, including the database name |
 | `TARGET_URI` | none | The Oracle MongoDB API URI naming `mern26` |
 | `DUMP_DIR` | `./dump` | Where `mongodump` writes the dump |
@@ -121,18 +121,18 @@ The script reads three settings. Only `TARGET_URI` is required.
 
 ## Task 3: Understand the dump directory pitfall
 
-The restore step takes a directory argument, and the right value **depends on the URI**:
+1. The restore step takes a directory argument, and the right value **depends on the URI**:
 
-* A URI that **names a database** (this one ends in `/mern26`) makes `mongorestore` use the "database directory" layout. The argument must be the **database directory**, `dump/mern_ecommerce`. The target database name comes from the URI.
-* A URI **without** a database name wants the dump **root**, `dump`.
+    * A URI that **names a database** (this one ends in `/mern26`) makes `mongorestore` use the "database directory" layout. The argument must be the **database directory**, `dump/mern_ecommerce`. The target database name comes from the URI.
+    * A URI **without** a database name wants the dump **root**, `dump`.
 
-Getting this wrong fails silently: with the dump root and this URI, `mongorestore` prints `don't know what to do with subdirectory "...mern_ecommerce", skipping...`, restores **0 documents** and still exits with code `0`. Adding `--nsFrom` and `--nsTo` on top of a URI that names a database changes nothing. That is why the workshop script derives the directory from the source database name and fails when nothing was restored. If you run the two tools by hand later, remember this rule and also make sure the dump is fresh.
+2. Getting this wrong fails silently: with the dump root and this URI, `mongorestore` prints `don't know what to do with subdirectory "...mern_ecommerce", skipping...`, restores **0 documents** and still exits with code `0`. Adding `--nsFrom` and `--nsTo` on top of a URI that names a database changes nothing. That is why the workshop script derives the directory from the source database name and fails when nothing was restored. If you run the two tools by hand later, remember this rule and also make sure the dump is fresh.
 
-The restore uses `--drop`, which replaces the collection tables in `MERN26`. Anything built on top of them (grants, views) must be rebuilt after a repeated restore. You rebuild the first part, the grants, now.
+3. The restore uses `--drop`, which replaces the collection tables in `MERN26`. Anything built on top of them (grants, views) must be rebuilt after a repeated restore. You rebuild the first part, the grants, now.
 
 ## Task 4: Grant the collections to MERN26DV
 
-The restore just created the collections. Now `MERN26DV` needs access to them to host duality views later. `03_grants_after_restore.sql` grants `select`, `insert`, `update` and `delete` on every `MERN26` table to `MERN26DV`.
+The restore just created the collections. Now `MERN26DV` needs access to them to host duality views later. `03_grants_after_restore.sql` grants `select`, `insert`, `update` and `delete` on every `MERN26` collection table to `MERN26DV`.
 
 1. Run the grants script as `ADMIN`.
 
@@ -156,7 +156,7 @@ The restore just created the collections. Now `MERN26DV` needs access to them to
 
     </if>
 
-2. The script prints `<n> collections granted to MERN26DV`, counting every table in the `MERN26` schema (`12 collections granted to MERN26DV` for the seeded storefront), and then lists the grants (4 privileges per collection, 48 rows). Skipping this step is the loudest failure later: `MERN26DV` answers `ORA-00942: table or view "MERN26"."users" does not exist`.
+2. The script prints `<n> collections granted to MERN26DV`, counting every JSON collection table in the `MERN26` schema (`12 collections granted to MERN26DV` for the seeded storefront), and then lists the grants (4 privileges per collection, 48 rows). Skipping this step is the loudest failure later: `MERN26DV` answers `ORA-00942: table or view "MERN26"."users" does not exist`.
 
 ## Task 5: Verify the data in Oracle
 

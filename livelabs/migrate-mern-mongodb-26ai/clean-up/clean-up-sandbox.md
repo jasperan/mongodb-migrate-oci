@@ -9,6 +9,7 @@ Estimated Time: 10 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Stop the storefront and the source MongoDB
 * Remove local dump files
 * Undo the SQL changes
@@ -99,10 +100,9 @@ This lab assumes you completed the earlier labs, with `ORACLE_CONNECT_STRING` an
 
 You do not need to delete the database. The reservation and its database are removed automatically when the reservation ends.
 
-
 ## Learn More
 
-* [Terminating an Autonomous Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/)
+* [Autonomous AI Database documentation](https://docs.oracle.com/en/cloud/paas/autonomous-database/)
 
 ## Acknowledgements
 

@@ -85,17 +85,16 @@ foreach ($f in $File) {
     }
 }
 
-$defines = [ordered]@{
-    mern26_password   = $mern26Password
-    mern26dv_password = $mern26dvPassword
-    mern_llm_region   = $env:MERN_LLM_REGION
-    embedding_dim     = $env:EMBEDDING_DIM
+$defines = @(
+    @{ Var = 'MERN26_PASSWORD';   Name = 'mern26_password';   Value = $mern26Password }
+    @{ Var = 'MERN26DV_PASSWORD'; Name = 'mern26dv_password'; Value = $mern26dvPassword }
+    @{ Var = 'MERN_LLM_REGION';   Name = 'mern_llm_region';   Value = $env:MERN_LLM_REGION }
+    @{ Var = 'EMBEDDING_DIM';     Name = 'embedding_dim';     Value = $env:EMBEDDING_DIM }
+)
+foreach ($d in $defines) {
+    if ($d.Value) { Assert-Secret $d.Var $d.Value -NoWhitespace }
 }
-$names = @{ mern26_password = 'MERN26_PASSWORD'; mern26dv_password = 'MERN26DV_PASSWORD'
-            mern_llm_region = 'MERN_LLM_REGION'; embedding_dim = 'EMBEDDING_DIM' }
-foreach ($k in $defines.Keys) {
-    if ($defines[$k]) { Assert-Secret $names[$k] $defines[$k] -NoWhitespace }
-}
+if ($env:MERN_LLM_KEY) { Assert-Secret 'MERN_LLM_KEY' $env:MERN_LLM_KEY -NoWhitespace }
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $keyFile = 'sql/26ai/09_select_ai_key.sql'
@@ -103,7 +102,6 @@ $createdKeyFile = $false
 $exitCode = 1
 try {
     if ($env:MERN_LLM_KEY) {
-        Assert-Secret 'MERN_LLM_KEY' $env:MERN_LLM_KEY -NoWhitespace
         if (Test-Path -LiteralPath $keyFile) {
             Write-Warning "$keyFile exists and takes precedence over MERN_LLM_KEY."
         } elseif (Test-Path -LiteralPath 'sql/26ai' -PathType Container) {
@@ -115,8 +113,8 @@ try {
 
     $sqlLines = New-Object System.Collections.Generic.List[string]
     $sqlLines.Add('set define off')
-    foreach ($k in $defines.Keys) {
-        if ($defines[$k]) { $sqlLines.Add("define $k = $($defines[$k])") }
+    foreach ($d in $defines) {
+        if ($d.Value) { $sqlLines.Add("define $($d.Name) = $($d.Value)") }
     }
     $sqlLines.Add('set define on')
     $sqlLines.Add('whenever oserror exit failure')

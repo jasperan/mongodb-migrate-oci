@@ -41,9 +41,17 @@ esac
 
 ENGINE="$(detect_engine)"
 
+# container_listed [-a]: is the container listed by `ps` (-a: stopped ones too)?
+container_listed() { "$ENGINE" ps "$@" --filter "name=^${NAME}\$" --format '{{.Names}}' | grep -qx "$NAME"; }
+# engine_do <verb> [args]: run quietly; on failure die with the engine's output.
+engine_do() {
+  local out
+  out="$("$ENGINE" "$@" 2>&1)" || die "$ENGINE $1 failed: $out"
+}
+
 if [ "$ACTION" = "stop" ]; then
-  if "$ENGINE" ps -a --filter "name=^${NAME}\$" --format '{{.Names}}' | grep -qx "$NAME"; then
-    "$ENGINE" rm -f "$NAME" >/dev/null
+  if container_listed -a; then
+    engine_do rm -f "$NAME"
     echo "Removed container $NAME ($ENGINE)."
   else
     echo "Container $NAME does not exist; nothing to do."
@@ -51,16 +59,16 @@ if [ "$ACTION" = "stop" ]; then
   exit 0
 fi
 
-if "$ENGINE" ps -a --filter "name=^${NAME}\$" --format '{{.Names}}' | grep -qx "$NAME"; then
-  if "$ENGINE" ps --filter "name=^${NAME}\$" --format '{{.Names}}' | grep -qx "$NAME"; then
+if container_listed -a; then
+  if container_listed; then
     echo "Reusing running container $NAME ($ENGINE)."
   else
     echo "Starting existing container $NAME ($ENGINE)."
-    "$ENGINE" start "$NAME" >/dev/null
+    engine_do start "$NAME"
   fi
 else
   echo "Creating container $NAME from $IMAGE ($ENGINE)."
-  "$ENGINE" run -d --name "$NAME" -p "$PORT_MAP" "$IMAGE" >/dev/null
+  engine_do run -d --name "$NAME" -p "$PORT_MAP" "$IMAGE"
 fi
 
 printf 'Waiting for MongoDB to answer ping'

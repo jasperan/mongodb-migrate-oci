@@ -49,7 +49,7 @@ The `status` mode prints `db.serverStatus()` (version, uptime, connections, oper
 
     </if>
 
-2. Note the **collections** table and its `TOTAL` line. You compare these counts with the target after the migration. For the seeded storefront with the sample activity from Lab 3 it shows 12 collections and a `TOTAL` of 133 documents (100 products, 10 brands, 10 categories and a few documents in the other collections). The random catalogue can make your counts differ slightly.
+2. Note the **collections** table and its `TOTAL` line. You compare these counts with the target after the migration. For the seeded storefront with the sample activity from Lab 3 it shows 12 collections and a `TOTAL` of 133 documents (100 products, 10 brands, 10 categories and 13 documents in the other nine collections).
 
 ## Task 2: Start the profiler and generate traffic
 
@@ -79,7 +79,7 @@ The `start` mode drops any earlier `system.profile` collection and then calls `d
 
     </if>
 
-    The output ends with `profiling level now : 2`.
+    The output shows `profiling level now` set to `2`.
 
 2. In your browser, use the storefront at `http://localhost:8080` the way a shopper would, **read-only**:
 
@@ -142,7 +142,7 @@ The `report` mode switches profiling **off first** and only then summarizes `sys
 The Oracle Database API for MongoDB requires clients that support **load-balanced connections**. These are the minimum versions from the migration guide.
 
 | Client | Minimum version |
-|---|---|
+| --- | --- |
 | mongosh | 0.15.6 |
 | Database Tools (`mongodump`, `mongorestore`) | 100.5.0 |
 | Node.js driver (through Mongoose 6.10.0) | 4.1.0 |
@@ -163,7 +163,7 @@ The Oracle Database API for MongoDB requires clients that support **load-balance
 Running the same storefront on both backends needed four code changes and one tooling difference. They are the reason the assessment matters: each one returns a wrong or empty answer, not always a loud error.
 
 | Pattern | What the Oracle API does | What the application does |
-|---|---|---|
+| --- | --- | --- |
 | `$lookup` | No `let`; an error if `localField` is an array, is missing from any input document, or occurs more than once in one | `GET /api/product/list` joins brands, approved reviews and the wishlist flag with **one `$sql` stage** on Oracle (`server/utils/queries.js`). `loadBalanced=true` in `MONGO_URI` selects that branch |
 | `$elemMatch` in an update filter | Rejected (`Invalid query opcode:$elemMatch`); reads accept it | Order-line updates address the array element by index with a conditional filter (`setLineStatus` in `server/utils/store.js`) |
 | `$regex` with a separate `$options` | `$options` is ignored, so search becomes case-sensitive | The flags live on the pattern: `new RegExp(term, 'i')` (`server/routes/api/product.js`) |

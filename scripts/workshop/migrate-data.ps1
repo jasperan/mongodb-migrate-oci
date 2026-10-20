@@ -35,7 +35,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-function Hide-Credentials([string]$Text) {
+function Hide-Credential([string]$Text) {
     return ($Text -replace '//[^/]*@', '//***:***@')
 }
 
@@ -54,7 +54,7 @@ function Invoke-Tool {
     $lines = @()
     try {
         & $Exe @ArgList 2>&1 | ForEach-Object {
-            $line = Hide-Credentials ($_.ToString())
+            $line = Hide-Credential ($_.ToString())
             Write-Host $line
             $lines += $line
         }
@@ -83,8 +83,8 @@ if ($TargetDb.ToLowerInvariant() -ne 'mern26') {
     Write-Warning "TargetUri names database '$TargetDb', not mern26."
 }
 
-Write-Host "Source: $(Hide-Credentials $SourceUri)  (database $SourceDb)"
-Write-Host "Target: $(Hide-Credentials $TargetUri)  (database $TargetDb)"
+Write-Host "Source: $(Hide-Credential $SourceUri)  (database $SourceDb)"
+Write-Host "Target: $(Hide-Credential $TargetUri)  (database $TargetDb)"
 Write-Host "Dump:   $DumpDir"
 
 Write-Host ''

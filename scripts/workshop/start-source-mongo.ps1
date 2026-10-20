@@ -17,7 +17,7 @@ Remove the container instead of starting it.
 Bash twin: scripts/workshop/start-source-mongo.sh (CONTAINER_ENGINE, "stop").
 Works on Windows PowerShell 5.1 and PowerShell 7.
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Engine = $env:CONTAINER_ENGINE,
     [switch]$Stop
@@ -28,10 +28,11 @@ $Name = 'mern-mongo'
 $Image = 'mongo:7'
 $PortMap = '127.0.0.1:27017:27017'
 
-# Run a native command, return its stdout lines; never throws on stderr (Windows PowerShell 5.1
-# turns redirected native stderr into errors under $ErrorActionPreference = 'Stop').
+# Run the engine, return its output lines (stdout and stderr). Never throws on native stderr
+# (Windows PowerShell 5.1 turns redirected native stderr into errors under
+# $ErrorActionPreference = 'Stop'); with -Check a non-zero exit throws instead.
 function Invoke-Engine {
-    param([string[]]$ArgList)
+    param([string[]]$ArgList, [switch]$Check)
     $saved = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
@@ -40,6 +41,7 @@ function Invoke-Engine {
     } finally {
         $ErrorActionPreference = $saved
     }
+    if ($Check -and $script:EngineExit -ne 0) { throw "$script:Engine $($ArgList[0]) failed: $($out -join ' ')" }
     return $out
 }
 
@@ -50,20 +52,16 @@ function Test-Command([string]$Cmd) {
 if ($Engine) {
     if (-not (Test-Command $Engine)) { throw "-Engine/CONTAINER_ENGINE '$Engine' not found on PATH" }
 } else {
-    $Engine = $null
     if (Test-Command 'docker') {
-        $saved = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        & docker info 2>&1 | Out-Null
-        $dockerOk = ($LASTEXITCODE -eq 0)
-        $ErrorActionPreference = $saved
-        if ($dockerOk) { $Engine = 'docker' }
+        $Engine = 'docker'
+        Invoke-Engine @('info') | Out-Null
+        if ($script:EngineExit -ne 0) { $Engine = $null }
     }
     if (-not $Engine -and (Test-Command 'podman')) { $Engine = 'podman' }
     if (-not $Engine) { throw 'no container engine found: install Docker or Podman (or start the Docker daemon)' }
 }
 
-function Test-ContainerExists([switch]$RunningOnly) {
+function Test-ContainerPresent([switch]$RunningOnly) {
     $a = @('ps')
     if (-not $RunningOnly) { $a += '-a' }
     $a += @('--filter', "name=^$Name`$", '--format', '{{.Names}}')
@@ -72,9 +70,8 @@ function Test-ContainerExists([switch]$RunningOnly) {
 }
 
 if ($Stop) {
-    if (Test-ContainerExists) {
-        Invoke-Engine @('rm', '-f', $Name) | Out-Null
-        if ($script:EngineExit -ne 0) { throw "$Engine rm -f $Name failed" }
+    if (Test-ContainerPresent) {
+        Invoke-Engine @('rm', '-f', $Name) -Check | Out-Null
         Write-Host "Removed container $Name ($Engine)."
     } else {
         Write-Host "Container $Name does not exist; nothing to do."
@@ -82,18 +79,16 @@ if ($Stop) {
     exit 0
 }
 
-if (Test-ContainerExists) {
-    if (Test-ContainerExists -RunningOnly) {
+if (Test-ContainerPresent) {
+    if (Test-ContainerPresent -RunningOnly) {
         Write-Host "Reusing running container $Name ($Engine)."
     } else {
         Write-Host "Starting existing container $Name ($Engine)."
-        Invoke-Engine @('start', $Name) | Out-Null
-        if ($script:EngineExit -ne 0) { throw "$Engine start $Name failed" }
+        Invoke-Engine @('start', $Name) -Check | Out-Null
     }
 } else {
     Write-Host "Creating container $Name from $Image ($Engine)."
-    $out = Invoke-Engine @('run', '-d', '--name', $Name, '-p', $PortMap, $Image)
-    if ($script:EngineExit -ne 0) { throw "$Engine run failed: $($out -join ' ')" }
+    Invoke-Engine @('run', '-d', '--name', $Name, '-p', $PortMap, $Image) -Check | Out-Null
 }
 
 Write-Host -NoNewline 'Waiting for MongoDB to answer ping'

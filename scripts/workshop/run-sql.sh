@@ -23,9 +23,9 @@
 #                         it is written for the run and removed afterwards. An existing file wins.
 #   MERN_LLM_REGION    -> define mern_llm_region     09b_select_ai_acl.sql (default us-phoenix-1)
 #   EMBEDDING_DIM      -> define embedding_dim       08_ai_vector_store.sql (default 384)
-# Scripts with no variables (02, 03, 03b, 04-07, 10) need none. Secret values must not
-# contain a double quote or a newline; the
-# variables defined for the SQL scripts (everything but DB_PASSWORD) also no whitespace.
+# Scripts with no variables (02, 03, 03b, 04-07, 10) need none. Secret values must not contain
+# a double quote or a newline; the variables defined for the SQL scripts (everything but
+# DB_PASSWORD) also no whitespace.
 #
 # Needs SQLcl 25.2+ (`sql`) on PATH. Each script runs after `whenever sqlerror exit failure`
 # (a script's own `whenever` overrides it for that script); exits non-zero on SQL error.
@@ -48,7 +48,7 @@ prompt_secret() { # $1 = prompt text; prints the value
 }
 check_secret() { # $1 = name, $2 = value
   case "$2" in
-    *\"*|*$'\n'*) die "$1 must not contain a double quote or a newline" ;;
+    *\"*|*$'\n'*|*$'\r'*) die "$1 must not contain a double quote or a newline" ;;
   esac
 }
 
@@ -68,27 +68,25 @@ for f in "$@"; do
   fi
 done
 
+for name in MERN26_PASSWORD MERN26DV_PASSWORD MERN_LLM_REGION EMBEDDING_DIM MERN_LLM_KEY; do
+  check_secret "$name" "${!name:-}"
+  case "${!name:-}" in *[[:space:]]*) die "$name must not contain whitespace" ;; esac
+done
+
 KEY_FILE="sql/26ai/09_select_ai_key.sql"
 CREATED_KEY_FILE=""
 cleanup() { [ -z "$CREATED_KEY_FILE" ] || rm -f "$CREATED_KEY_FILE"; }
 trap cleanup EXIT
 if [ -n "${MERN_LLM_KEY:-}" ]; then
-  check_secret MERN_LLM_KEY "$MERN_LLM_KEY"
   if [ -e "$KEY_FILE" ]; then
-    echo "NOTE: $KEY_FILE exists and takes precedence over MERN_LLM_KEY." >&2
+    echo "WARNING: $KEY_FILE exists and takes precedence over MERN_LLM_KEY." >&2
   elif [ -d sql/26ai ]; then
     ( umask 077; printf 'set define off\ndefine mern_llm_key = %s\nset define on\n' "$MERN_LLM_KEY" > "$KEY_FILE" )
     CREATED_KEY_FILE="$KEY_FILE"
   fi
 fi
 
-for pair in MERN26_PASSWORD:mern26_password MERN26DV_PASSWORD:mern26dv_password \
-            MERN_LLM_REGION:mern_llm_region EMBEDDING_DIM:embedding_dim MERN_LLM_KEY:x; do
-  name="${pair%%:*}"
-  check_secret "$name" "${!name:-}"
-  case "${!name:-}" in *[[:space:]]*) die "$name must not contain whitespace" ;; esac
-done
-
+rc=0
 {
   echo "set define off"
   [ -z "${MERN26_PASSWORD:-}" ]   || printf 'define mern26_password = %s\n'   "$MERN26_PASSWORD"
@@ -101,7 +99,8 @@ done
   printf 'connect %s/"%s"@%s\n' "$DB_USER" "$DB_PASSWORD" "$ORACLE_CONNECT_STRING"
   for f in "$@"; do
     echo "whenever sqlerror exit failure"
-    case "$f" in *" "*) printf '@"%s"\n' "$f" ;; *) printf '@%s\n' "$f" ;; esac
+    case "$f" in *[[:space:]]*) printf '@"%s"\n' "$f" ;; *) printf '@%s\n' "$f" ;; esac
   done
   echo "exit"
-} | sql -S /nolog
+} | sql -S /nolog || rc=$?
+[ "$rc" -eq 0 ] || die "SQLcl exited with code $rc"

@@ -9,6 +9,7 @@ Estimated Time: 20 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Locate your reservation's Autonomous AI Database
 * Allow your public IP and set mutual TLS (mTLS) to not required
 * Copy the TLS connect string and the MongoDB API URL
@@ -17,6 +18,7 @@ In this lab, you will:
 ### Prerequisites
 
 This lab assumes you have:
+
 * A started LiveLabs reservation
 * Completed Lab 1
 
@@ -66,7 +68,7 @@ This lab assumes you have:
 
     The `MERN26` password does not exist yet: you choose it in Lab 5, and Lab 6 builds the full connection string.
 
-You may now proceed to the next lab.
+You may now **proceed to the next lab**.
 
 ## Learn More
 

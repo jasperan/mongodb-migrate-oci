@@ -9,6 +9,7 @@ Estimated Time: 30 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Install Git, Node.js, Python, a container engine, MongoDB Database Tools, mongosh, Java and SQLcl
 * Clone the workshop repository
 * Verify all tool versions
@@ -16,6 +17,7 @@ In this lab, you will:
 ### Prerequisites
 
 This lab assumes you have:
+
 * Administrator (or sudo) rights on your workstation
 * Internet access
 
@@ -106,7 +108,7 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
 
 1. Clone the repository and change into it. Every later lab runs its commands from this directory (the repository root).
 
-<if type="linux">
+    <if type="linux">
 
     ```
     <copy>
@@ -115,8 +117,8 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
     </copy>
     ```
 
-</if>
-<if type="windows">
+    </if>
+    <if type="windows">
 
     ```
     <copy>
@@ -128,13 +130,13 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
 
     `Set-ExecutionPolicy -Scope Process Bypass` allows the `scripts\workshop\*.ps1` scripts to run in this window. Repeat it in every new PowerShell window you open for the workshop.
 
-</if>
+    </if>
 
 ## Task 3: Verify the installation
 
 1. Print the versions of all tools.
 
-<if type="linux">
+    <if type="linux">
 
     ```
     <copy>
@@ -145,8 +147,8 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
     </copy>
     ```
 
-</if>
-<if type="windows">
+    </if>
+    <if type="windows">
 
     ```
     <copy>
@@ -158,11 +160,11 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
     </copy>
     ```
 
-</if>
+    </if>
 
 2. Confirm Node.js is 22.12 or later (or 20.19 or later), Python is 3.10 or later, Java is 17 or later and SQLcl is 25.2 or later. Fix any tool that is missing or too old before you continue.
 
-You may now proceed to the next lab.
+You may now **proceed to the next lab**.
 
 ## Learn More
 

@@ -138,7 +138,7 @@ This lab assumes you have:
 
     </if>
 
-2. Read the table. The script has no expected values: it counts the rows of every table in the `MERN26` schema, live, and prints one line per collection and a `TOTAL`. Compare it with the **collections** table and the `TOTAL` line you noted in Lab 4: the names and the counts must be identical (12 collections for the seeded storefront).
+2. Read the table. The script has no expected values: it counts the documents of every JSON collection table in the `MERN26` schema, live, and prints one line per collection and a `TOTAL`. Compare it with the **collections** table and the `TOTAL` line you noted in Lab 4: the names and the counts must be identical (12 collections for the seeded storefront).
 
     ```
     COLLECTION               DOCUMENTS

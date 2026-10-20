@@ -11,6 +11,7 @@ Estimated Time: 40 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Grant `MERN26` the privileges to load an embedding model
 * Load the all-MiniLM-L12-v2 ONNX model into the `MERN26` schema
 * Create the vector store and embed the product catalogue
@@ -19,6 +20,7 @@ In this lab, you will:
 ### Prerequisites
 
 This lab assumes you have:
+
 * Completed Labs 1 to 8
 * Python 3.10 or later and Node.js from Lab 1
 * The `server/.env` file from Lab 7, with `ORACLE_CONNECT_STRING`, `ORACLE_APP_USER`, `ORACLE_APP_PASSWORD` and `ORACLE_DV_USER` set, so the API can run SQL against the database
@@ -169,7 +171,7 @@ Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `V
 
 3. Query the table as `MERN26` in Database actions to see the semantic ranking.
 
-    ```
+    ```sql
     <copy>
     select name,
            round(1 - vector_distance(embedding,
@@ -262,7 +264,7 @@ The assistant retrieves products with the in-database vector search, then asks a
 
 > **What leaves your machine:** each `/api/chat` request sends the LLM provider your question, up to the last six turns of the conversation, the retrieved product snippets, store-wide catalogue facts and excerpts of recent approved reviews. The route needs no sign-in and is rate limited (`RATE_LIMIT_AI`, 30 requests per minute per IP by default). Embeddings and vector search stay in the database while `VECTOR_EMBEDDING_MODEL` is set. If no key is configured, `/api/chat` answers `503` with a hint until you set one.
 
-You may now proceed to the next lab.
+You may now **proceed to the next lab**.
 
 ## Learn More
 

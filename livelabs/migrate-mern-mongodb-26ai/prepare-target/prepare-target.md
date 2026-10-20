@@ -24,9 +24,9 @@ This lab assumes you have:
 
 ## Task 1: Set the connection and password variables
 
-`scripts/workshop/run-sql` connects with SQLcl using `ORACLE_CONNECT_STRING`. It picks the password by user: `DB_PASSWORD` for `ADMIN`, `MERN26_PASSWORD` for `MERN26` and `MERN26DV_PASSWORD` for `MERN26DV`. It prompts, with the input hidden, if the matching variable is not set. `01_schemas.sql` takes the schema passwords from the SQL variables `mern26_password` and `mern26dv_password`; the runner fills them from the environment variables `MERN26_PASSWORD` and `MERN26DV_PASSWORD`. Nothing is stored in the script.
+The runner script (`scripts/workshop/run-sql.sh` on Linux, `scripts/workshop/run-sql.ps1` on Windows) connects with SQLcl using `ORACLE_CONNECT_STRING`. It picks the password by user: `DB_PASSWORD` for `ADMIN`, `MERN26_PASSWORD` for `MERN26` and `MERN26DV_PASSWORD` for `MERN26DV`. It prompts, with the input hidden, if the matching variable is not set. `01_schemas.sql` takes the schema passwords from the SQL variables `mern26_password` and `mern26dv_password`; the runner fills them from the environment variables `MERN26_PASSWORD` and `MERN26DV_PASSWORD`. Nothing is stored in the script.
 
-Choose two passwords now. Use different values, avoid the user names inside them (Oracle's default profile rejects a password that contains the user name), and use only letters, digits and underscores so that the password needs no URL-encoding later in the MongoDB API connection string. Example shape: `Storefront_Demo_2026`. You use the same two values again in Labs 6 to 8, so write them down.
+Choose two different passwords now, one for each schema. Each must be 12 to 30 characters long and include at least one upper-case letter, one lower-case letter and one digit (the Autonomous AI Database default password rules), and it must not contain a user name. Use only letters, digits and underscores so that the password needs no URL-encoding later in the MongoDB API connection string. You use the same two values again in Labs 6 to 10, so write them down.
 
 1. Confirm `ORACLE_CONNECT_STRING` and `MONGO_API_HOST` are set in this terminal. If they are empty, set them again as in Lab 2.
 
@@ -58,9 +58,9 @@ Choose two passwords now. Use different values, avoid the user names inside them
 
     ```bash
     <copy>
-    read -rs -p "ADMIN password: " DB_PASSWORD; echo; export DB_PASSWORD
-    read -rs -p "MERN26 password: " MERN26_PASSWORD; echo; export MERN26_PASSWORD
-    read -rs -p "MERN26DV password: " MERN26DV_PASSWORD; echo; export MERN26DV_PASSWORD
+    printf 'ADMIN password: '; read -rs DB_PASSWORD; echo; export DB_PASSWORD
+    printf 'MERN26 password: '; read -rs MERN26_PASSWORD; echo; export MERN26_PASSWORD
+    printf 'MERN26DV password: '; read -rs MERN26DV_PASSWORD; echo; export MERN26DV_PASSWORD
     </copy>
     ```
 
@@ -116,24 +116,24 @@ Choose two passwords now. Use different values, avoid the user names inside them
 
 ## Task 3: Understand what the script created
 
-`01_schemas.sql` performs three groups of actions:
+1. Review the objects that `01_schemas.sql` creates and configures.
 
-| Object | What it is for |
-|---|---|
-| `MERN26` | The schema that receives the MongoDB collections through `mongorestore`. A MongoDB database named `mern26` maps to this schema |
-| `MERN26DV` | The schema that later owns the JSON-relational duality views built on top of `MERN26` (Lab 8) |
-| Grants `DB_DEVELOPER_ROLE`, `DWROLE`, `UNLIMITED TABLESPACE`, `SODA_APP`, `CONNECT` | Issued to both users. `SODA_APP` and the unlimited quota let the MongoDB API create and store collections |
-| `ORDS.ENABLE_SCHEMA` for both schemas | Enables Oracle REST Data Services for the schema with `p_url_mapping_type => 'BASE_PATH'` and the patterns `mern26` and `mern26dv`. The MongoDB API is served by ORDS, so this call is what exposes each schema to MongoDB clients |
+    | Object | What it is for |
+    | --- | --- |
+    | `MERN26` | The schema that receives the MongoDB collections through `mongorestore`. A MongoDB database named `mern26` maps to this schema |
+    | `MERN26DV` | The schema that later owns the JSON-relational duality views built on top of `MERN26` (Lab 8) |
+    | Grants `DB_DEVELOPER_ROLE`, `DWROLE`, `UNLIMITED TABLESPACE`, `SODA_APP`, `CONNECT` | Issued to both users. `SODA_APP` and the unlimited quota let the MongoDB API create and store collections |
+    | `ORDS.ENABLE_SCHEMA` for both schemas | Enables Oracle REST Data Services for the schema with `p_url_mapping_type => 'BASE_PATH'` and the patterns `mern26` and `mern26dv`. The MongoDB API is served by ORDS, so this call is what exposes each schema to MongoDB clients |
 
-The call is the SQL equivalent of the Database Actions toggle **Administration > Database Users > (user) > REST, GraphQL, MongoDB API, and Web access**. Either way, the schema is now addressable as a MongoDB database. The MongoDB API itself ships with the database; the ORDS call only exposes it to a schema.
+2. `ORDS.ENABLE_SCHEMA` is the SQL equivalent of the Database Actions toggle **Administration > Database Users > (user) > REST, GraphQL, MongoDB API, and Web access**. Either way, the schema is now addressable as a MongoDB database. The MongoDB API itself ships with the database; the ORDS call only exposes it to a schema.
 
-> **Why isn't `MERN26DV` allowed to read `MERN26` yet?** The collections do not exist until the restore. Lab 6 runs `03_grants_after_restore.sql` right after the restore for that reason.
+    > **Why is `MERN26DV` not allowed to read `MERN26` yet?** The collections do not exist until the restore. Lab 6 runs `03_grants_after_restore.sql` right after the restore for that reason.
 
 You may now **proceed to the next lab**.
 
 ## Learn More
 
-* [Enabling and configuring the Oracle Database API for MongoDB (ORDS)](https://docs.oracle.com/en/database/oracle/oracle-rest-data-services/25.3/ordig/enabling-and-configuring-oracle-database-api-mongodb.html)
+* [Enabling and configuring the Oracle Database API for MongoDB (ORDS)](https://docs.oracle.com/en/database/oracle/oracle-rest-data-services/26.3/ordig/enabling-and-configuring-oracle-database-api-mongodb.html)
 * [Oracle Database API for MongoDB](https://docs.oracle.com/en/database/oracle/mongodb-api/index.html)
 * [Quick Start Guide for MongoDB Migrations](https://docs.oracle.com/en/database/oracle/mdbqs/index.html)
 

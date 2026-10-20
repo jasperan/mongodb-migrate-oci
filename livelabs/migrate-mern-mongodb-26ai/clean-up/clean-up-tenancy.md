@@ -9,6 +9,7 @@ Estimated Time: 10 minutes
 ### Objectives
 
 In this lab, you will:
+
 * Stop the storefront and the source MongoDB
 * Remove local dump files
 * Undo the SQL changes and terminate the database
@@ -101,10 +102,9 @@ This lab assumes you completed the earlier labs, with `ORACLE_CONNECT_STRING` an
 
 1. In the Oracle Cloud Console open your Autonomous AI Database, click **More actions**, then **Terminate**, and confirm by entering the database name.
 
-
 ## Learn More
 
-* [Terminating an Autonomous Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/)
+* [Terminate an Autonomous AI Database Instance](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/autonomous-terminate.html)
 
 ## Acknowledgements
 

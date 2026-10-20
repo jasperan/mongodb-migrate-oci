@@ -5,7 +5,7 @@
 Moving a MongoDB application to another database usually means rewriting its data layer. In this workshop you do not. You take a working MERN storefront (React, Express, Mongoose) and move its data to Oracle Autonomous AI Database 26ai through the Oracle Database API for MongoDB. The application keeps its MongoDB driver, its Mongoose models and its routes. Only the connection string changes, plus four query patterns that behave differently on the Oracle API:
 
 | Pattern | What the Oracle API does | What the app does |
-|---|---|---|
+| --- | --- | --- |
 | `$lookup` | No `let`; errors for some `localField` shapes | The product list uses one `$sql` stage on Oracle |
 | `$elemMatch` in an update filter | Rejected | Order-line updates address the array element by index |
 | `$regex` with a separate `$options` | `$options` is ignored | The flags live on the RegExp: `new RegExp(term, 'i')` |
@@ -23,11 +23,12 @@ You use three database accounts: `ADMIN` (creates schemas and grants), `MERN26` 
 
 ![The migration dashboard comparing source and target](images/migration-dashboard.png " ")
 
-Estimated Workshop Time: 4 hours 15 minutes (3 hours for Labs 1 to 8; Labs 9 and 10 are optional and add 1 hour 5 minutes)
+Estimated Workshop Time: 4 hours 15 minutes (3 hours for Labs 1 to 8, 1 hour 5 minutes for the optional Labs 9 and 10, and 10 minutes for Clean Up)
 
 ### Objectives
 
 In this workshop you will:
+
 * Prepare a Linux, macOS or Windows workstation with the required tools (Lab 1)
 * Provision an Autonomous AI Database 26ai or locate the one in your reservation (Lab 2)
 * Run the storefront on a local MongoDB (Lab 3)
@@ -44,6 +45,7 @@ In this workshop you will:
 ### Prerequisites
 
 This workshop assumes you have:
+
 * An Oracle Cloud tenancy where you can create an Autonomous AI Database, or a LiveLabs reservation that includes one
 * A Linux, macOS or Windows 10/11 laptop where you have administrator rights
 * Basic familiarity with a command line and with MongoDB or SQL
@@ -58,3 +60,4 @@ This workshop assumes you have:
 
 * **Author** - Ignacio Martinez, Oracle
 * **Last Updated By/Date** - Ignacio Martinez, October 2026
+* **Source** - The sample storefront is adapted from [mern-ecommerce](https://github.com/mohamedsamara/mern-ecommerce) by Mohamed Samara (MIT license)
