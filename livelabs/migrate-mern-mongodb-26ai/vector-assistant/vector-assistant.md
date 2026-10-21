@@ -292,7 +292,7 @@ You may now **proceed to the next lab**.
 
 * [Oracle AI Vector Search](https://docs.oracle.com/en/database/oracle/oracle-database/26/vecse/)
 * [onnx2oracle](https://github.com/jasperan/onnx2oracle)
-* [Source repository migration guide, section 8](https://github.com/oracle-devrel/mongodb-migrate-oci/blob/main/docs/26ai/migration-guide.md)
+* [Source repository migration guide, section 8](https://github.com/jasperan/mongodb-migrate-oci/blob/main/docs/26ai/migration-guide.md)
 
 ## Acknowledgements
 

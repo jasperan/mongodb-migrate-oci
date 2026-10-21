@@ -77,3 +77,7 @@ sql/26ai/09_select_ai_key.sql
 
 # Python virtual environment created in the workshop (Lab 7)
 .venv/
+
+# Internal-only migration scripts (not for external distribution)
+scripts/orclMongoMigration*.sh
+scripts/convert_to_windows.sh

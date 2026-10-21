@@ -71,7 +71,7 @@ This workshop assumes you have:
 
 * [Oracle Database API for MongoDB](https://docs.oracle.com/en/database/oracle/mongodb-api/)
 * [Autonomous AI Database documentation](https://docs.oracle.com/en/cloud/paas/autonomous-database/)
-* [Source repository](https://github.com/oracle-devrel/mongodb-migrate-oci)
+* [Source repository](https://github.com/jasperan/mongodb-migrate-oci)
 
 ## Acknowledgements
 

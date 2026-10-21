@@ -335,7 +335,7 @@ You may now **proceed to the next lab**.
 
 * [Oracle Database API for MongoDB](https://docs.oracle.com/en/database/oracle/mongodb-api/)
 * [JSON-Relational Duality Developer's Guide](https://docs.oracle.com/en/database/oracle/oracle-database/26/jsnvu/)
-* [Source repository migration guide](https://github.com/oracle-devrel/mongodb-migrate-oci/blob/main/docs/26ai/migration-guide.md)
+* [Source repository migration guide](https://github.com/jasperan/mongodb-migrate-oci/blob/main/docs/26ai/migration-guide.md)
 
 ## Acknowledgements
 

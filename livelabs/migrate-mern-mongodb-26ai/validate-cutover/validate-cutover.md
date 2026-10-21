@@ -319,7 +319,7 @@ You have migrated a MongoDB application to Autonomous AI Database and verified i
 
 * [Quick Start Guide for MongoDB Migrations](https://docs.oracle.com/en/database/oracle/mdbqs/index.html)
 * [Aggregation pipelines (`$sql`)](https://docs.oracle.com/en/database/oracle/mongodb-api/mgapi/pipelines.html)
-* [Source repository: oracle-devrel/mongodb-migrate-oci](https://github.com/oracle-devrel/mongodb-migrate-oci)
+* [Source repository: jasperan/mongodb-migrate-oci](https://github.com/jasperan/mongodb-migrate-oci)
 
 ## Acknowledgements
 

@@ -53,7 +53,7 @@ Needs a MongoDB on `localhost:27017` as the source and Node.js 20.19+ or 22.12+ 
 
 ```bash
 # Terminal 1: the API
-git clone https://github.com/oracle-devrel/mongodb-migrate-oci.git
+git clone https://github.com/jasperan/mongodb-migrate-oci.git
 cd mongodb-migrate-oci/mern-ecommerce/server
 npm install
 cp .env.example .env      # set JWT_SECRET, e.g. the output of: openssl rand -hex 32
@@ -65,7 +65,7 @@ On Windows (PowerShell 5.1 or 7) the API terminal differs only in the `.env` ste
 
 ```powershell
 # Terminal 1: the API
-git clone https://github.com/oracle-devrel/mongodb-migrate-oci.git
+git clone https://github.com/jasperan/mongodb-migrate-oci.git
 cd mongodb-migrate-oci\mern-ecommerce\server
 npm install
 Copy-Item .env.example .env

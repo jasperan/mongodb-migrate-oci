@@ -169,7 +169,7 @@ You may now **proceed to the next lab**.
 ## Learn More
 
 * [Use Select AI for Natural Language Interaction with your Database](https://docs.oracle.com/en/cloud/paas/autonomous-database/serverless/adbsb/select-ai.html)
-* [Source repository demo runbook](https://github.com/oracle-devrel/mongodb-migrate-oci/blob/main/docs/26ai/demo-runbook.md)
+* [Source repository demo runbook](https://github.com/jasperan/mongodb-migrate-oci/blob/main/docs/26ai/demo-runbook.md)
 
 ## Acknowledgements
 

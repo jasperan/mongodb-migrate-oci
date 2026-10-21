@@ -114,7 +114,7 @@ Download the workshop scripts, SQL files and sample app. Every later lab runs it
 
     ```
     <copy>
-    git clone https://github.com/oracle-devrel/mongodb-migrate-oci.git
+    git clone https://github.com/jasperan/mongodb-migrate-oci.git
     cd mongodb-migrate-oci
     </copy>
     ```
@@ -124,7 +124,7 @@ Download the workshop scripts, SQL files and sample app. Every later lab runs it
 
     ```
     <copy>
-    git clone https://github.com/oracle-devrel/mongodb-migrate-oci.git
+    git clone https://github.com/jasperan/mongodb-migrate-oci.git
     cd mongodb-migrate-oci
     Set-ExecutionPolicy -Scope Process Bypass
     </copy>
