@@ -38,6 +38,20 @@ ewallet.p12
 Wallet_*.zip
 tnsnames.ora
 sqlnet.ora
+# additional credential material: Java keystores, SSH keys, wallet archives of any
+# spelling (Autonomous Database downloads Wallet_<name>.zip), JDBC wallet settings,
+# OCI CLI and SQLcl local state (saved connections hold credentials)
+*.jks
+*.pfx
+*.keystore
+*.ppk
+id_rsa*
+id_ed25519*
+id_ecdsa*
+[Ww]allet*.zip
+ojdbc.properties
+.oci/
+.dbtools/
 .env
 .env.*
 !.env.example

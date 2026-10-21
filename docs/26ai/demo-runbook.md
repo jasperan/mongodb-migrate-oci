@@ -688,7 +688,7 @@ On a quiet system (UAT suite stopped) the same command gives the reference resul
 2026-09-30, after the live migration, in **7 s**:
 
 ```
-C:\Users\user\AppData\Roaming\Python\Python312\site-packages\pymongo\uri_parser_shared.py:388: UserWarning: The value of tlsallowinvalidcertificates must be 'true' or 'false'
+C:\Users\<user>\AppData\Roaming\Python\Python312\site-packages\pymongo\uri_parser_shared.py:388: UserWarning: The value of tlsallowinvalidcertificates must be 'true' or 'false'
 source: mern_ecommerce  (12 collections)
 target: mern26  (12 collections, 1 views)  [views: PRODUCTS_ENRICHED]
 ------------------------------------------------------------------------------
