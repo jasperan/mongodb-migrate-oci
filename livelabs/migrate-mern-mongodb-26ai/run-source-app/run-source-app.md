@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Before you migrate anything, you need something to migrate. In this lab you start a local MongoDB 7 container, seed it with demo data, and run the MERN storefront (an Express and Mongoose API plus a React client) against it. This MongoDB database, `mern_ecommerce`, is the **source** of the migration.
+Before you migrate anything, you need something to migrate, and a known-good baseline to compare against later. In this lab you start a local MongoDB 7 container, seed it with demo data, and run the MERN storefront (an Express and Mongoose API plus a React client) against it. This MongoDB database, `mern_ecommerce`, is the **source** of the migration. When the lab ends you will have a working storefront on MongoDB, which you will later move to Autonomous AI Database.
 
 Estimated Time: 20 minutes
 
@@ -25,7 +25,7 @@ This lab assumes you have:
 
 ## Task 1: Start the source MongoDB
 
-The workshop script starts (or reuses) a container named `mern-mongo` from the `mongo:7` image, published on `127.0.0.1:27017`, and waits until the server answers a ping. It detects Docker or Podman automatically.
+Run the source database as a container so you need no local MongoDB install. The workshop script starts (or reuses) a container named `mern-mongo` from the `mongo:7` image, published on `127.0.0.1:27017`, and waits until the server answers a ping. It detects Docker or Podman automatically.
 
 1. From the repository root, start the source MongoDB.
 
@@ -49,7 +49,9 @@ The workshop script starts (or reuses) a container named `mern-mongo` from the `
 
     </if>
 
-2. Confirm that the database answers.
+    You should see `MongoDB is ready: mongodb://127.0.0.1:27017`.
+
+2. Ping the database to confirm that it answers.
 
     ```
     <copy>
@@ -57,15 +59,15 @@ The workshop script starts (or reuses) a container named `mern-mongo` from the `
     </copy>
     ```
 
-    The output contains `ok: 1`.
+    You should see `ok: 1` in the output.
 
-> **Note:** To force a specific container engine, set `CONTAINER_ENGINE=podman` (Linux) or pass `-Engine podman` (Windows). When you want to remove the container at the end of the workshop, the Clean Up lab uses the script's `stop` argument (Linux) or `-Stop` switch (Windows).
+> **Note:** To force a specific container engine, set `CONTAINER_ENGINE=podman` (Linux) or pass `-Engine podman` (Windows). The Clean Up lab removes the container with the script's `stop` argument (Linux) or `-Stop` switch (Windows).
 
 ## Task 2: Configure and seed the API
 
-The API reads its settings from `mern-ecommerce/server/.env`. The repository ships `.env.example` with the local MongoDB URI already filled in as `MONGO_URI`.
+The API reads its settings from `mern-ecommerce/server/.env`. The repository ships `.env.example` with `MONGO_URI` already set to the local MongoDB. You create your own `.env`, add a signing secret, and load the demo data.
 
-1. Install the API dependencies.
+1. Change to the API directory and install its dependencies.
 
     ```
     <copy>
@@ -96,7 +98,7 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
 
     </if>
 
-3. Generate a random JWT secret. The API refuses to start without `JWT_SECRET`, or with the placeholder value, and warns if it is shorter than 32 characters.
+3. Generate a random JWT secret (the key the API uses to sign login tokens). The API refuses to start without `JWT_SECRET`, or with the placeholder value, and warns if it is shorter than 32 characters.
 
     ```
     <copy>
@@ -104,7 +106,7 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
     </copy>
     ```
 
-4. Open `.env` in an editor, paste the generated value after `JWT_SECRET=`, and save the file. Leave `MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce` unchanged for now.
+4. Open `.env` in an editor, paste the generated value after `JWT_SECRET=`, and save the file. Leave `MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce` unchanged; you change it in Lab 7.
 
     <if type="linux">
 
@@ -126,7 +128,7 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
 
     </if>
 
-5. Seed the database. This creates the admin account you sign in with, 10 categories, 10 brands and 100 random products. The command is idempotent, so running it again does not duplicate the data. Replace `<password>` with a password you choose for the storefront admin, and remember it.
+5. Seed the database. This creates the admin account you sign in with, 10 categories, 10 brands and 100 random products. Replace `<password>` with a password you choose for the storefront admin, and remember it.
 
     ```
     <copy>
@@ -134,9 +136,9 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
     </copy>
     ```
 
-    The log ends with messages such as *Admin user seeded.*, *Categories seeded.*, *Brands seeded.* and *Products seeded and associated with categories.*
+    You should see messages such as *Admin user seeded.*, *Categories seeded.*, *Brands seeded.* and *Products seeded and associated with categories.* The command is idempotent: running it again skips data that already exists.
 
-6. The seed creates no shopper activity, but the duality-view converter in Lab 8 needs at least one document in every collection. Add a little sample activity (one address, merchant, cart, order, two reviews, a wishlist entry and a contact message) with the helper script. The commands below go to the repository root and back. The script is idempotent too.
+6. Add a little sample shopper activity: one address, merchant, cart, order, two reviews, a wishlist entry and a contact message. The seed creates none, and the duality-view converter in Lab 8 needs at least one document in every collection. The commands go to the repository root, run the helper script and return. The script is idempotent too.
 
     <if type="linux">
 
@@ -162,11 +164,11 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
 
     </if>
 
-    The output lists `addresses`, `cartitems`, `carts`, `contacts`, `merchants`, `orders`, `reviews` and `wishlists` as inserted, and ends with `collections with documents: 12`.
+    You should see `addresses`, `cartitems`, `carts`, `contacts`, `merchants`, `orders`, `reviews` and `wishlists` reported as inserted, and a last line of `collections with documents: 12`.
 
 ## Task 3: Start the API and the client
 
-You need two terminals. Keep both open for the rest of the workshop.
+Start the API and the React client in two terminals. Keep both open for the rest of the workshop.
 
 1. In the current terminal (still in `mern-ecommerce/server`), start the API.
 
@@ -176,7 +178,7 @@ You need two terminals. Keep both open for the rest of the workshop.
     </copy>
     ```
 
-    The API listens on `http://localhost:3000`. If it exits right away, read the message: a missing `JWT_SECRET` or an unreachable `MONGO_URI` stops the process on purpose.
+    You should see the log line `Listening on port 3000. Visit http://localhost:3000/ in your browser.` If the process exits right away, read the message: a missing `JWT_SECRET` or an unreachable `MONGO_URI` stops it on purpose.
 
 2. Open a **second terminal** at the repository root, then install and start the React client.
 
@@ -188,15 +190,17 @@ You need two terminals. Keep both open for the rest of the workshop.
     </copy>
     ```
 
-    Vite serves the client on `http://localhost:8080` and proxies `/api` and `/socket.io` to the API on port 3000.
+    Vite (the React dev server) serves the client on `http://localhost:8080` and proxies `/api` and `/socket.io` to the API on port 3000.
 
-3. Open `http://localhost:8080` in your browser. You see the MERN Store home page with products from the seeded catalogue.
+3. Open `http://localhost:8080` in your browser. You should see the MERN Store home page with products from the seeded catalogue.
 
     ![The MERN Store home page served by the API running on MongoDB](images/storefront.png " ")
 
     > **Note:** `npm run seed:db` generates random products, so the products on your page differ from the screenshot.
 
-4. Click **Shop**, open a product, and use the search box. Sign in with `admin@example.com` and the password you chose in Task 2 to confirm that authentication works.
+4. Click **Shop** and open a product. Then use the search box. Finally, sign in with `admin@example.com` and the password you chose in Task 2 to confirm that authentication works.
+
+The storefront now runs entirely on your local MongoDB. Lab 4 profiles what it asks of the database, and Lab 7 repoints it at Oracle.
 
 You may now **proceed to the next lab**.
 

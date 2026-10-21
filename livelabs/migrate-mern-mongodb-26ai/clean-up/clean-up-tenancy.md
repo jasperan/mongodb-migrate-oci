@@ -2,7 +2,15 @@
 
 ## Introduction
 
-This lab removes what the workshop created. Because the database lives in your tenancy, terminate it to stop charges.
+This lab removes what the workshop created on your workstation and in your tenancy. The database lives in your tenancy and keeps incurring charges until you terminate it, so Task 3 is the step that matters for cost.
+
+> **Warning:** The steps below permanently delete data and cannot be undone. They remove:
+>
+> * the local source MongoDB container, with the storefront data you seeded in Lab 3
+> * the `dump` directory with your `mongodump` output
+> * your local edit of `docs/26ai/migration-report.json`, which is reset to the version in the repository
+> * the `MERN26` and `MERN26DV` schemas and everything in them: the migrated collections, the views, the duality views, the vector store, the ONNX model and the Select AI credential and profile
+> * the Autonomous AI Database itself, with everything stored in it (Task 3)
 
 Estimated Time: 10 minutes
 
@@ -10,9 +18,10 @@ Estimated Time: 10 minutes
 
 In this lab, you will:
 
-* Stop the storefront and the source MongoDB
-* Remove local dump files
-* Undo the SQL changes and terminate the database
+* Stop the storefront and remove the source MongoDB
+* Remove the local dump files
+* Remove the schemas the SQL scripts created
+* Terminate the database to stop charges
 
 ### Prerequisites
 
@@ -20,9 +29,11 @@ This lab assumes you completed the earlier labs, with `ORACLE_CONNECT_STRING` an
 
 ## Task 1: Stop the app and the source MongoDB
 
-1. Press **Ctrl+C** in the terminals running the API and the web client. The API must stop first, because it holds pooled `MERN26` sessions and the schemas cannot be dropped while they exist.
+Stop everything that is running locally, then delete the source data. The API must stop first, because it holds pooled `MERN26` sessions and the schemas cannot be dropped while they exist.
 
-2. Remove the source MongoDB container and the dump directory, from the repository root. Also restore the reference migration report that Lab 7 overwrote.
+1. Press **Ctrl+C** in the terminals running the API and the web client.
+
+2. From the repository root, remove the source MongoDB container and the dump directory. The last command restores the reference migration report that Lab 7 overwrote.
 
     <if type="linux">
 
@@ -48,9 +59,9 @@ This lab assumes you completed the earlier labs, with `ORACLE_CONNECT_STRING` an
 
     </if>
 
-## Task 2: Undo the SQL changes
+## Task 2: Remove the database objects
 
-`sql/26ai/99_cleanup.sql` runs as `ADMIN`. It removes the network ACL entry that Lab 10 created, then drops `MERN26DV` and `MERN26` with `CASCADE`. That deletes the collections, the views, the duality views, the vector store, the ONNX model and the Select AI credential and profile. It is safe to run again.
+Drop the schemas and the network access entry that the workshop created. Terminating the database in Task 3 deletes them as well, so this task matters only if you want to keep the database. `sql/26ai/99_cleanup.sql` runs as `ADMIN`. It removes the network ACL entry that Lab 10 created, then drops `MERN26DV` and `MERN26` with `CASCADE`, which deletes everything in them (listed at the start of this lab). It is safe to run again.
 
 1. If you gave Lab 10 a region other than `us-phoenix-1`, set the same region first. Skip this command otherwise.
 
@@ -96,9 +107,11 @@ This lab assumes you completed the earlier labs, with `ORACLE_CONNECT_STRING` an
 
     </if>
 
-    The script ends with a query on `dba_users` that returns no rows. If `DROP USER` fails with `ORA-01940: cannot drop a user that is currently connected`, the API or another SQL session is still open: stop it and run the script again.
+    The script prints that it dropped `MERN26DV` and `MERN26`, and ends with a query on `dba_users` that returns no rows. If `DROP USER` fails with `ORA-01940: cannot drop a user that is currently connected`, the API or another SQL session is still open: stop it and run the script again.
 
 ## Task 3: Terminate the database
+
+Stop the charges by deleting the Autonomous AI Database you created for this workshop. Terminating permanently deletes the database and all its data, and you cannot get it back. Make sure it is the right database before you confirm.
 
 1. In the Oracle Cloud Console open your Autonomous AI Database, click **More actions**, then **Terminate**, and confirm by entering the database name.
 

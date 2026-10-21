@@ -2,9 +2,16 @@
 
 ## Introduction
 
-In this optional lab you add AI to the migrated storefront without moving the data out of Oracle AI Database 26ai. You load an embedding model into the `MERN26` schema, store one vector per product, and rank products by similarity with `VECTOR_DISTANCE` inside the database. Then you connect a language model so the AI assistant at `/support/llm-chat` can answer questions about the catalogue.
+After migrating, your product data sits in a database that can also search by meaning. In this lab you add semantic search and an AI assistant to the storefront without moving the data to a separate vector database: the embeddings are created, stored and searched inside Oracle AI Database 26ai, next to the products they describe.
 
-Embeddings and similarity search stay in the database. Only the assistant's chat requests go to a language model provider, as described in Task 6.
+Two terms you will use:
+
+* A **vector embedding** is a list of numbers (here 384) that represents the meaning of a piece of text. Texts with similar meaning have similar vectors, so "something warm to wear" can match a jacket that never contains those words.
+* An **ONNX model** is a trained model in the portable ONNX format. Oracle can load one into the database and run it there to create embeddings, so no text leaves the database for that step.
+
+You load an ONNX embedding model into the `MERN26` schema, store one vector per product, and rank products by similarity with `VECTOR_DISTANCE` in SQL. Then you connect a language model so the AI assistant at `/support/llm-chat` can answer questions about the catalogue. Embeddings and similarity search stay in the database. Only the assistant's chat requests go to a language model provider, as described in Task 6.
+
+This lab is optional. If you skip it, the migrated application and Labs 8 and 10 are unaffected; you only miss semantic search and the AI assistant.
 
 Estimated Time: 40 minutes
 
@@ -15,6 +22,7 @@ In this lab, you will:
 * Grant `MERN26` the privileges to load an embedding model
 * Load the all-MiniLM-L12-v2 ONNX model into the `MERN26` schema
 * Create the vector store and embed the product catalogue
+* Run a semantic search in SQL and through the API
 * Configure an OCI Generative AI model and try the AI assistant
 
 ### Prerequisites
@@ -28,7 +36,9 @@ This lab assumes you have:
 
 ## Task 1: Grant the privileges (ADMIN)
 
-1. In the **SQL terminal** from Lab 8 (not the API terminal), run `08a_vector_grants.sql` as `ADMIN`. It grants `MERN26` the `DBMS_VECTOR` package and the right to create a mining (ONNX) model.
+Give `MERN26` the right to load and use an embedding model. In the **SQL terminal** from Lab 8 (not the API terminal), run `08a_vector_grants.sql` as `ADMIN`. It grants `MERN26` the `DBMS_VECTOR` package and the right to create a mining (ONNX) model.
+
+1. Run the script.
 
     <if type="linux">
 
@@ -54,7 +64,7 @@ This lab assumes you have:
 
 ## Task 2: Load the ONNX embedding model (MERN26)
 
-`mern-ecommerce/server/scripts/load_onnx_embedding.py` builds the all-MiniLM-L12-v2 model (384 dimensions) with the `onnx2oracle` package and uploads it into the `MERN26` schema with `DBMS_VECTOR.LOAD_ONNX_MODEL`. It connects through a `tcps://` address because the database is reached without a wallet. The model must be loaded into each schema that uses it.
+Put the embedding model inside the database so Oracle can turn text into vectors itself. `mern-ecommerce/server/scripts/load_onnx_embedding.py` builds the all-MiniLM-L12-v2 model (384 dimensions) with the `onnx2oracle` package and uploads it into the `MERN26` schema with `DBMS_VECTOR.LOAD_ONNX_MODEL`. It connects through a `tcps://` address because the database is reached without a wallet. The model must be loaded into each schema that uses it.
 
 1. Create a Python virtual environment for the loader and install `onnx2oracle`. The package pulls in `onnxruntime-extensions` and `transformers`, so this takes a few minutes.
 
@@ -104,11 +114,11 @@ This lab assumes you have:
 
     </if>
 
-3. The script logs that the model was uploaded (or was already registered) and runs a check embedding. The model is registered as `ALL_MINILM_L12_V2`.
+3. You should see log lines that the model was uploaded into `ALL_MINILM_L12_V2` (or was already registered), followed by a `sanity:` line from a test embedding that reports `dims = 384`.
 
 ## Task 3: Create the vector store (MERN26)
 
-Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `VECTOR(384, FLOAT32)` column and a vector index, then runs a sample similarity query for "comfortable shoes for trails" using the in-database model. The table is empty until Task 4, so the sample query returns no rows.
+Create the table that holds one vector per product. Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `VECTOR(384, FLOAT32)` column and a vector index, then runs a sample similarity query for "comfortable shoes for trails" using the in-database model.
 
 1. Run the script as `MERN26`.
 
@@ -131,7 +141,11 @@ Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `V
 
     </if>
 
+    The table is empty until Task 4, so the embeddings count is `0` and the sample query returns no rows.
+
 ## Task 4: Embed the product catalogue
+
+Turn every product into a vector, then run your first semantic search. The embedding runs inside the database, so no API key is needed.
 
 1. Open `mern-ecommerce/server/.env` in your editor and make sure these in-database embedding settings are present. `EMBEDDING_DIM` must be `384` to match the model.
 
@@ -169,7 +183,9 @@ Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `V
 
     </if>
 
-3. Query the table as `MERN26` in Database actions to see the semantic ranking.
+    The script ends with a line like `done in <n> ms (<n> rows)`, with one row per product.
+
+3. Search by meaning. In Database actions as `MERN26`, run this query. It embeds the phrase with the same model, then orders products by `VECTOR_DISTANCE` (cosine). The `score` is `1` minus that distance, so a higher score means a closer match.
 
     ```sql
     <copy>
@@ -185,9 +201,11 @@ Script `08_ai_vector_store.sql` creates the `PRODUCT_EMBEDDINGS` table with a `V
     </copy>
     ```
 
+    You should see five products ordered by descending score. They are ranked by meaning, not by matching keywords. Try another phrase to see how the ranking changes.
+
 ## Task 5: Configure the language model
 
-The assistant retrieves products with the in-database vector search, then asks an OpenAI-compatible model to write the answer. The settings below use OCI Generative AI.
+Connect the assistant to a language model. The assistant retrieves products with the in-database vector search, then asks an OpenAI-compatible model to write the answer. The settings below use OCI Generative AI.
 
 1. In `mern-ecommerce/server/.env`, set the following values. Replace `<region>` with your Generative AI region and `<your key>` with your API key. Do not commit the key.
 
@@ -231,7 +249,7 @@ The assistant retrieves products with the in-database vector search, then asks a
 
     </if>
 
-    The report shows the configured model, `ALL_MINILM_L12_V2` with dimension `384`, and the table `PRODUCT_EMBEDDINGS`.
+    In the `embeddings` section you should see `inDatabaseModel` set to `ALL_MINILM_L12_V2`, `dimension` `384` and `table` `PRODUCT_EMBEDDINGS`. In the `llm` section, `configured` is `true` once the key is set.
 
 4. Test the vector search through the API. It needs no LLM key.
 
@@ -254,7 +272,11 @@ The assistant retrieves products with the in-database vector search, then asks a
 
     </if>
 
+    You should see JSON with `source` set to `in-database:ALL_MINILM_L12_V2` and a `results` list of the closest products with their scores.
+
 ## Task 6: Try the AI assistant
+
+Ask the storefront a question in natural language and see Oracle retrieve the products the answer is based on.
 
 1. Start the web client if it is not running, and open `http://localhost:8080/support/llm-chat`. Ask a question such as `What are the cheapest products under $25?` or pick one of the suggested questions.
 

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In this lab you install and verify every tool used in the rest of the workshop and clone the repository. Choose the **Linux** tab or the **Windows** tab for your operating system. The Linux tab also applies to macOS; on macOS use Homebrew (`brew install ...`) in place of the package manager commands.
+Every later lab runs on your own machine, so a missing or outdated tool would stop you halfway through the migration. In this lab you install the tools once, clone the workshop repository and check every version. Choose the **Linux** tab or the **Windows** tab for your operating system. The Linux tab also applies to macOS; on macOS use Homebrew (`brew install ...`) in place of the package manager commands.
 
 Estimated Time: 30 minutes
 
@@ -12,7 +12,7 @@ In this lab, you will:
 
 * Install Git, Node.js, Python, a container engine, MongoDB Database Tools, mongosh, Java and SQLcl
 * Clone the workshop repository
-* Verify all tool versions
+* Verify that every tool meets the minimum version
 
 ### Prerequisites
 
@@ -23,7 +23,7 @@ This lab assumes you have:
 
 ## Task 1: Install the tools
 
-You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docker/Podman, MongoDB Database Tools (`mongodump`, `mongorestore`), `mongosh`, Java 17+ and SQLcl 25.2+.
+Install the tools the workshop uses. Git fetches the repository, Node.js runs the storefront, Docker or Podman runs the source MongoDB, the MongoDB Database Tools (`mongodump`, `mongorestore`) move the data, `mongosh` is the MongoDB shell, Python runs the validation script, and SQLcl is Oracle's command-line SQL client (it needs Java). Minimum versions: Node.js 22.12+ (or 20.19+), Python 3.10+, Java 17+ and SQLcl 25.2+.
 
 <if type="linux">
 
@@ -37,7 +37,7 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
     </copy>
     ```
 
-    Log out and back in so the `docker` group applies. Podman works as well: `sudo apt-get install -y podman`.
+    Log out and back in so the `docker` group applies. To use Podman instead, run `sudo apt-get install -y podman`.
 
 2. Install Node.js 22 LTS.
 
@@ -60,7 +60,7 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
     </copy>
     ```
 
-    On Oracle Linux or Fedora, download the `.rpm` packages from the [Database Tools](https://www.mongodb.com/try/download/database-tools) and [mongosh](https://www.mongodb.com/try/download/shell) download pages. On macOS, use `brew tap mongodb/brew && brew install mongodb-database-tools mongosh`.
+    On Oracle Linux or Fedora, download the `.rpm` packages from the [Database Tools](https://www.mongodb.com/try/download/database-tools) and [mongosh](https://www.mongodb.com/try/download/shell) download pages. On macOS, run `brew tap mongodb/brew && brew install mongodb-database-tools mongosh`.
 
 4. Install SQLcl. Download the latest zip from the [SQLcl page](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/), then unpack it and add it to your path.
 
@@ -106,7 +106,9 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
 
 ## Task 2: Clone the repository
 
-1. Clone the repository and change into it. Every later lab runs its commands from this directory (the repository root).
+Download the workshop scripts, SQL files and sample app. Every later lab runs its commands from this directory (the repository root).
+
+1. Clone the repository and change into it.
 
     <if type="linux">
 
@@ -134,7 +136,9 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
 
 ## Task 3: Verify the installation
 
-1. Print the versions of all tools.
+Confirm that every tool is on your path and recent enough.
+
+1. Print the version of each tool.
 
     <if type="linux">
 
@@ -162,7 +166,9 @@ You need: Git, Node.js 22.12+ (or 20.19+), Python 3.10+, Docker Desktop or Docke
 
     </if>
 
-2. Confirm Node.js is 22.12 or later (or 20.19 or later), Python is 3.10 or later, Java is 17 or later and SQLcl is 25.2 or later. Fix any tool that is missing or too old before you continue.
+    You should see a version line for each tool, and no `command not found` or `not recognized` errors.
+
+2. Check the versions: Node.js 22.12 or later (or 20.19 or later), Python 3.10 or later, Java 17 or later and SQLcl 25.2 or later. Fix any tool that is missing or too old before you continue.
 
 You may now **proceed to the next lab**.
 

@@ -2,7 +2,9 @@
 
 ## Introduction
 
-Oracle's migration process is **plan, prepare, execute, validate**. Planning means profiling what the application actually sends to MongoDB and checking every operator against the support matrix of the Oracle Database API for MongoDB. The repository includes `assess_workload.js`, a mongosh script with no dependencies that does this against the source database.
+Oracle's migration process has four stages: **plan, prepare, execute, validate**. This lab is the **plan** stage. Before you move any data, you find out what the storefront actually sends to MongoDB and check every operator against the support matrix of the Oracle Database API for MongoDB. That check tells you which parts of the application need attention, instead of letting you discover them in production.
+
+You use `assess_workload.js`, a dependency-free `mongosh` script in the repository. It runs against the source MongoDB only; nothing in this lab touches Autonomous AI Database.
 
 Estimated Time: 20 minutes
 
@@ -10,9 +12,9 @@ Estimated Time: 20 minutes
 
 In this lab, you will:
 
-* Capture the state of the source MongoDB with `db.serverStatus()`
+* Record the size of the source database (the numbers you compare with after the migration)
 * Profile a real browsing session with the MongoDB profiler
-* Read the compatibility report and understand the four code patterns the application had to change
+* Read the compatibility report and understand the four code patterns the storefront had to change
 
 ### Prerequisites
 
@@ -23,7 +25,7 @@ This lab assumes you have:
 
 ## Task 1: Capture the source status
 
-The `status` mode prints `db.serverStatus()` (version, uptime, connections, operation counters) and the document count of every collection.
+Record what the source contains now, so you can prove later that nothing was lost. The `status` mode prints `db.serverStatus()` (version, uptime, connections, operation counters) and the document count of every collection.
 
 1. Run the assessment in `status` mode.
 
@@ -49,11 +51,13 @@ The `status` mode prints `db.serverStatus()` (version, uptime, connections, oper
 
     </if>
 
-2. Note the **collections** table and its `TOTAL` line. You compare these counts with the target after the migration. For the seeded storefront with the sample activity from Lab 3 it shows 12 collections and a `TOTAL` of 133 documents (100 products, 10 brands, 10 categories and 13 documents in the other nine collections).
+2. Find the **collections** table and its `TOTAL` line, and write the numbers down. You compare them with the target in Labs 6 and 7.
+
+    You should see 12 collections and a `TOTAL` of 133 documents for the seeded storefront with the sample activity from Lab 3 (100 products, 10 brands, 10 categories and 13 documents in the other nine collections).
 
 ## Task 2: Start the profiler and generate traffic
 
-The `start` mode drops any earlier `system.profile` collection and then calls `db.setProfilingLevel(2)`, so every operation is recorded.
+The MongoDB profiler records every operation the database receives. Profiling shows what the application really runs, which is more reliable than reading the code. The `start` mode drops any earlier `system.profile` collection (where the profiler stores its records) and then calls `db.setProfilingLevel(2)`, so every operation is recorded.
 
 1. Start profiling.
 
@@ -79,21 +83,21 @@ The `start` mode drops any earlier `system.profile` collection and then calls `d
 
     </if>
 
-    The output shows `profiling level now` set to `2`.
+    You should see `profiling level now` set to `2`.
 
-2. In your browser, use the storefront at `http://localhost:8080` the way a shopper would, **read-only**:
+2. Open the storefront at `http://localhost:8080` and use it the way a shopper would:
 
     * Open the home page and **Shop**
     * Change the sort order and page
     * Filter by a category and by a brand
-    * Type a word from a product name into the search box (for example, part of a product name you saw earlier)
+    * Type a word from a product name into the search box
     * Open a few product pages
 
-    Do not place orders or register users during the profiling window; the point is to record the read paths.
+    > **Note:** Keep this session **read-only**. Do not place orders or register users while profiling, so the report shows the read paths.
 
 ## Task 3: Report and read the findings
 
-The `report` mode switches profiling **off first** and only then summarizes `system.profile`, so the run can never leave profiling enabled.
+The `report` mode summarizes what the profiler recorded and judges each operator against the support matrix. It switches profiling **off first**, so a run can never leave profiling enabled.
 
 1. Print the report.
 
@@ -121,17 +125,19 @@ The `report` mode switches profiling **off first** and only then summarizes `sys
 
 2. Read the sections of the report:
 
-    * **operations by type and collection**: what the application ran against which collection.
-    * **shapes observed**: the number of `find` and `aggregate` operations, and how many pipelines use `$lookup`.
-    * **aggregation stages**, **query operators** and **expressions**: each line is marked `[ok]` with the first Oracle release that supports it (for example `$match` since 19c, `$lookup` since 26ai), or `[!!]` if it is not supported.
-    * **targeted compatibility check: $regex with a separate $options**: reports any `{$regex: ..., $options: ...}` filter, which the Oracle API handles differently (see Task 5).
-    * **verdict**: whether every construct observed is supported.
+    | Section | What it tells you |
+    | --- | --- |
+    | **operations by type and collection** | What the application ran against which collection |
+    | **shapes observed** | The number of `find` and `aggregate` operations, and how many pipelines use `$lookup` |
+    | **aggregation stages**, **query operators**, **expressions** | One line per construct, marked `[ok]` with the first Oracle release that supports it (for example `$match` since 19c, `$lookup` since 26ai), or `[!!]` if it is not supported |
+    | **targeted compatibility check: `$regex` with a separate `$options`** | Any `{$regex: ..., $options: ...}` filter, which the Oracle Database API for MongoDB handles differently (see Task 5) |
+    | **verdict** | Whether every construct observed is supported |
 
-    For reference, the repository's own run (125 profile entries) found 71 `find` and 50 `aggregate` operations, with `$lookup` as the one construct that has real restrictions on Oracle.
+    For reference, the repository's own run (125 profile entries) found 71 `find` and 50 `aggregate` operations. `$lookup` is the one construct with real restrictions on Oracle. Your counts differ with your browsing, but the pattern is the same.
 
-3. Clean up after planning: profiling is already off, so drop the profile collection. The source database should not keep this artifact, and the verification script in Lab 7 reports it as a skipped system collection if you leave it.
+3. Drop the profile collection. Profiling is already off, and the source database should not keep this artifact. If you leave it, the verification script in Lab 7 reports it as a skipped system collection.
 
-    ```
+    ```bash
     <copy>
     mongosh "mongodb://127.0.0.1:27017/mern_ecommerce" --quiet --eval "db.getCollection('system.profile').drop()"
     </copy>
@@ -139,7 +145,7 @@ The `report` mode switches profiling **off first** and only then summarizes `sys
 
 ## Task 4: Review the supported client versions
 
-The Oracle Database API for MongoDB requires clients that support **load-balanced connections**. These are the minimum versions from the migration guide.
+The Oracle Database API for MongoDB requires clients that support **load-balanced connections** (a connection option, `loadBalanced=true`, that you use in every connection string from Lab 6 on). These are the minimum versions from the migration guide.
 
 | Client | Minimum version |
 | --- | --- |
@@ -151,18 +157,20 @@ The Oracle Database API for MongoDB requires clients that support **load-balance
 
 1. Check the versions on your workstation.
 
-    ```
+    ```bash
     <copy>
     mongosh --version
     mongodump --version
     </copy>
     ```
 
+    You should see versions at or above the minimums in the table.
+
 ## Task 5: Understand the code changes the assessment justifies
 
-Running the same storefront on both backends needed four code changes and one tooling difference. They are the reason the assessment matters: each one returns a wrong or empty answer, not always a loud error.
+The assessment matters because each difference between the two backends returns a wrong or empty answer, not always a loud error. Running the same storefront on both backends needed four code changes and one tooling difference:
 
-| Pattern | What the Oracle API does | What the application does |
+| Pattern | What the Oracle Database API for MongoDB does | What the storefront does |
 | --- | --- | --- |
 | `$lookup` | No `let`; an error if `localField` is an array, is missing from any input document, or occurs more than once in one | `GET /api/product/list` joins brands, approved reviews and the wishlist flag with **one `$sql` stage** on Oracle (`server/utils/queries.js`). `loadBalanced=true` in `MONGO_URI` selects that branch |
 | `$elemMatch` in an update filter | Rejected (`Invalid query opcode:$elemMatch`); reads accept it | Order-line updates address the array element by index with a conditional filter (`setLineStatus` in `server/utils/store.js`) |
@@ -170,9 +178,11 @@ Running the same storefront on both backends needed four code changes and one to
 | Numeric limits | `skip` must fit in int32; `NUMBER` tops out near 1e126 | The API clamps paging and numeric filters so both backends answer the same |
 | `profiler` command (tooling) | Not available | Profile the source; use SQL Monitor on the target |
 
-1. Open `mern-ecommerce/server/utils/queries.js` and find the line that selects the branch. It runs once at start-up: `ORACLE_API = /loadBalanced/i.test(process.env.MONGO_URI)`. The MongoDB branch (`mongoJoinStages`) keeps the three `$lookup` stages; the Oracle branch (`oracleJoinStage`) replaces them with one `$sql` stage.
+1. Open `mern-ecommerce/server/utils/queries.js` and find the line that selects the branch. It runs once at start-up: `ORACLE_API = /loadBalanced/i.test(process.env.MONGO_URI)`.
 
-2. Note what that means for the cut-over in Lab 7: the connection string is both the endpoint and the feature flag. Nothing else in the application changes.
+2. Compare the two branches. The MongoDB branch (`mongoJoinStages`) keeps the three `$lookup` stages. The Oracle branch (`oracleJoinStage`) replaces them with one `$sql` stage, which runs a SQL join inside the aggregation pipeline.
+
+    This is the key to the cut-over in Lab 7: the connection string is both the endpoint and the feature flag. Nothing else in the application changes.
 
 > **Why does the search case matter?** On the reference data, the search for `mug` returned 3 products on MongoDB and 0 on Oracle when the flags were in a separate `$options` field. The response was still `200` with an empty array, so nothing looked broken until the search box came up empty.
 

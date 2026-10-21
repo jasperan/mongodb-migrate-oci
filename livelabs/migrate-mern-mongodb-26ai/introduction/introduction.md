@@ -2,7 +2,26 @@
 
 ## About this Workshop
 
-Moving a MongoDB application to another database usually means rewriting its data layer. In this workshop you do not. You take a working MERN storefront (React, Express, Mongoose) and move its data to Oracle Autonomous AI Database 26ai through the Oracle Database API for MongoDB. The application keeps its MongoDB driver, its Mongoose models and its routes. Only the connection string changes, plus four query patterns that behave differently on the Oracle API:
+Moving a MongoDB application to another database usually means rewriting its data layer. In this workshop you do not. You take a working MERN storefront (React, Express, Mongoose) and move its data to Autonomous AI Database 26ai through the Oracle Database API for MongoDB, a MongoDB-compatible endpoint that lets MongoDB drivers and tools talk to Oracle Database. The application keeps its MongoDB driver, its Mongoose models and its routes. Only the connection string changes, plus four query patterns that behave differently on the Oracle API.
+
+![The MERN Store home page served from Oracle AI Database 26ai](images/storefront.png " ")
+
+### The migration at a glance
+
+You follow the same path a real migration takes:
+
+1. **Source:** run the storefront on a local MongoDB (Lab 3).
+2. **Assess:** measure what the workload does before you move it (Lab 4).
+3. **Prepare:** create the target schemas in Autonomous AI Database (Lab 5).
+4. **Migrate:** copy the data with `mongodump` and `mongorestore` (Lab 6).
+5. **Validate and cut over:** compare source and target, then point the app at Oracle (Lab 7).
+6. **Extend:** query the same data with SQL and duality views, and optionally add vector search and Select AI (Labs 8 to 10).
+
+> **Note:** This is an **offline** migration. `mongodump` takes a point-in-time copy, so any write made to the source after the dump is not carried over. In a production cutover you stop writes to MongoDB before the dump and restart the app against Oracle afterwards. In the labs you avoid storefront activity while you validate, then stop the API and restart it against Oracle (Lab 7).
+
+### What changes in the app
+
+The four patterns below behave differently on the Oracle API. The storefront already handles each one. Lab 4 profiles the workload and flags the constructs that need attention, such as `$lookup` and `$regex` with `$options`.
 
 | Pattern | What the Oracle API does | What the app does |
 | --- | --- | --- |
@@ -11,13 +30,11 @@ Moving a MongoDB application to another database usually means rewriting its dat
 | `$regex` with a separate `$options` | `$options` is ignored | The flags live on the RegExp: `new RegExp(term, 'i')` |
 | Numeric limits | `skip` must fit in int32; `NUMBER` tops out near 1e126 | The API clamps paging and numeric filters |
 
-The profiler command is also unavailable on Oracle, so you profile the workload on the source and use SQL Monitor on the target.
-
-![The MERN Store home page served from Oracle AI Database 26ai](images/storefront.png " ")
+The MongoDB profiler command is also unavailable on Oracle, so you profile the workload on the source and use SQL Monitor on the target.
 
 ### Architecture
 
-The React client talks over HTTP and socket.io to the Express API. The API uses Mongoose, which speaks the MongoDB wire protocol. On the source side that protocol is answered by a MongoDB container on your workstation. On the target side it is answered by the Oracle Database API for MongoDB, served by Oracle REST Data Services in Autonomous AI Database 26ai. The same data is then readable with SQL: relational views, JSON-relational duality views, validity views, a vector store, and Select AI.
+The React client talks to the Express API over HTTP and socket.io. The API uses Mongoose, which speaks the MongoDB wire protocol. On the source side, a MongoDB container on your workstation answers that protocol. On the target side, the Oracle Database API for MongoDB answers it, served by Oracle REST Data Services (ORDS, the web layer of Autonomous AI Database). The same data is then readable with SQL through relational views, JSON-relational duality views (read and write the same rows as relational tables or as JSON documents), validity views, a vector store and Select AI (natural-language questions turned into SQL).
 
 You use three database accounts: `ADMIN` (creates schemas and grants), `MERN26` (JSON collections and SQL views) and `MERN26DV` (duality views).
 
@@ -27,10 +44,10 @@ Estimated Workshop Time: 4 hours 15 minutes (3 hours for Labs 1 to 8, 1 hour 5 m
 
 ### Objectives
 
-In this workshop you will:
+By the end of this workshop you will have a MERN storefront running on Autonomous AI Database 26ai, with the same data queryable through MongoDB commands and through SQL. You will:
 
 * Prepare a Linux, macOS or Windows workstation with the required tools (Lab 1)
-* Provision an Autonomous AI Database 26ai or locate the one in your reservation (Lab 2)
+* Provision an Autonomous AI Database 26ai, or locate the one in your reservation (Lab 2)
 * Run the storefront on a local MongoDB (Lab 3)
 * Assess the MongoDB workload before moving it (Lab 4)
 * Create and prepare the `MERN26` and `MERN26DV` schemas (Lab 5)
