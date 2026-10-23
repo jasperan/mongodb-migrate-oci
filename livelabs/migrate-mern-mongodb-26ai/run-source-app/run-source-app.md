@@ -178,7 +178,18 @@ Start the API and the React client in two terminals. Keep both open for the rest
     </copy>
     ```
 
-    You should see the log line `Listening on port 3000. Visit http://localhost:3000/ in your browser.` If the process exits right away, read the message: a missing `JWT_SECRET` or an unreachable `MONGO_URI` stops it on purpose.
+    You should see the log line `API listening on port 3000. Start the web client and open http://localhost:8080/ for the storefront.` at the end of the start-up output. Port 3000 serves only the API (`/api`); opening `http://localhost:3000/` in a browser shows `Cannot GET /`. The storefront is the web client you start in the next step. The notices before it about Mailchimp, Mailgun, Google and Facebook are expected, because the workshop does not configure them. Node.js can also print a deprecation warning here, which you can ignore.
+
+    ```text
+    Mailchimp is not configured (MAILCHIMP_KEY, MAILCHIMP_LIST_KEY): newsletter sign-up is unavailable.
+    Mailgun is not configured (MAILGUN_KEY, MAILGUN_DOMAIN, MAILGUN_EMAIL_SENDER): e-mail is skipped.
+    Missing google keys
+    Missing facebook keys
+    ✓ MongoDB Connected!
+    ✓ API listening on port 3000. Start the web client and open http://localhost:8080/ for the storefront.
+    ```
+
+    If the process exits right away, read the message: a missing `JWT_SECRET` or an unreachable `MONGO_URI` stops it on purpose.
 
 2. Open a **second terminal** at the repository root, then install and start the React client.
 

@@ -123,7 +123,7 @@ setupDB().then(() => {
   const server = app.listen(port, () => {
     console.log(
       `${chalk.green('✓')} ${chalk.blue(
-        `Listening on port ${port}. Visit http://localhost:${port}/ in your browser.`
+        `API listening on port ${port}. Start the web client and open http://localhost:8080/ for the storefront.`
       )}`
     );
   });

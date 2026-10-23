@@ -275,6 +275,13 @@ Confirm the application behaves the same on the new database. Every step below r
 
 4. Open `http://localhost:8080/support/admin-db`. This is the migration dashboard: source counts come from the report you copied in Task 1, target counts are read from the database, and each collection is marked `match` when they agree.
 
+    When the API is up, these are the last two lines of its start-up output. `MongoDB Connected!` now means that the Oracle Database API for MongoDB answered:
+
+    ```text
+    ✓ MongoDB Connected!
+    ✓ API listening on port 3000. Start the web client and open http://localhost:8080/ for the storefront.
+    ```
+
     ![The migration dashboard at /support/admin-db with source and target collection counts and a Verified chip](images/migration-dashboard.png " ")
 
     > **Note:** The screenshot was taken after Lab 9, with 133 documents in 12 collections. Panels about duality views, validity views and vector search stay empty (or show an error) until Labs 8 and 9. Your counts are those of your seeded dataset.
