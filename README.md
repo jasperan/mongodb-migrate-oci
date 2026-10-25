@@ -30,7 +30,7 @@ The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into
 
 > [!IMPORTANT]
 > **What running this touches**
-> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first. `mern-ecommerce/server/scripts/seed_sample_activity.js` (mongosh) adds a few documents to the eight collections the seed leaves empty, so the storefront has orders and reviews to show and every collection has a document. The optional duality-view converter (`05`) needs that, because it cannot infer a schema from an empty collection.
+> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first. `mern-ecommerce/server/scripts/seed_sample_activity.js` (mongosh) adds a few documents to the eight collections the seed leaves empty, because the optional duality-view converter (`05`) cannot infer a schema from an empty collection.
 > - The `sql/26ai` scripts use three accounts. `ADMIN` runs `01`, `02`, `03`, `03b`, `08a`, `09b` and `99`: it creates the `MERN26` schema (JSON collections) and the `MERN26DV` schema (used only by the optional duality views), grants, ORDS enablement (Oracle REST Data Services, which serves the MongoDB API) and a network ACL. `MERN26` runs `04`, `05`, `07`, `08` and `09`: the relational views, the optional duality-DDL generation and validity views, the vector store, and a Select AI credential and profile. `MERN26DV` runs `06`, `10` and the generated duality DDL (all optional).
 >
 > **What leaves the machine**

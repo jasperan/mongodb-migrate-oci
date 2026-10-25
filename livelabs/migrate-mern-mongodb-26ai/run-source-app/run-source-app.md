@@ -151,7 +151,7 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
 
     The command is idempotent: running it again skips data that already exists.
 
-6. Add a little sample shopper activity: one address, merchant, cart, order, two reviews, a wishlist entry and a contact message. The seed creates none of these, so without them the storefront has no orders or reviews to show and several collections stay empty. The script makes sure every one of the 12 collections holds at least one document, which also lets the optional duality-view converter in Lab 8 infer a schema for each collection. The commands go to the repository root, run the helper script and return. The script is idempotent too.
+6. Add a little sample shopper activity: one address, merchant, cart, order, two reviews, a wishlist entry and a contact message. The seed creates none, and the optional duality-view converter in Lab 8 needs at least one document in every collection. The commands go to the repository root, run the helper script and return. The script is idempotent too.
 
     <if type="linux">
 

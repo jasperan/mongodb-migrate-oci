@@ -180,7 +180,7 @@ Why does the script derive the dump directory instead of using the dump root? Be
 
 ## Task 4: Grant the collections to MERN26DV
 
-The restore just created the collections. The script `03_grants_after_restore.sql` grants `select`, `insert`, `update` and `delete` on every `MERN26` collection table to `MERN26DV`. `MERN26DV` is used only by the optional duality views in Lab 8; the migration and the storefront do not need the grants. Running the script now keeps the optional task ready.
+The restore just created the collections, and `MERN26DV` needs access to them to host the optional duality views in Lab 8. The script `03_grants_after_restore.sql` grants `select`, `insert`, `update` and `delete` on every `MERN26` collection table to `MERN26DV`.
 
 1. Run the grants script as `ADMIN`.
 
