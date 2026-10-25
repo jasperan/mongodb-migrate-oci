@@ -1144,8 +1144,9 @@ Live values on the Oracle deployment (`schema.app = MERN26`, `schema.dv = MERN26
 * `/collections` returns **13** Mongo-side names and **13** Oracle objects, not 12: the Oracle branch of
   mongoose also sees the JSON collection view `PRODUCTS_ENRICHED` created by `sql/26ai/04_relational_views.sql`
   (typed `VIEW` on the Oracle side, 112 documents).
-* `/views` currently returns **11** rows: `PRODUCT_CATALOG`, `ACTIVE_PRODUCTS_OVER_50`,
-  `ACTIVE_NONTAXABLE_PRODUCTS`, `PRODUCT_REVIEW_STATS`, `ORDER_SUMMARY` (`kind: "relational"`),
+* `/views` currently returns **17** rows: the six per-collection views `BRANDS_V`, `CATEGORIES_V`,
+  `PRODUCTS_V`, `USERS_V`, `ORDERS_V`, `REVIEWS_V`, `PRODUCT_CATALOG`, `ACTIVE_PRODUCTS_OVER_50`,
+  `ACTIVE_NONTAXABLE_PRODUCTS`, `PRODUCT_REVIEW_STATS`, `ORDER_SUMMARY` (all `kind: "relational"`),
   `PRODUCTS_ENRICHED` (`kind: "json-collection-view"`) and the five validity views
   (`DOCUMENT_VALIDITY`, `PRODUCTS_VALIDITY`, `USERS_VALIDITY`, `ORDERS_VALIDITY`, `CARTS_VALIDITY`,
   `kind: "validity"`). The three Oracle Data Mining internals that belong to the ONNX embedding

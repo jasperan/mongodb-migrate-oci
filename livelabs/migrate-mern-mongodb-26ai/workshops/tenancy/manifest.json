@@ -67,7 +67,7 @@
             }
         },
         {
-            "title": "Lab 8: Query the Migrated Data with SQL and Duality Views",
+            "title": "Lab 8: Query the Migrated Data with SQL",
             "filename": "../../extend-sql/extend-sql.md",
             "type": {
                 "linux": "Linux",

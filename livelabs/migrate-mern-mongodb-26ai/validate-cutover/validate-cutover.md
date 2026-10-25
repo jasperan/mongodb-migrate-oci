@@ -284,7 +284,7 @@ Confirm the application behaves the same on the new database. Every step below r
 
     ![The migration dashboard at /support/admin-db with source and target collection counts and a Verified chip](images/migration-dashboard.png " ")
 
-    > **Note:** The screenshot was taken after Lab 9, with 133 documents in 12 collections. Panels about duality views, validity views and vector search stay empty (or show an error) until Labs 8 and 9. Your counts are those of your seeded dataset.
+    > **Note:** The screenshot was taken after Lab 9, with 133 documents in 12 collections. Panels about duality views, validity views and vector search stay empty (or show an error) until you do the optional duality and validity views in Lab 8 and Lab 9. Your counts are those of your seeded dataset.
 
 5. Optional: run a `$sql` stage yourself. `$sql` is an Oracle extension of the aggregation pipeline that runs a SQL statement and returns each row as a document. It is the same mechanism the storefront uses for the product list. Open a shell on the target.
 

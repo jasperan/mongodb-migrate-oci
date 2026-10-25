@@ -22,7 +22,7 @@
 
 A MERN storefront (React 19, Express, Mongoose) is the example here: buyer, merchant and admin roles, catalogue, bag, checkout, orders, reviews, support chat, an AI assistant and a migration dashboard.
 
-The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into the target. What is new is the target. Oracle AI Database 26ai exposes the Oracle Database API for MongoDB (the "MongoDB API" below), which speaks the MongoDB wire protocol, so the Mongoose application keeps running against it. The migrated collections can then be read in place by SQL (relational views, and JSON schema "validity" views that report documents violating the inferred schema). JSON-relational duality views (one set of data exposed as updatable documents and as rows) are filled by an import and refreshed by re-running it. Vector search needs embeddings generated once from the catalogue.
+The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into the target. What is new is the target. Oracle AI Database 26ai exposes the Oracle Database API for MongoDB (the "MongoDB API" below), which speaks the MongoDB wire protocol, so the Mongoose application keeps running against it. The migrated collections can then also be read in place by SQL, through simple relational views written in dot notation. Optional extras are JSON-relational duality views (one set of data exposed as updatable documents and as rows, filled by an import and refreshed by re-running it) and JSON schema "validity" views that report documents violating the inferred schema. Vector search needs embeddings generated once from the catalogue.
 
 ---
 
@@ -30,8 +30,8 @@ The mechanics are the familiar ones: `mongodump` the source, `mongorestore` into
 
 > [!IMPORTANT]
 > **What running this touches**
-> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first. `mern-ecommerce/server/scripts/seed_sample_activity.js` (mongosh) adds a few documents to the eight collections the seed leaves empty, because the duality-view converter (`05`) cannot infer a schema from an empty collection.
-> - The `sql/26ai` scripts use three accounts. `ADMIN` runs `01`, `02`, `03`, `03b`, `08a`, `09b` and `99`: it creates the `MERN26` schema (JSON collections) and the `MERN26DV` schema (duality views), grants, ORDS enablement (Oracle REST Data Services, which serves the MongoDB API) and a network ACL. `MERN26` runs `04`, `05`, `07`, `08` and `09`: views, the vector store, and a Select AI credential and profile. `MERN26DV` runs `06`, `10` and the generated duality DDL.
+> - `npm run seed:db` writes demo data (an admin, 10 categories, 10 brands, 100 random products) into whatever `MONGO_URI` points at. Check it first. `mern-ecommerce/server/scripts/seed_sample_activity.js` (mongosh) adds a few documents to the eight collections the seed leaves empty, so the storefront has orders and reviews to show and every collection has a document. The optional duality-view converter (`05`) needs that, because it cannot infer a schema from an empty collection.
+> - The `sql/26ai` scripts use three accounts. `ADMIN` runs `01`, `02`, `03`, `03b`, `08a`, `09b` and `99`: it creates the `MERN26` schema (JSON collections) and the `MERN26DV` schema (used only by the optional duality views), grants, ORDS enablement (Oracle REST Data Services, which serves the MongoDB API) and a network ACL. `MERN26` runs `04`, `05`, `07`, `08` and `09`: the relational views, the optional duality-DDL generation and validity views, the vector store, and a Select AI credential and profile. `MERN26DV` runs `06`, `10` and the generated duality DDL (all optional).
 >
 > **What leaves the machine**
 > - Each `/api/chat` request sends the LLM provider the question, up to the last six turns, retrieved product snippets, store-wide catalogue facts and excerpts of recent approved reviews. The route needs no sign-in and is rate limited. Embeddings and vector search stay in the database while `VECTOR_EMBEDDING_MODEL` is set.
@@ -171,9 +171,9 @@ The `sql/26ai` scripts and `assess_workload.js` are written for this app's colle
 
 1. **Plan.** Profile the source and check every operator the app uses against Oracle's support matrix (`assess_workload.js`).
 2. **Prepare.** As `ADMIN`, run `sql/26ai/01_schemas.sql`: it creates the schemas and enables the MongoDB API for them.
-3. **Execute.** `mongodump` the source, `mongorestore` into the target schema, grant the collections to `MERN26DV` (`03`), then point `MONGO_URI` at the target.
+3. **Execute.** `mongodump` the source, `mongorestore` into the target schema, grant the collections to `MERN26DV` (`03`, needed only by the optional duality views), then point `MONGO_URI` at the target.
 4. **Validate.** With no writers running: `scripts/verify_migration.py` and `sql/26ai/02_verify_counts.sql`.
-5. **Extend.** Relational views (`04`), duality views (`05`, `06`, `10`), validity views (`03b`, `07`), vector store (`08`) and Select AI (`09b`, `09`).
+5. **Extend.** Relational dot-notation views (`04`), then optionally duality views (`05`, `06`, `10`), validity views (`03b`, `07`), vector store (`08`) and Select AI (`09b`, `09`).
 
 <details>
 <summary><b>Details of each step</b></summary>
@@ -251,10 +251,10 @@ select banner from v$version;
 
 | Step | Account | Script |
 |---|---|---|
-| Relational views | `MERN26` | `04` |
-| Duality views | `MERN26` | `05` generates the DDL into the `dv_generated_ddl` table; the reference output is in `sql/26ai/generated/duality_ddl/` |
+| Relational views | `MERN26` | `04` creates simple dot-notation views (`brands_v`, `categories_v`, `products_v`, `users_v`, `orders_v`, `reviews_v`), the reporting views built on them and `PRODUCTS_ENRICHED` |
+| Duality views (optional) | `MERN26` | `05` generates the DDL into the `dv_generated_ddl` table; the reference output is in `sql/26ai/generated/duality_ddl/` |
 | | `MERN26DV` | run the reviewed DDL (12 views), then `06` imports the documents and `10` publishes the view list to `MERN26` |
-| Validity views | `ADMIN` | `03b` grants the duality views back to `MERN26` |
+| Validity views (optional) | `ADMIN` | `03b` grants the duality views back to `MERN26` |
 | | `MERN26` | `07` infers JSON schemas from the duality views and adds the validity views |
 | Vector store | `ADMIN` | grant `execute on dbms_vector` and `create mining model` to `MERN26` |
 | | `MERN26` | `load_onnx_embedding.py MERN26 "<password>" "<dsn>"` in the onnx2oracle venv loads the ONNX model; then `08` |
@@ -262,7 +262,7 @@ select banner from v$version;
 | Select AI | `ADMIN` | `09b` (one-time network ACL) |
 | | `MERN26` | `09`, re-runnable; reads the key from `MERN_LLM_KEY` (via `run-sql`) or the gitignored `09_select_ai_key.sql`, and the region from `MERN_LLM_REGION` (default `us-phoenix-1`) |
 
-Duality views are a point-in-time copy: documents written through the MongoDB API after `06` appear only after `06` runs again. Reference run: 12 collections, 204 documents, 12 duality views, 132 documents in the validity views (users, products, orders, carts), all valid.
+Duality views are optional and a point-in-time copy: documents written through the MongoDB API after `06` appear only after `06` runs again. Reference run: 12 collections, 204 documents, 12 duality views, 132 documents in the validity views (users, products, orders, carts), all valid.
 
 </details>
 
@@ -308,7 +308,7 @@ flowchart LR
   WIRE --> MAPI["Oracle Database API<br/>for MongoDB"]
   MAPI --> DB[("Oracle AI Database 26ai")]
   API -->|"node-oracledb SQL"| DB
-  DB --- V["Relational views<br/>Duality views<br/>JSON validity views<br/>Vector search"]
+  DB --- V["Relational views<br/>Vector search<br/>Optional: duality views, JSON validity views"]
   API -->|"question and context"| LLM["OpenAI-compatible LLM<br/>OCI Generative AI in .env.example"]
 ```
 
@@ -317,7 +317,7 @@ Mongoose reaches the data through the MongoDB API. The showcase endpoints (migra
 <details>
 <summary><b>Duality and validity views</b></summary>
 
-The documents in `MERN26` are JSON collections. `sql/26ai/04` adds relational views over them and `07` adds JSON schema validity views for users, products, orders and carts; both read the collections in place. `05` generates the DDL for 12 duality views in `MERN26DV`, the reviewed DDL creates them and `06` imports the documents. The views are updatable and expose the data as documents and as rows, as of the last import. Generated DDL is in `sql/26ai/generated/duality_ddl/`.
+The documents in `MERN26` are JSON collections. `sql/26ai/04` adds simple relational views over them, written in dot notation, so SQL and BI tools see typed columns; it reads the collections in place. The duality and validity views are optional and are not needed to migrate or run the application. `07` adds JSON schema validity views for users, products, orders and carts. `05` generates the DDL for 12 duality views in `MERN26DV`, the reviewed DDL creates them and `06` imports the documents. The views are updatable and expose the data as documents and as rows, as of the last import. Generated DDL is in `sql/26ai/generated/duality_ddl/`.
 
 </details>
 

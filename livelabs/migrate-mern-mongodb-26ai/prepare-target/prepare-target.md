@@ -5,7 +5,7 @@
 This lab is the **prepare** stage of the migration. Autonomous AI Database needs a place to receive the MongoDB data before you restore it. In Oracle Database, a MongoDB *database* is a schema that is enabled for **Oracle REST Data Services (ORDS)**, the service that exposes the Oracle Database API for MongoDB. You create two schemas now:
 
 * `MERN26` receives the MongoDB collections.
-* `MERN26DV` owns the JSON Relational Duality Views you build in Lab 8.
+* `MERN26DV` owns the JSON Relational Duality Views of the optional task in Lab 8. You do not need it to migrate or run the application.
 
 One repository script, `sql/26ai/01_schemas.sql`, creates both schemas and enables them for ORDS. You run it as `ADMIN`, and you can safely run it again.
 
@@ -142,7 +142,7 @@ Review what `01_schemas.sql` set up, so you know what each object is for in the 
 | Object | What it is for |
 | --- | --- |
 | `MERN26` | The schema that receives the MongoDB collections through `mongorestore`. A MongoDB database named `mern26` maps to this schema |
-| `MERN26DV` | The schema that later owns the JSON Relational Duality Views built on top of `MERN26` (Lab 8) |
+| `MERN26DV` | The schema that owns the optional JSON Relational Duality Views built on top of `MERN26` (optional task in Lab 8). The migration and the storefront do not use it |
 | Grants `DB_DEVELOPER_ROLE`, `DWROLE`, `UNLIMITED TABLESPACE`, `SODA_APP`, `CONNECT` | Issued to both users. `SODA_APP` and the unlimited quota let the MongoDB API create and store collections |
 | `ORDS.ENABLE_SCHEMA` for both schemas | Enables ORDS for the schema with `p_url_mapping_type => 'BASE_PATH'` and the patterns `mern26` and `mern26dv`. The MongoDB API is served by ORDS, so this call exposes each schema to MongoDB clients |
 

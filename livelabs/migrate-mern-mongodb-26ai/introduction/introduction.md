@@ -15,7 +15,7 @@ You follow the same path a real migration takes:
 3. **Prepare:** create the target schemas in Autonomous AI Database (Lab 5).
 4. **Migrate:** copy the data with `mongodump` and `mongorestore` (Lab 6).
 5. **Validate and cut over:** compare source and target, then point the app at Oracle (Lab 7).
-6. **Extend:** query the same data with SQL and duality views, and optionally add vector search and Select AI (Labs 8 to 10).
+6. **Extend:** query the same data with SQL through relational views, and optionally add duality and validity views, vector search and Select AI (Labs 8 to 10).
 
 > **Note:** This is an **offline** migration. `mongodump` takes a point-in-time copy, so any write made to the source after the dump is not carried over. In a production cutover you stop writes to MongoDB before the dump and restart the app against Oracle afterwards. In the labs you avoid storefront activity while you validate, then stop the API and restart it against Oracle (Lab 7).
 
@@ -34,9 +34,9 @@ The MongoDB profiler command is also unavailable on Oracle, so you profile the w
 
 ### Architecture
 
-The React client talks to the Express API over HTTP and socket.io. The API uses Mongoose, which speaks the MongoDB wire protocol. On the source side, a MongoDB container on your workstation answers that protocol. On the target side, the Oracle Database API for MongoDB answers it, served by Oracle REST Data Services (ORDS, the web layer of Autonomous AI Database). The same data is then readable with SQL through relational views, JSON-relational duality views (read and write the same rows as relational tables or as JSON documents), validity views, a vector store and Select AI (natural-language questions turned into SQL).
+The React client talks to the Express API over HTTP and socket.io. The API uses Mongoose, which speaks the MongoDB wire protocol. On the source side, a MongoDB container on your workstation answers that protocol. On the target side, the Oracle Database API for MongoDB answers it, served by Oracle REST Data Services (ORDS, the web layer of Autonomous AI Database). The same data is also readable with plain SQL through relational views. Optional extras are JSON-relational duality views (read and write the same rows as relational tables or as JSON documents), validity views, a vector store and Select AI (natural-language questions turned into SQL).
 
-You use three database accounts: `ADMIN` (creates schemas and grants), `MERN26` (JSON collections and SQL views) and `MERN26DV` (duality views).
+You use three database accounts: `ADMIN` (creates schemas and grants), `MERN26` (JSON collections and SQL views) and `MERN26DV` (used only by the optional duality views in Lab 8).
 
 ![The migration dashboard comparing source and target](images/migration-dashboard.png " ")
 
@@ -53,7 +53,7 @@ By the end of this workshop you will have a MERN storefront running on Autonomou
 * Create and prepare the `MERN26` and `MERN26DV` schemas (Lab 5)
 * Migrate the data with `mongodump` and `mongorestore` through the MongoDB API (Lab 6)
 * Validate the migration and cut the app over to Oracle (Lab 7)
-* Query the migrated data with SQL, relational views and duality views (Lab 8)
+* Query the migrated data with SQL through relational views (Lab 8), with optional duality and validity views
 * Optional: add vector search and the AI assistant (Lab 9)
 * Optional: ask questions in natural language with Select AI (Lab 10)
 
