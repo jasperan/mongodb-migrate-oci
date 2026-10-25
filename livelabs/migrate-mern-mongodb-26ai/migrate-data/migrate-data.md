@@ -121,14 +121,20 @@ One script copies the data: it dumps the source with `mongodump`, then restores 
 
     The script runs `mongodump` against the source and then `mongorestore --drop --writeConcern '{w:1}'` against `TARGET_URI`, reading from `<DUMP_DIR>/<source database>` (here `dump/mern_ecommerce`). It never prints the password, and it exits with a non-zero code if zero documents were restored.
 
-2. Read the end of the output. `mongorestore` reports the totals, and the script finishes with an `OK` line.
+2. Read the end of the output. `mongorestore` prints one line for each collection it finishes, then the totals, and the script finishes with an `OK` line. This is the end of a run for the seeded storefront, shortened with `...`:
 
     ```text
-    N document(s) restored successfully. 0 document(s) failed to restore.
-    OK: N document(s) restored into mern26.
+    ...
+    2026-10-23T13:40:56.713+0000    finished restoring `mern26.products` (100 documents, 0 failures)
+    ...
+    2026-10-23T13:40:56.724+0000    finished restoring `mern26.brands` (10 documents, 0 failures)
+    ...
+    2026-10-23T13:40:56.850+0000    133 document(s) restored successfully. 0 document(s) failed to restore.
+
+    OK: 133 document(s) restored into mern26.
     ```
 
-    You should see `N` equal to the `TOTAL` you noted in Lab 4, and `0` documents failed.
+    You should see the number of restored documents equal to the `TOTAL` you noted in Lab 4 (133 here), and `0` documents failed. The timestamps and the order of the collections differ from run to run.
 
 ## Task 3: Understand the dump directory pitfall
 
@@ -141,7 +147,32 @@ Why does the script derive the dump directory instead of using the dump root? Be
     | **Names a database** (this one ends in `/mern26`) | The **database directory**, `dump/mern_ecommerce`. The target database name comes from the URI |
     | **Has no database name** | The dump **root**, `dump` |
 
-2. Note what happens with the wrong directory. With the dump root and this URI, `mongorestore` prints `don't know what to do with subdirectory "...mern_ecommerce", skipping...`, restores **0 documents** and still exits with code `0`. Adding `--nsFrom` and `--nsTo` on top of a URI that names a database changes nothing.
+    `mongodump` writes one directory for each database. This is the layout after the run in Task 2, shortened with `...`:
+
+    ```text
+    dump
+    dump/mern_ecommerce
+    dump/mern_ecommerce/addresses.bson
+    dump/mern_ecommerce/addresses.metadata.json
+    dump/mern_ecommerce/brands.bson
+    ...
+    dump/mern_ecommerce/wishlists.bson
+    dump/mern_ecommerce/wishlists.metadata.json
+    ```
+
+    `dump` is the dump root. `dump/mern_ecommerce` is the database directory, one level below it.
+
+2. Note what happens with the wrong directory. This is `mongorestore` run with the dump root (`dump`) and a URI that names a database. It finds nothing it knows how to restore, restores **0 documents** and still exits with code `0`:
+
+    ```text
+    $ mongorestore --drop --writeConcern '{w:1}' --uri "$TARGET_URI" dump
+    2026-10-23T13:41:05.183+0000    The --db and --collection flags are deprecated for this use-case; please use --nsInclude instead, i.e. with --nsInclude=${DATABASE}.${COLLECTION}
+    2026-10-23T13:41:05.184+0000    building a list of collections to restore from `dump` dir
+    2026-10-23T13:41:05.184+0000    don't know what to do with subdirectory `dump/mern_ecommerce`, skipping...
+    2026-10-23T13:41:05.184+0000    0 document(s) restored successfully. 0 document(s) failed to restore.
+    ```
+
+    Adding `--nsFrom` and `--nsTo` on top of a URI that names a database changes nothing.
 
     That is why the workshop script derives the directory from the source database name and fails when nothing was restored. If you run the two tools by hand later, follow this rule and make sure the dump is fresh.
 

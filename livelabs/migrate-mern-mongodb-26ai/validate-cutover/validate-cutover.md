@@ -86,15 +86,46 @@ This is the authoritative proof of the migration. `scripts/verify_migration.py` 
 
     </if>
 
-3. Read the result. You should see `[OK]` with `missing=0 extra=0 differing=0` for every collection, and this last line:
+3. Read the result. You should see `[OK]` with `missing=0 extra=0 differing=0` for every collection, and `RESULT: PASS` on the last result line. This is the output for the seeded storefront (133 documents):
 
     ```text
+    source: mern_ecommerce  (12 collections)
+    target: mern26  (12 collections, 0 views)
+    ------------------------------------------------------------------------------
+    [OK       ] addresses: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] brands: source=10 target=10 missing=0 extra=0 differing=0
+    [OK       ] cartitems: source=4 target=4 missing=0 extra=0 differing=0
+    [OK       ] carts: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] categories: source=10 target=10 missing=0 extra=0 differing=0
+    [OK       ] contacts: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] merchants: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] orders: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] products: source=100 target=100 missing=0 extra=0 differing=0
+    [OK       ] reviews: source=2 target=2 missing=0 extra=0 differing=0
+    [OK       ] users: source=1 target=1 missing=0 extra=0 differing=0
+    [OK       ] wishlists: source=1 target=1 missing=0 extra=0 differing=0
+    ------------------------------------------------------------------------------
     RESULT: PASS - source and target documents match
+    report written: dump/migration-report.json
     ```
 
     The header lines show how many collections each side has. The exit code is `0` for PASS, `1` for a mismatch or nothing compared, and `2` for a setup error such as a URI without a database name.
 
     > **Note:** If the output mentions `skipped: 1 MongoDB system collection(s)`, you did not drop the `system.profile` collection in Lab 4. It does not affect the result.
+
+    A write on one side after the dump shows up as a difference. This is the same check after one contact message was added to the source only (shortened with `...`). The collection is marked `MISMATCH`, the id that is missing from the target is listed, and the result is `FAIL` with exit code `1`:
+
+    ```text
+    ...
+    [OK       ] categories: source=10 target=10 missing=0 extra=0 differing=0
+    [MISMATCH ] contacts: source=2 target=1 missing=1 extra=0 differing=0 (showing up to 5 of each)
+                 - missing in target: {"$oid": "6adb64201bcc44563e08a497"}
+    [OK       ] merchants: source=1 target=1 missing=0 extra=0 differing=0
+    ...
+    ------------------------------------------------------------------------------
+    RESULT: FAIL - differences found
+    report written: dump/migration-report.json
+    ```
 
 4. Copy the PASS report to where the dashboard looks for it. The dashboard's source counts come from `docs/26ai/migration-report.json`. Copy only a PASS report.
 
@@ -174,6 +205,13 @@ The table shows what changes in `mern-ecommerce/server/.env`:
 | Product list query | Three `$lookup` stages (`mongoJoinStages`) | One `$sql` stage (`oracleJoinStage`), selected because the URI contains `loadBalanced` |
 | SQL access (`ORACLE_*`) | Not set | Connect string, `MERN26` user and password |
 
+The line that moves the whole application is `MONGO_URI`. This is the change in `.env`, with the password and the host masked:
+
+```diff
+- MONGO_URI=mongodb://127.0.0.1:27017/mern_ecommerce
++ MONGO_URI=mongodb://MERN26:<MERN26 password>@<adb-host>:27017/mern26?loadBalanced=true&retryWrites=false&authMechanism=PLAIN&authSource=$external&tls=true
+```
+
 1. Stop the API: in the terminal where `npm start` is running (Lab 3), press `Ctrl+C`.
 
 2. Open `mern-ecommerce/server/.env` in an editor.
@@ -237,6 +275,13 @@ The table shows what changes in `mern-ecommerce/server/.env`:
 
     </if>
 
+    When the API is up, these are the last two lines of its start-up output. `MongoDB Connected!` now means that the Oracle Database API for MongoDB answered:
+
+    ```text
+    ✓ MongoDB Connected!
+    ✓ API listening on port 3000. Start the web client and open http://localhost:8080/ for the storefront.
+    ```
+
     The API connects before it listens, so an unreachable or wrong `MONGO_URI` stops it with `MongoDB connection failed` (the credentials in that message are masked). Fix `.env` and start again.
 
 5. In another terminal, check the health endpoint.
@@ -269,18 +314,19 @@ Confirm the application behaves the same on the new database. Every step below r
 
 1. Open `http://localhost:8080` and browse **Shop**. You should see the same products as before. The product list now runs the single `$sql` stage in place of the three `$lookup` stages.
 
+    The switch you saw in Lab 4 changed the query. The URI now contains `loadBalanced`, so `ORACLE_API` is true when the API starts:
+
+    ```javascript
+    const ORACLE_API = /loadBalanced/i.test(process.env.MONGO_URI || '');
+    ...
+        ...(ORACLE_API ? [oracleJoinStage(userId)] : mongoJoinStages(userId)),
+    ```
+
 2. Search for a product name in lowercase, then in uppercase. You should see the same hits both times, because the case-insensitive flag is on the pattern (Lab 4).
 
 3. Sign in as `admin@example.com` with the password from Lab 3. The seeded admin account was migrated with the rest of the `users` collection.
 
 4. Open `http://localhost:8080/support/admin-db`. This is the migration dashboard: source counts come from the report you copied in Task 1, target counts are read from the database, and each collection is marked `match` when they agree.
-
-    When the API is up, these are the last two lines of its start-up output. `MongoDB Connected!` now means that the Oracle Database API for MongoDB answered:
-
-    ```text
-    ✓ MongoDB Connected!
-    ✓ API listening on port 3000. Start the web client and open http://localhost:8080/ for the storefront.
-    ```
 
     ![The migration dashboard at /support/admin-db with source and target collection counts and a Verified chip](images/migration-dashboard.png " ")
 
@@ -316,7 +362,23 @@ Confirm the application behaves the same on the new database. Every step below r
     </copy>
     ```
 
-    You should see a document with the Oracle AI Database 26ai banner. The same pipeline against your local MongoDB fails with `Unrecognized pipeline stage name: '$sql'`, because MongoDB has no `$sql` stage. That difference is why the storefront needs the `loadBalanced` switch.
+    You should see a document with the Oracle AI Database 26ai banner. This is an example from the repository's reference run. The release number depends on the version of your database:
+
+    ```text
+    [
+      {
+        BANNER: 'Oracle AI Database 26ai Enterprise Edition Release 23.26.3.3.0 - Production'
+      }
+    ]
+    ```
+
+    The same pipeline against your local MongoDB fails, because MongoDB has no `$sql` stage:
+
+    ```text
+    MongoServerError[Location40324]: Unrecognized pipeline stage name: '$sql'
+    ```
+
+    That difference is why the storefront needs the `loadBalanced` switch.
 
 7. Type `exit` to leave `mongosh`.
 

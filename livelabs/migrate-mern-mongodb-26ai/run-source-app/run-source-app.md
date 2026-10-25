@@ -136,7 +136,20 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
     </copy>
     ```
 
-    You should see messages such as *Admin user seeded.*, *Categories seeded.*, *Brands seeded.* and *Products seeded and associated with categories.* The command is idempotent: running it again skips data that already exists.
+    You should see these messages. The lines that npm prints before them are left out:
+
+    ```text
+    ✓ MongoDB Connected!
+    ✓ Seed database started
+    ! Seeding admin user...
+    ✓ Admin user seeded.
+    ✓ Categories seeded.
+    ✓ Brands seeded.
+    ✓ Products seeded and associated with categories.
+    ✓ Database connection closed!
+    ```
+
+    The command is idempotent: running it again skips data that already exists.
 
 6. Add a little sample shopper activity: one address, merchant, cart, order, two reviews, a wishlist entry and a contact message. The seed creates none of these, so without them the storefront has no orders or reviews to show and several collections stay empty. The script makes sure every one of the 12 collections holds at least one document, which also lets the optional duality-view converter in Lab 8 infer a schema for each collection. The commands go to the repository root, run the helper script and return. The script is idempotent too.
 
@@ -164,7 +177,20 @@ The API reads its settings from `mern-ecommerce/server/.env`. The repository shi
 
     </if>
 
-    You should see `addresses`, `cartitems`, `carts`, `contacts`, `merchants`, `orders`, `reviews` and `wishlists` reported as inserted, and a last line of `collections with documents: 12`.
+    You should see each of the eight collections reported as inserted, and a last line of `collections with documents: 12`:
+
+    ```text
+    addresses    1 inserted
+    merchants    1 inserted
+    carts        1 inserted
+    cartitems    4 inserted
+    orders       1 inserted
+    reviews      2 inserted
+    wishlists    1 inserted
+    contacts     1 inserted
+
+    collections with documents: 12
+    ```
 
 ## Task 3: Start the API and the client
 

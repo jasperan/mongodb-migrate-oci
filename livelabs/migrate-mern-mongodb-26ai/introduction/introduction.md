@@ -21,7 +21,7 @@ You follow the same path a real migration takes:
 
 ### What changes in the app
 
-The four patterns below behave differently on the Oracle API. The storefront already handles each one. Lab 4 profiles the workload and flags the constructs that need attention, such as `$lookup` and `$regex` with `$options`.
+The four patterns below behave differently on the Oracle API. The storefront already handles each one. Lab 4 profiles the workload, flags the constructs that need attention, such as `$lookup` and `$regex` with `$options`, and shows the code before and after each change.
 
 | Pattern | What the Oracle API does | What the app does |
 | --- | --- | --- |
